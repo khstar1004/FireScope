@@ -79,11 +79,6 @@ Then, run
 npm run standalone
 ```
 
-## Documentation
-
-The documentation for this Digital Twin project is as follows:
-- [Design Documentation](https://docs.google.com/document/d/13I3vo_xWJPcEjBS7f4XPh79qed9hrBFgX0KQlmyAhu0/edit?usp=sharing)
-- [Code Documentation](https://docs.google.com/document/d/1fFs3nLwANOcGPW7UW92hnO8h_3fxLdZ_TwPN8es20ao/edit?usp=sharing)
 
 For specific READMEs in `client` and `gym`, they are located in:
 - [client/README.md](./client/README.md)
@@ -91,6 +86,3 @@ For specific READMEs in `client` and `gym`, they are located in:
 
 For the official documentation for Panopticon AI, please see the [docs](https://docs.panopticon-ai.com/) for full details.
 
-## Licenses
-
-This project is derived from [Panopticon AI](https://panopticon-ai.com/), which is licensed under the [Apache License 2.0](https://github.com/Panopticon-AI-team/panopticon/blob/main/LICENSE).
