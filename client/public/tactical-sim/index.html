@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>FireScope Tactical Simulation</title>
+    <link rel="stylesheet" href="/flight-sim/cesium/Widgets/widgets.css" />
+    <script src="/flight-sim/cesium/Cesium.js"></script>
+    <script src="/flight-sim/config.js"></script>
+    <link
+      rel="stylesheet"
+      href="./style.css?rev=20260407-defense-map-bootstrap-fix"
+    />
+  </head>
+  <body>
+    <div id="viewer"></div>
+    <div id="boot-status">3D 전술 시뮬레이션을 초기화하는 중입니다.</div>
+
+    <div id="hud" hidden>
+      <div id="hud-head">
+        <div>
+          <div id="hud-eyebrow">TACTICAL SIM</div>
+          <div id="hud-title"></div>
+          <div id="hud-subtitle"></div>
+        </div>
+        <div id="hud-provider"></div>
+      </div>
+
+      <div id="hud-grid">
+        <div class="hud-card">
+          <div class="hud-label">상태</div>
+          <div id="hud-status" class="hud-value"></div>
+        </div>
+        <div class="hud-card">
+          <div class="hud-label">단계</div>
+          <div id="hud-phase" class="hud-value"></div>
+        </div>
+        <div class="hud-card">
+          <div class="hud-label">목표</div>
+          <div id="hud-objective" class="hud-value"></div>
+        </div>
+        <div class="hud-card">
+          <div class="hud-label">표적</div>
+          <div id="hud-target" class="hud-value"></div>
+        </div>
+        <div class="hud-card">
+          <div class="hud-label">무장</div>
+          <div id="hud-weapons" class="hud-value"></div>
+        </div>
+        <div class="hud-card">
+          <div class="hud-label">시스템</div>
+          <div id="hud-system" class="hud-value"></div>
+        </div>
+      </div>
+
+      <div id="hud-panels">
+        <div class="hud-panel">
+          <div class="hud-label">Interface Layout</div>
+          <div id="hud-layout" class="hud-stack"></div>
+        </div>
+        <div class="hud-panel">
+          <div class="hud-label">Live Queue</div>
+          <div id="hud-queue" class="hud-stack"></div>
+        </div>
+      </div>
+
+      <div id="hud-controls"></div>
+    </div>
+
+    <div id="starter-panel" hidden>
+      <div id="starter-title">MISSION STARTER</div>
+      <div id="starter-copy">
+        클릭만으로 임무 시작, 표적 선택, 발사까지 바로 실행합니다.
+      </div>
+      <div id="starter-grid">
+        <button
+          type="button"
+          class="runtime-button runtime-button--strong"
+          data-runtime-command="mission-view"
+        >
+          1. 임무 시작
+        </button>
+        <button
+          type="button"
+          class="runtime-button"
+          data-runtime-command="next-target"
+        >
+          2. 다음 위협
+        </button>
+        <button
+          type="button"
+          class="runtime-button"
+          data-runtime-command="fire-primary"
+        >
+          3. 주무장
+        </button>
+        <button
+          type="button"
+          class="runtime-button"
+          data-runtime-command="fire-support"
+        >
+          4. 보조무장
+        </button>
+        <button
+          type="button"
+          class="runtime-button"
+          data-runtime-command="auto-target"
+        >
+          자동 표적
+        </button>
+        <button
+          type="button"
+          class="runtime-button"
+          data-runtime-command="cycle-camera"
+        >
+          시점 순환
+        </button>
+      </div>
+    </div>
+
+    <div id="map-tools" hidden>
+      <div id="map-tools-title">3D MAP</div>
+      <div id="map-tools-grid">
+        <button
+          type="button"
+          class="runtime-button"
+          data-runtime-command="overview"
+        >
+          전장
+        </button>
+        <button
+          type="button"
+          class="runtime-button"
+          data-runtime-command="mission-view"
+        >
+          임무
+        </button>
+        <button
+          type="button"
+          class="runtime-button"
+          data-runtime-command="zoom-in"
+        >
+          확대
+        </button>
+        <button
+          type="button"
+          class="runtime-button"
+          data-runtime-command="zoom-out"
+        >
+          축소
+        </button>
+        <button
+          type="button"
+          class="runtime-button"
+          data-runtime-command="showcase-view"
+        >
+          모델
+        </button>
+        <button
+          type="button"
+          class="runtime-button"
+          data-runtime-command="profile-view"
+        >
+          측면
+        </button>
+        <button
+          type="button"
+          class="runtime-button runtime-button--wide"
+          data-runtime-command="threat-view"
+        >
+          표적 추적
+        </button>
+        <button
+          type="button"
+          class="runtime-button runtime-button--wide"
+          data-runtime-command="reset-view"
+        >
+          기준 시점
+        </button>
+      </div>
+    </div>
+
+    <div id="toast" hidden></div>
+    <div id="reticle"></div>
+
+    <script
+      type="module"
+      src="./app.js?rev=20260407-defense-map-bootstrap-fix"
+    ></script>
+  </body>
+</html>

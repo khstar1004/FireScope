@@ -1,0 +1,40 @@
+{
+  "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\fixed_target_strike_ppo.zip",
+  "scenario_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\scen.json",
+  "timesteps": 4096,
+  "rollout_steps": 256,
+  "batch_size": 64,
+  "max_episode_steps": 32,
+  "seed": 7,
+  "evaluation": {
+    "mean_reward": -1.6000000000000008,
+    "std_reward": 0.0,
+    "episodes": 3,
+    "total_steps": 96,
+    "done_reason": "truncated",
+    "done_reason_detail": "max_episode_steps",
+    "selected_target_id": "red-sam-site",
+    "launch_count": 0,
+    "reward_breakdown": {
+      "kill_reward": 0.0,
+      "tot_bonus": 0.0,
+      "threat_penalty": -0.0,
+      "launch_cost": -0.0,
+      "time_cost": -0.05,
+      "loss_cost": -0.0,
+      "terminal_bonus": 0.0,
+      "destroyed_target_ids": [],
+      "destroyed_high_value_target_ids": [],
+      "lost_ally_ids": [],
+      "threat_exposure_count": 0,
+      "weapons_fired": 0,
+      "selected_target_id": "red-sam-site",
+      "tot_group_count": 0,
+      "tot_groups": [],
+      "done_reason": "truncated",
+      "step_index": 32,
+      "total_reward": -0.05
+    },
+    "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\fixed_target_strike_eval_scen.json"
+  }
+}

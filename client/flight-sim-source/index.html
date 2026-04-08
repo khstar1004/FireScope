@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>전투 비행 시뮬레이터</title>
+	<link rel="icon" type="image/x-icon" href="/favicon.ico">
+	<script src="/config.js"></script>
+	<link rel="stylesheet" href="/src/style.css">
+</head>
+
+<body>
+	<div id="cesiumContainer"></div>
+	<div id="threeContainer"></div>
+
+	<div id="mainMenu" class="overlay">
+		<div class="menu-container">
+			<div class="menu-vignette"></div>
+			<div class="menu-content">
+				<div class="menu-header">
+					<div class="menu-logo">
+						<span class="logo-main">파이어 스코프</span>
+						<span class="logo-sub">비행 시뮬레이터</span>
+					</div>
+					<div class="menu-version">버전 1.0.0</div>
+				</div>
+				
+				<div class="menu-main">
+					<nav class="menu-nav">
+						<button id="startBtn" class="main-menu-btn" disabled>
+							<span class="btn-top">01</span>
+							<span class="btn-mid">비행 시작</span>
+							<span class="btn-bot">출격 절차 시작</span>
+						</button>
+						<button id="optionsBtn" class="main-menu-btn">
+							<span class="btn-top">02</span>
+							<span class="btn-mid">시스템 설정</span>
+							<span class="btn-bot">표시와 조작 환경 조정</span>
+						</button>
+						<button id="helpBtn" class="main-menu-btn">
+							<span class="btn-top">03</span>
+							<span class="btn-mid">조작 안내</span>
+							<span class="btn-bot">비행과 전투 조작 확인</span>
+						</button>
+						<button id="creditsBtn" class="main-menu-btn">
+							<span class="btn-top">04</span>
+							<span class="btn-mid">출처</span>
+							<span class="btn-bot">공개 자료 참고</span>
+						</button>
+						<button id="aboutBtn" class="main-menu-btn">
+							<span class="btn-top">05</span>
+							<span class="btn-mid">참고 자료</span>
+							<span class="btn-bot">추가 출처 안내</span>
+						</button>
+					</nav>
+				</div>
+
+				<div class="menu-footer">
+					<div class="footer-status">
+						<span class="time-label">현재 시각 (UTC):</span>
+						<span id="menu-time" class="time-value">2026-01-01T00:00:00Z</span>
+					</div>
+					<div class="footer-instruction">메뉴를 선택하세요</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div id="loadingIndicator" class="loading-container">
+		<div class="spinner"></div>
+		<div id="loadingText" class="loading-text">시스템을 불러오는 중...</div>
+	</div>
+
+	<div id="optionsModal" class="modal hidden">
+		<div class="modal-header">
+			<div class="modal-title">시스템 설정</div>
+			<button class="close-modal">닫기</button>
+		</div>
+		<div class="modal-body">
+			<h3>그래픽</h3>
+			<div class="setting-item">
+				<span>그래픽 품질</span>
+				<select id="graphicsQuality">
+					<option value="low">낮음 (성능 우선)</option>
+					<option value="medium" selected>보통 (균형)</option>
+					<option value="high">높음 (품질 우선)</option>
+				</select>
+			</div>
+			<div class="setting-item">
+				<span>안티앨리어싱 (FXAA)</span>
+				<input type="checkbox" id="antialiasing" checked>
+			</div>
+			<div class="setting-item">
+				<span>안개 효과</span>
+				<input type="checkbox" id="fogEffects" checked>
+			</div>
+
+			<h3 id="jetCraftSettingsHeading">기체</h3>
+			<div class="setting-item" id="jetCraftSettingRow">
+				<span>전투기 선택</span>
+				<select id="jetCraftSelect"></select>
+			</div>
+
+			<h3>조작</h3>
+
+			<div class="setting-item">
+				<span>마우스 감도</span>
+				<div class="setting-control" style="display:flex; align-items:center; gap:10px;">
+					<input type="range" id="sensitivitySlider" min="0.05" max="1.0" step="0.05" value="0.2">
+					<span id="sensitivityValue" class="setting-value">0.2</span>
+				</div>
+			</div>
+			<div class="setting-item">
+				<span>HUD 표시</span>
+				<input type="checkbox" id="showHud" checked>
+			</div>
+
+			<div class="setting-item">
+				<span>수평선 가이드 표시</span>
+				<input type="checkbox" id="showHorizonLines">
+			</div>
+
+			<div class="setting-item">
+				<span>사운드 사용</span>
+				<input type="checkbox" id="soundEnabled" checked>
+			</div>
+
+			<div class="setting-item">
+				<span>미니맵 범위</span>
+				<select id="minimapRange">
+					<option value="1" selected>1km (기본)</option>
+					<option value="5">5km (전술)</option>
+					<option value="10">10km (광역)</option>
+				</select>
+			</div>
+		</div>
+		<div class="modal-footer">
+			<button id="saveOptionsBtn">저장하고 적용</button>
+		</div>
+	</div>
+
+	<div id="helpModal" class="modal hidden">
+		<div class="modal-header">
+			<div class="modal-title">조작 안내</div>
+			<button class="close-modal">닫기</button>
+		</div>
+		<div class="modal-body">
+			<h3>비행 조작</h3>
+			<div class="control-grid">
+				<div class="key">↑ / ↓</div>
+				<div>기수 내리기 / 올리기</div>
+				<div class="key">← / →</div>
+				<div>좌우 기울이기</div>
+				<div class="key">A / D</div>
+				<div>좌우 방향 돌리기</div>
+				<div class="key">W / S</div>
+				<div>속도 올리기 / 내리기</div>
+				<div class="key">스페이스</div>
+				<div>순간 가속</div>
+			</div>
+			<h3>전투</h3>
+			<div class="control-grid">
+				<div class="key">1 / 2 / Q</div>
+				<div>무기 전환</div>
+				<div class="key">F / 엔터</div>
+				<div>선택 무기 발사</div>
+				<div class="key">R</div>
+				<div>미사일 형식 전환</div>
+				<div class="key">V</div>
+				<div>기만체 살포</div>
+				<div class="key">C</div>
+				<div>카메라 모드 전환</div>
+			</div>
+			<h3>시야</h3>
+			<div class="control-grid">
+				<div class="key">마우스 드래그</div>
+				<div>주변 둘러보기</div>
+				<div class="key">ESC / P</div>
+				<div>일시 정지 / 전술 메뉴</div>
+			</div>
+		</div>
+	</div>
+
+	<div id="creditsModal" class="modal hidden">
+		<div class="modal-header">
+			<div class="modal-title">출처</div>
+			<button class="close-modal">닫기</button>
+		</div>
+		<div class="modal-body credits-body">
+			<div class="credits-header">
+				<div class="label-tiny">참고 기관</div>
+				<div class="developed-by-name">대한민국 육군 / 대한민국 공군</div>
+			</div>
+			<div class="credits-tech-grid">
+				<div>
+					<div class="label-tiny">엔진</div>
+					<div class="tech-value">CesiumJS & Three.js</div>
+				</div>
+				<div>
+					<div class="label-tiny">기체 모델</div>
+					<div class="tech-value">공개 GLB 전투기 모델</div>
+				</div>
+			</div>
+			<p class="credits-disclaimer">공개 자료와 오픈소스를 참고한 비상업용 웹 비행 시뮬레이터입니다.</p>
+		</div>
+	</div>
+
+	<div id="aboutBtnModal" class="modal hidden">
+		<div class="modal-header">
+			<div class="modal-title">참고 자료</div>
+			<button class="close-modal">닫기</button>
+		</div>
+		<div class="modal-body">
+			<div class="credits-tech-grid">
+				<div>
+					<div class="label-tiny">군 자료</div>
+					<div class="tech-value">대한민국 육군</div>
+				</div>
+				<div>
+					<div class="label-tiny">군 자료</div>
+					<div class="tech-value">대한민국 공군</div>
+				</div>
+				<div>
+					<div class="label-tiny">엔진</div>
+					<div class="tech-value">CesiumJS & Three.js</div>
+				</div>
+				<div>
+					<div class="label-tiny">모델 자료</div>
+					<div class="tech-value">공개 GLB 전투기 모델</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div id="pauseMenu" class="overlay hidden">
+		<div class="pause-content">
+			<div class="pause-sidebar">
+				<div class="pause-header">
+					<h2 class="pause-title">일시 정지</h2>
+					<div class="pause-subtitle">작전 대기</div>
+				</div>
+				<nav class="pause-nav">
+					<button id="resumeBtn" class="pause-btn">
+						<span class="btn-label">계속 비행</span>
+						<span class="btn-desc">비행 화면으로 복귀</span>
+					</button>
+					<button id="restartBtn" class="pause-btn">
+						<span class="btn-label">다시 시작</span>
+						<span class="btn-desc">현재 비행을 다시 시작</span>
+					</button>
+					<button id="pauseHelpBtn" class="pause-btn">
+						<span class="btn-label">도움말</span>
+						<span class="btn-desc">조작 안내 보기</span>
+					</button>
+					<button id="pauseOptionsBtn" class="pause-btn">
+						<span class="btn-label">설정</span>
+						<span class="btn-desc">시스템 설정 열기</span>
+					</button>
+					<button id="quitBtn" class="pause-btn quit">
+						<span class="btn-label">나가기</span>
+						<span class="btn-desc">메인 메뉴로 돌아가기</span>
+					</button>
+				</nav>
+			</div>
+			<div class="pause-main">
+				<div class="pause-map-wrapper">
+					<div class="map-header">
+						<span class="map-title">전술 지도</span>
+						<span id="pause-region" class="map-location">알 수 없는 지역</span>
+					</div>
+					<div id="pause-minimap-container">
+						<div id="pauseMinimapCesium"></div>
+						<canvas id="pauseMinimap"></canvas>
+					</div>
+					<div class="map-footer">
+						<div class="coord-item">
+							<span class="coord-label">위도</span>
+							<span id="pause-lat" class="coord-value">0.0000</span>
+						</div>
+						<div class="coord-item">
+							<span class="coord-label">경도</span>
+							<span id="pause-lon" class="coord-value">0.0000</span>
+						</div>
+						<div class="coord-item">
+							<span class="coord-label">고도</span>
+							<span id="pause-alt" class="coord-value">0 피트</span>
+						</div>
+						<div class="coord-item">
+							<span class="coord-label">현지 시각</span>
+							<span id="pause-time" class="coord-value">2026-01-01T00:00:00Z</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div id="crashMenu" class="overlay hidden">
+		<h2 class="menu-title crash-header">기체 손상</h2>
+		<button id="respawnBtn" class="menu-btn">다시 출격</button>
+	</div>
+
+	<div id="spawnInstruction" class="hidden">
+		<div id="spawn-top-ui" class="spawn-hud-top">
+			<div id="spawn-instruction">
+				<span id="instruction-text">지도의 원하는 위치를 클릭해 출발 지점을 고르세요</span>
+				<input type="text" id="locationSearch" placeholder="위치 이름 검색...">
+				<div id="search-results">
+				</div>
+			</div>
+			<div id="search-toggle-btn" title="검색 열기 또는 닫기">
+				<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+					<circle cx="11" cy="11" r="8"></circle>
+					<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+				</svg>
+			</div>
+		</div>
+
+		<button id="confirmSpawnBtn" class="menu-btn hidden spawn-confirm-btn">이 위치에서 출격</button>
+	</div>
+
+	<div id="uiContainer" class="hidden">
+		<div id="compass-container">
+			<div id="compass-center-marker"></div>
+			<div id="compass-tape"></div>
+		</div>
+		<div id="heading-display">000</div>
+
+		<div id="hud-top-left">
+			경과 <span id="time">00:00:00</span><br>
+			점수 <span id="score">000000</span>
+		</div>
+
+		<div id="hud-top-right">
+			프레임 <span id="fps">60</span><br>
+			<span id="local-datetime">01 JAN 26 | 00:00:00</span>
+		</div>
+
+		<div id="hud-speed-box">
+			<div class="label">속도</div>
+			<div class="value-box">
+				<span id="speed">0</span>
+			</div>
+		</div>
+
+		<div id="hud-alt-box">
+			<div class="label">고도</div>
+			<div class="value-box">
+				<span id="altitude">0</span>
+			</div>
+		</div>
+
+		<div id="coords">0.0000, 0.0000</div>
+
+		<div id="region-notification" class="hidden">
+			<div class="region-label">지역 진입</div>
+			<div id="region-name">지역명</div>
+		</div>
+
+		<div id="pull-up-warning" class="hidden">상승</div>
+
+		<div id="kill-notification-container" class="hidden">
+			<div id="kill-text">적기 격추</div>
+			<div id="kill-score">+1000</div>
+		</div>
+
+		<div id="weapons-hud">
+			<div id="weapon-list">
+				<div class="weapon-item active" id="weapon-gun">
+					<div class="weapon-progress"></div>
+					<span class="weapon-name">M61A1 기관포</span>
+					<span class="weapon-ammo">00</span>
+				</div>
+				<div class="weapon-item" id="weapon-missile">
+					<div class="weapon-progress"></div>
+					<div class="weapon-labels">
+						<span class="weapon-name">AAM 미사일</span>
+						<span class="weapon-subtitle">AUTO · AIM-9B</span>
+					</div>
+					<span class="weapon-ammo">00</span>
+				</div>
+				<div class="weapon-item" id="weapon-flare">
+					<div class="weapon-progress"></div>
+					<span class="weapon-name">MJU-7A 플레어</span>
+					<span class="weapon-ammo">00</span>
+				</div>
+				<div id="combat-readout">
+					<div class="combat-readout-row">
+						<span class="combat-readout-label">유도탄</span>
+						<span id="missile-profile-indicator" class="combat-readout-value">AUTO · AIM-9B</span>
+					</div>
+					<div class="combat-readout-row">
+						<span class="combat-readout-label">시점</span>
+						<span id="camera-mode-indicator" class="combat-readout-value">추적</span>
+					</div>
+				</div>
+			</div>
+			<div id="aircraft-icon">
+				<img src="assets/images/f-15.svg" alt="F-15 아이콘">
+				<div id="aircraft-label">F-15</div>
+			</div>
+		</div>
+
+		<div id="focus-fire-main-control" class="hidden">
+			<div class="focus-fire-main-header">집중포격 관측</div>
+			<div id="focus-fire-main-status">대기</div>
+			<div id="focus-fire-main-objective">목표 미지정</div>
+			<div id="focus-fire-main-metrics">탄체 0 · 점령 0%</div>
+			<button id="focus-fire-main-start">포격 시작</button>
+		</div>
+
+		<div id="minimap-container">
+			<div id="minimapCesium"></div>
+			<canvas id="minimap"></canvas>
+		</div>
+
+		<div id="game-credits">
+			파이어 스코프 비행 시뮬레이터 | 참고: 대한민국 육군 / 대한민국 공군
+		</div>
+
+		<div id="dialogue-container" class="hidden">
+			<div class="dialogue-box">
+				<img id="commander-img" src="assets/images/commander-dimar-tarmizi.jpg" alt="전술 조언관">
+				<div class="dialogue-content">
+					<div class="commander-name">전술 조언관</div>
+					<div id="dialogue-text"></div>
+					<div class="dialogue-hint">Z 키로 넘기기</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div id="transition-vignette"></div>
+
+	<script type="module" src="/src/main.js"></script>
+</body>
+
+</html>

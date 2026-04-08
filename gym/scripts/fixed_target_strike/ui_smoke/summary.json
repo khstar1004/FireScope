@@ -1,0 +1,65 @@
+{
+  "model_path": "scripts\\fixed_target_strike\\ui_smoke\\fixed_target_strike_ppo.zip",
+  "scenario_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\scen.json",
+  "progress_path": "scripts\\fixed_target_strike\\ui_smoke\\progress.json",
+  "eval_recording_path": "scripts\\fixed_target_strike\\ui_smoke\\eval_recording.jsonl",
+  "timesteps": 64,
+  "rollout_steps": 64,
+  "batch_size": 64,
+  "max_episode_steps": 16,
+  "seed": 7,
+  "ally_ids": [
+    "blue-striker-1",
+    "blue-striker-2"
+  ],
+  "target_ids": [
+    "red-sam-site",
+    "red-airbase"
+  ],
+  "high_value_target_ids": [
+    "red-airbase"
+  ],
+  "reward_config": {
+    "kill_base": 100.0,
+    "high_value_target_bonus": 50.0,
+    "tot_weight": 40.0,
+    "tot_tau_seconds": 8.0,
+    "threat_step_penalty": -2.0,
+    "launch_cost_per_weapon": -1.0,
+    "time_cost_per_step": -0.05,
+    "loss_penalty_per_ally": -80.0,
+    "success_bonus": 150.0,
+    "failure_penalty": -150.0
+  },
+  "evaluation": {
+    "mean_reward": -0.8000000000000002,
+    "std_reward": 0.0,
+    "episodes": 1,
+    "total_steps": 16,
+    "done_reason": "truncated",
+    "done_reason_detail": "max_episode_steps",
+    "selected_target_id": "red-sam-site",
+    "launch_count": 0,
+    "reward_breakdown": {
+      "kill_reward": 0.0,
+      "tot_bonus": 0.0,
+      "threat_penalty": -0.0,
+      "launch_cost": -0.0,
+      "time_cost": -0.05,
+      "loss_cost": -0.0,
+      "terminal_bonus": 0.0,
+      "destroyed_target_ids": [],
+      "destroyed_high_value_target_ids": [],
+      "lost_ally_ids": [],
+      "threat_exposure_count": 0,
+      "weapons_fired": 0,
+      "selected_target_id": "red-sam-site",
+      "tot_group_count": 0,
+      "tot_groups": [],
+      "done_reason": "truncated",
+      "step_index": 16,
+      "total_reward": -0.05
+    },
+    "export_path": "scripts\\fixed_target_strike\\ui_smoke\\eval_scenario.json"
+  }
+}

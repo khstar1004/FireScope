@@ -1,0 +1,54 @@
+{
+  "currentScenario": {
+    "id": "b1592b4a-2fb2-4ea1-92bc-b5da1712627d",
+    "name": "새 시나리오",
+    "startTime": 1699073110,
+    "currentTime": 1699073110,
+    "duration": 14400,
+    "endTime": 1699087510,
+    "sides": [
+      {
+        "id": "a3a34644-5abe-459b-bf05-5e9cf643b47f",
+        "name": "청군",
+        "totalScore": 0,
+        "color": "blue"
+      },
+      {
+        "id": "e6f0ae76-9d7d-4520-bc86-15e891523615",
+        "name": "적군",
+        "totalScore": 0,
+        "color": "red"
+      }
+    ],
+    "timeCompression": 1,
+    "aircraft": [],
+    "ships": [],
+    "facilities": [],
+    "airbases": [],
+    "weapons": [],
+    "referencePoints": [],
+    "missions": [],
+    "relationships": {
+      "hostiles": {
+        "a3a34644-5abe-459b-bf05-5e9cf643b47f": [
+          "e6f0ae76-9d7d-4520-bc86-15e891523615"
+        ],
+        "e6f0ae76-9d7d-4520-bc86-15e891523615": [
+          "a3a34644-5abe-459b-bf05-5e9cf643b47f"
+        ]
+      },
+      "allies": {
+        "a3a34644-5abe-459b-bf05-5e9cf643b47f": [],
+        "e6f0ae76-9d7d-4520-bc86-15e891523615": []
+      }
+    }
+  },
+  "currentSideId": "a3a34644-5abe-459b-bf05-5e9cf643b47f",
+  "selectedUnitId": "",
+  "mapView": {
+    "defaultCenter": [0, 0],
+    "currentCameraCenter": [111.74906486906428, 4.575040088173651],
+    "defaultZoom": 5,
+    "currentCameraZoom": 5.9882756242924655
+  }
+}

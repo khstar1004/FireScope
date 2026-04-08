@@ -1,0 +1,32 @@
+:root {
+  --fs-bg: #d7ddc8;
+  --fs-surface: #e4e8d8;
+  --fs-surface-strong: #d2d9c0;
+  --fs-card: #f7f3ea;
+  --fs-border: #7f876c;
+  --fs-text: #1c2318;
+  --fs-text-soft: #4d5643;
+  --fs-accent: #5f7041;
+  --fs-accent-strong: #46552f;
+  --fs-sand: #ad9669;
+}
+
+@font-face {
+  font-family: "AceCombat";
+  src: url("/assets/fonts/ACES07_Regular.ttf") format("truetype");
+}
+
+body {
+  margin: 0;
+  font-family: "Bahnschrift", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  background: var(--fs-bg);
+  color: var(--fs-text);
+}
+
+code {
+  font-family:
+    source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+}
