@@ -24,6 +24,8 @@ interface FixedTargetStrikeRunRequest {
   timesteps?: number;
   maxEpisodeSteps?: number;
   evalEpisodes?: number;
+  evalSeedCount?: number;
+  curriculumEnabled?: boolean;
   seed?: number;
   progressEvalFrequency?: number;
   progressEvalEpisodes?: number;
@@ -64,6 +66,8 @@ const DEFAULT_FORM = {
   timesteps: 4096,
   maxEpisodeSteps: 240,
   evalEpisodes: 1,
+  evalSeedCount: 3,
+  curriculumEnabled: false,
   seed: 7,
   progressEvalFrequency: 512,
   progressEvalEpisodes: 1,
@@ -77,6 +81,10 @@ const DEFAULT_FORM = {
     highValueTargetBonus: 50,
     totWeight: 40,
     totTauSeconds: 8,
+    etaProgressWeight: 6,
+    readyToFireBonus: 2.5,
+    stagnationPenaltyPerAssignment: -0.15,
+    targetSwitchPenalty: -0.3,
     threatStepPenalty: -2,
     launchCostPerWeapon: -1,
     timeCostPerStep: -0.05,
@@ -86,7 +94,7 @@ const DEFAULT_FORM = {
   },
 };
 
-const SUPPORTED_ALGORITHMS = ["ppo", "a2c", "sac"] as const;
+const SUPPORTED_ALGORITHMS = ["ppo", "a2c", "sac", "ddpg", "td3"] as const;
 const JOBS = new Map<string, JobRecord>();
 
 const moduleDirname = path.dirname(fileURLToPath(import.meta.url));
@@ -244,6 +252,13 @@ function createTrainArgs(request: FixedTargetStrikeRunRequest, artifacts: JobArt
       request.evalEpisodes,
       DEFAULT_FORM.evalEpisodes
     ),
+    evalSeedCount: clampPositiveInt(
+      request.evalSeedCount,
+      DEFAULT_FORM.evalSeedCount
+    ),
+    curriculumEnabled: Boolean(
+      request.curriculumEnabled ?? DEFAULT_FORM.curriculumEnabled
+    ),
     seed: clampPositiveInt(request.seed, DEFAULT_FORM.seed),
     progressEvalFrequency: clampPositiveInt(
       request.progressEvalFrequency,
@@ -282,6 +297,22 @@ function createTrainArgs(request: FixedTargetStrikeRunRequest, artifacts: JobArt
         request.rewardConfig?.totTauSeconds,
         DEFAULT_FORM.rewardConfig.totTauSeconds
       ),
+      etaProgressWeight: clampFiniteNumber(
+        request.rewardConfig?.etaProgressWeight,
+        DEFAULT_FORM.rewardConfig.etaProgressWeight
+      ),
+      readyToFireBonus: clampFiniteNumber(
+        request.rewardConfig?.readyToFireBonus,
+        DEFAULT_FORM.rewardConfig.readyToFireBonus
+      ),
+      stagnationPenaltyPerAssignment: clampFiniteNumber(
+        request.rewardConfig?.stagnationPenaltyPerAssignment,
+        DEFAULT_FORM.rewardConfig.stagnationPenaltyPerAssignment
+      ),
+      targetSwitchPenalty: clampFiniteNumber(
+        request.rewardConfig?.targetSwitchPenalty,
+        DEFAULT_FORM.rewardConfig.targetSwitchPenalty
+      ),
       threatStepPenalty: clampFiniteNumber(
         request.rewardConfig?.threatStepPenalty,
         DEFAULT_FORM.rewardConfig.threatStepPenalty
@@ -318,12 +349,15 @@ function createTrainArgs(request: FixedTargetStrikeRunRequest, artifacts: JobArt
     `${normalizedRequest.maxEpisodeSteps}`,
     "--eval-episodes",
     `${normalizedRequest.evalEpisodes}`,
+    "--eval-seed-count",
+    `${normalizedRequest.evalSeedCount}`,
     "--seed",
     `${normalizedRequest.seed}`,
     "--progress-eval-frequency",
     `${normalizedRequest.progressEvalFrequency}`,
     "--progress-eval-episodes",
     `${normalizedRequest.progressEvalEpisodes}`,
+    ...(normalizedRequest.curriculumEnabled ? ["--curriculum-enabled"] : []),
     "--scenario-path",
     artifacts.scenarioPath,
     "--algorithms",
@@ -356,6 +390,14 @@ function createTrainArgs(request: FixedTargetStrikeRunRequest, artifacts: JobArt
     `${normalizedRequest.rewardConfig.totWeight}`,
     "--tot-tau-seconds",
     `${normalizedRequest.rewardConfig.totTauSeconds}`,
+    "--eta-progress-weight",
+    `${normalizedRequest.rewardConfig.etaProgressWeight}`,
+    "--ready-to-fire-bonus",
+    `${normalizedRequest.rewardConfig.readyToFireBonus}`,
+    "--stagnation-penalty-per-assignment",
+    `${normalizedRequest.rewardConfig.stagnationPenaltyPerAssignment}`,
+    "--target-switch-penalty",
+    `${normalizedRequest.rewardConfig.targetSwitchPenalty}`,
     "--threat-step-penalty",
     `${normalizedRequest.rewardConfig.threatStepPenalty}`,
     "--launch-cost-per-weapon",

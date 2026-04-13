@@ -8,14 +8,24 @@ import {
   type ChangeEvent,
 } from "react";
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
   Chip,
   Divider,
+  FormControlLabel,
   LinearProgress,
   Paper,
   Stack,
+  Switch,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
   TextField,
   Typography,
 } from "@mui/material";
@@ -27,6 +37,7 @@ import StopIcon from "@mui/icons-material/Stop";
 import AutoFixHighOutlinedIcon from "@mui/icons-material/AutoFixHighOutlined";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import RlLabLineChart from "@/gui/rl/RlLabLineChart";
 import { RL_LAB_SCENARIO_KEY } from "@/gui/rl/rlLabRoute";
 import {
@@ -55,6 +66,8 @@ interface RlCapabilities {
     timesteps: number;
     maxEpisodeSteps: number;
     evalEpisodes: number;
+    evalSeedCount: number;
+    curriculumEnabled: boolean;
     seed: number;
     progressEvalFrequency: number;
     progressEvalEpisodes: number;
@@ -67,7 +80,19 @@ interface RlCapabilities {
   };
 }
 
+interface RlSeedVariabilitySummary {
+  warning?: boolean;
+  reasons?: string[];
+  success_rate_std?: number;
+  mean_reward_std?: number;
+  survivability_std?: number;
+  weapon_efficiency_std?: number;
+  time_to_ready_std?: number;
+  tot_quality_std?: number;
+}
+
 interface RlJobEvaluation {
+  evaluation_seed?: number;
   mean_reward: number;
   std_reward: number;
   mean_episode_steps?: number;
@@ -75,6 +100,15 @@ interface RlJobEvaluation {
   failure_rate?: number;
   truncated_rate?: number;
   win_rate?: number;
+  survivability?: number;
+  weapon_efficiency?: number;
+  time_to_ready?: number;
+  tot_quality?: number;
+  benchmark_seed_count?: number;
+  benchmark_seeds?: number[];
+  recording_seed?: number;
+  seed_variability_warning?: boolean;
+  seed_variability?: RlSeedVariabilitySummary;
   done_reason?: string;
   done_reason_detail?: string;
   selected_target_id?: string | null;
@@ -82,6 +116,10 @@ interface RlJobEvaluation {
   selected_target_assignments?: Record<string, string>;
   launch_count?: number;
   reward_breakdown?: Record<string, unknown>;
+  observation_version?: number;
+  reward_version?: number;
+  curriculum_stage?: string | null;
+  per_seed_evaluations?: RlJobEvaluation[];
   export_path?: string;
 }
 
@@ -93,6 +131,10 @@ interface RlJobCheckpoint {
   eval_success_rate?: number;
   eval_failure_rate?: number;
   eval_truncated_rate?: number;
+  survivability?: number;
+  weapon_efficiency?: number;
+  time_to_ready?: number;
+  tot_quality?: number;
   mean_episode_steps?: number;
   done_reason?: string;
   done_reason_detail?: string;
@@ -101,6 +143,7 @@ interface RlJobCheckpoint {
   selected_target_assignments?: Record<string, string>;
   launch_count?: number;
   reward_breakdown?: Record<string, unknown>;
+  curriculum_stage?: string | null;
 }
 
 interface RlJobEpisode {
@@ -126,11 +169,13 @@ interface RlJobAlgorithmProgress {
 
 interface RlJobProgress {
   status: string;
+  training_mode?: string;
   current_timesteps: number;
   timesteps_target: number;
   overall_timesteps?: number;
   overall_timesteps_target?: number;
   current_algorithm?: string | null;
+  current_stage?: string | null;
   algorithms?: string[];
   checkpoints: RlJobCheckpoint[];
   episodes: RlJobEpisode[];
@@ -153,24 +198,47 @@ interface RlJobSummaryRun {
   buffer_size?: number | null;
   learning_starts?: number | null;
   selection_source?: string;
+  curriculum?: {
+    enabled: boolean;
+    stage_count: number;
+    completed_stage_count: number;
+    segment_timesteps: number;
+  } | null;
   model_path: string;
+  model_metadata_path?: string | null;
   final_model_path?: string | null;
+  final_model_metadata_path?: string | null;
   best_checkpoint_model_path?: string | null;
+  best_checkpoint_model_metadata_path?: string | null;
   export_path?: string;
   eval_recording_path?: string;
   evaluation: RlJobEvaluation;
 }
 
 interface RlJobSummary {
+  summary_schema_version?: number;
   model_path: string;
+  model_metadata_path?: string;
   scenario_path: string;
   progress_path: string;
   eval_recording_path: string;
   timesteps: number;
   timesteps_total?: number;
+  eval_seed_count?: number;
+  training_mode?: string;
+  observation_version?: number;
+  reward_version?: number;
   algorithms?: string[];
   selected_algorithm?: string;
   selection_metric?: string;
+  checkpoint_compatibility?: {
+    legacy_models_reusable?: boolean;
+    load_policy?: string;
+  };
+  artifact_policy?: {
+    top_level_model?: string;
+    per_algorithm_artifacts?: string[];
+  };
   evaluation?: RlJobEvaluation;
   best_run?: RlJobSummaryRun;
   runs?: RlJobSummaryRun[];
@@ -187,6 +255,8 @@ interface RlJobSnapshot {
     timesteps: number;
     maxEpisodeSteps: number;
     evalEpisodes: number;
+    evalSeedCount?: number;
+    curriculumEnabled?: boolean;
     seed: number;
     progressEvalFrequency: number;
     progressEvalEpisodes: number;
@@ -221,6 +291,10 @@ interface RewardConfigForm {
   highValueTargetBonus: number;
   totWeight: number;
   totTauSeconds: number;
+  etaProgressWeight: number;
+  readyToFireBonus: number;
+  stagnationPenaltyPerAssignment: number;
+  targetSwitchPenalty: number;
   threatStepPenalty: number;
   launchCostPerWeapon: number;
   timeCostPerStep: number;
@@ -234,6 +308,8 @@ interface TrainingForm {
   timesteps: number;
   maxEpisodeSteps: number;
   evalEpisodes: number;
+  evalSeedCount: number;
+  curriculumEnabled: boolean;
   seed: number;
   progressEvalFrequency: number;
   progressEvalEpisodes: number;
@@ -255,6 +331,8 @@ interface TrainingPreset {
     | "timesteps"
     | "maxEpisodeSteps"
     | "evalEpisodes"
+    | "evalSeedCount"
+    | "curriculumEnabled"
     | "progressEvalFrequency"
     | "progressEvalEpisodes"
   >;
@@ -272,6 +350,8 @@ const fallbackForm: TrainingForm = {
   timesteps: 4096,
   maxEpisodeSteps: 240,
   evalEpisodes: 1,
+  evalSeedCount: 3,
+  curriculumEnabled: false,
   seed: 7,
   progressEvalFrequency: 512,
   progressEvalEpisodes: 1,
@@ -286,6 +366,10 @@ const fallbackForm: TrainingForm = {
     highValueTargetBonus: 50,
     totWeight: 40,
     totTauSeconds: 8,
+    etaProgressWeight: 6,
+    readyToFireBonus: 2.5,
+    stagnationPenaltyPerAssignment: -0.15,
+    targetSwitchPenalty: -0.3,
     threatStepPenalty: -2,
     launchCostPerWeapon: -1,
     timeCostPerStep: -0.05,
@@ -304,6 +388,8 @@ const trainingPresets: TrainingPreset[] = [
       timesteps: 512,
       maxEpisodeSteps: 120,
       evalEpisodes: 1,
+      evalSeedCount: 1,
+      curriculumEnabled: false,
       progressEvalFrequency: 128,
       progressEvalEpisodes: 1,
     },
@@ -316,6 +402,8 @@ const trainingPresets: TrainingPreset[] = [
       timesteps: 2048,
       maxEpisodeSteps: 180,
       evalEpisodes: 1,
+      evalSeedCount: 2,
+      curriculumEnabled: false,
       progressEvalFrequency: 256,
       progressEvalEpisodes: 1,
     },
@@ -328,6 +416,8 @@ const trainingPresets: TrainingPreset[] = [
       timesteps: 4096,
       maxEpisodeSteps: 240,
       evalEpisodes: 2,
+      evalSeedCount: 3,
+      curriculumEnabled: false,
       progressEvalFrequency: 512,
       progressEvalEpisodes: 1,
     },
@@ -340,8 +430,25 @@ const trainingPresets: TrainingPreset[] = [
       timesteps: 12288,
       maxEpisodeSteps: 320,
       evalEpisodes: 3,
+      evalSeedCount: 5,
+      curriculumEnabled: false,
       progressEvalFrequency: 1024,
       progressEvalEpisodes: 2,
+    },
+  },
+  {
+    key: "curriculum",
+    label: "커리큘럼",
+    description:
+      "쉬운 단계부터 시작해 표적 수, 위협 반경, 시작 거리, 제한시간을 단계적으로 높입니다.",
+    values: {
+      timesteps: 8192,
+      maxEpisodeSteps: 240,
+      evalEpisodes: 2,
+      evalSeedCount: 4,
+      curriculumEnabled: true,
+      progressEvalFrequency: 256,
+      progressEvalEpisodes: 1,
     },
   },
 ];
@@ -359,6 +466,8 @@ function buildCommandPreview(form: TrainingForm) {
     `--timesteps ${form.timesteps}`,
     `--max-episode-steps ${form.maxEpisodeSteps}`,
     `--eval-episodes ${form.evalEpisodes}`,
+    `--eval-seed-count ${form.evalSeedCount}`,
+    ...(form.curriculumEnabled ? ["--curriculum-enabled"] : []),
     `--seed ${form.seed}`,
     `--progress-eval-frequency ${form.progressEvalFrequency}`,
     `--progress-eval-episodes ${form.progressEvalEpisodes}`,
@@ -481,6 +590,19 @@ function formatOptionalNumber(value: number | undefined, digits = 1) {
     : "-";
 }
 
+function formatMetricNumber(value: number | undefined, digits = 2) {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value.toFixed(digits)
+    : "-";
+}
+
+function formatSeedVariabilityReasons(reasons: string[] | undefined) {
+  if (!reasons || reasons.length === 0) {
+    return "-";
+  }
+  return reasons.join(", ");
+}
+
 function formatRewardBreakdownLabels(
   rewardBreakdown: Record<string, unknown> | undefined
 ) {
@@ -491,6 +613,10 @@ function formatRewardBreakdownLabels(
   const entries = [
     ["kill_reward", "Kill"],
     ["tot_bonus", "TOT"],
+    ["eta_progress_bonus", "ETA"],
+    ["ready_to_fire_bonus", "Ready"],
+    ["stagnation_penalty", "Stagnation"],
+    ["target_switch_penalty", "Switch"],
     ["threat_penalty", "Threat"],
     ["launch_cost", "Launch"],
     ["time_cost", "Time"],
@@ -553,6 +679,8 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
           timesteps: payload.defaultForm.timesteps,
           maxEpisodeSteps: payload.defaultForm.maxEpisodeSteps,
           evalEpisodes: payload.defaultForm.evalEpisodes,
+          evalSeedCount: payload.defaultForm.evalSeedCount,
+          curriculumEnabled: payload.defaultForm.curriculumEnabled,
           seed: payload.defaultForm.seed,
           progressEvalFrequency: payload.defaultForm.progressEvalFrequency,
           progressEvalEpisodes: payload.defaultForm.progressEvalEpisodes,
@@ -568,6 +696,14 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
               payload.defaultForm.rewardConfig.highValueTargetBonus,
             totWeight: payload.defaultForm.rewardConfig.totWeight,
             totTauSeconds: payload.defaultForm.rewardConfig.totTauSeconds,
+            etaProgressWeight:
+              payload.defaultForm.rewardConfig.etaProgressWeight,
+            readyToFireBonus:
+              payload.defaultForm.rewardConfig.readyToFireBonus,
+            stagnationPenaltyPerAssignment:
+              payload.defaultForm.rewardConfig.stagnationPenaltyPerAssignment,
+            targetSwitchPenalty:
+              payload.defaultForm.rewardConfig.targetSwitchPenalty,
             threatStepPenalty:
               payload.defaultForm.rewardConfig.threatStepPenalty,
             launchCostPerWeapon:
@@ -800,12 +936,25 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
     finalEvaluation?.reward_breakdown ?? latestCheckpoint?.reward_breakdown
   );
   const commandPreview = buildCommandPreview(form);
+  const perSeedEvaluations = finalEvaluation?.per_seed_evaluations ?? [];
+  const perSeedSuccessRatePoints = useMemo(
+    () =>
+      perSeedEvaluations.map((evaluation, index) => ({
+        x:
+          evaluation.evaluation_seed ??
+          finalEvaluation?.benchmark_seeds?.[index] ??
+          index + 1,
+        y: (evaluation.success_rate ?? evaluation.win_rate ?? 0) * 100,
+      })),
+    [finalEvaluation?.benchmark_seeds, perSeedEvaluations]
+  );
 
   const setNumericFormField = (
     field:
       | "timesteps"
       | "maxEpisodeSteps"
       | "evalEpisodes"
+      | "evalSeedCount"
       | "seed"
       | "progressEvalFrequency"
       | "progressEvalEpisodes",
@@ -901,6 +1050,15 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                   capabilities.defaultForm.rewardConfig.highValueTargetBonus,
                 totWeight: capabilities.defaultForm.rewardConfig.totWeight,
                 totTauSeconds: capabilities.defaultForm.rewardConfig.totTauSeconds,
+                etaProgressWeight:
+                  capabilities.defaultForm.rewardConfig.etaProgressWeight,
+                readyToFireBonus:
+                  capabilities.defaultForm.rewardConfig.readyToFireBonus,
+                stagnationPenaltyPerAssignment:
+                  capabilities.defaultForm.rewardConfig
+                    .stagnationPenaltyPerAssignment,
+                targetSwitchPenalty:
+                  capabilities.defaultForm.rewardConfig.targetSwitchPenalty,
                 threatStepPenalty:
                   capabilities.defaultForm.rewardConfig.threatStepPenalty,
                 launchCostPerWeapon:
@@ -1012,6 +1170,8 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
           timesteps: form.timesteps,
           maxEpisodeSteps: form.maxEpisodeSteps,
           evalEpisodes: form.evalEpisodes,
+          evalSeedCount: form.evalSeedCount,
+          curriculumEnabled: form.curriculumEnabled,
           seed: form.seed,
           progressEvalFrequency: form.progressEvalFrequency,
           progressEvalEpisodes: form.progressEvalEpisodes,
@@ -1157,7 +1317,8 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                   </Typography>
                   <Typography sx={{ mt: 1, maxWidth: 920, opacity: 0.88 }}>
                     시나리오 JSON, 타격 대상, 보상 계수, 학습 길이를 UI에서 조정한 뒤
-                    로컬 Python PPO 학습을 바로 실행합니다. 학습 중간 평가 보상과
+                    로컬 Python RL 학습을 바로 실행합니다. PPO, A2C, SAC, DDPG,
+                    TD3를 같은 시나리오에서 비교할 수 있고 학습 중간 평가 보상과
                     episode reward를 그래프로 보고, 완료 후 평가 리플레이를 지도에서
                     다시 열 수 있습니다.
                   </Typography>
@@ -1784,6 +1945,43 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                       모델 선택 기준: success rate 우선, 동률이면 mean reward, 그다음
                       더 짧은 평균 episode 길이입니다.
                     </Alert>
+                    <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        label={`선택 기준 ${form.evalSeedCount} seeds`}
+                      />
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        label={
+                          form.curriculumEnabled
+                            ? "Mode Curriculum"
+                            : "Mode Standard"
+                        }
+                      />
+                    </Stack>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={form.curriculumEnabled}
+                          onChange={(event) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              curriculumEnabled: event.target.checked,
+                            }))
+                          }
+                        />
+                      }
+                      label="커리큘럼 학습 사용"
+                    />
+                    {form.curriculumEnabled && (
+                      <Alert severity="info">
+                        쉬운 stage에서 시작해 success rate 기준을 넘기면 다음 난이도로
+                        넘어갑니다. 최종 모델 비교는 마지막 full mission 기준
+                        multi-seed evaluation으로 수행합니다.
+                      </Alert>
+                    )}
                   </Stack>
                   <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
                     <TextField
@@ -1815,6 +2013,17 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                       }
                       fullWidth
                     />
+                    <TextField
+                      label="Eval Seed Count"
+                      type="number"
+                      value={form.evalSeedCount}
+                      onChange={(event) =>
+                        setNumericFormField("evalSeedCount", event.target.value)
+                      }
+                      fullWidth
+                    />
+                  </Stack>
+                  <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
                     <TextField
                       label="Seed"
                       type="number"
@@ -1875,6 +2084,12 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                       기본값 복원
                     </Button>
                   </Stack>
+                  <Typography
+                    variant="subtitle2"
+                    sx={{ fontWeight: 700, color: "text.secondary" }}
+                  >
+                    Terminal Reward
+                  </Typography>
                   <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
                     <TextField
                       label="Kill Base"
@@ -1885,6 +2100,8 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                       }
                       fullWidth
                     />
+                  </Stack>
+                  <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
                     <TextField
                       label="High Value Bonus"
                       type="number"
@@ -1897,6 +2114,33 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                       }
                       fullWidth
                     />
+                    <TextField
+                      label="Success Bonus"
+                      type="number"
+                      value={form.rewardConfig.successBonus}
+                      onChange={(event) =>
+                        setRewardField("successBonus", event.target.value)
+                      }
+                      fullWidth
+                    />
+                    <TextField
+                      label="Failure Penalty"
+                      type="number"
+                      value={form.rewardConfig.failurePenalty}
+                      onChange={(event) =>
+                        setRewardField("failurePenalty", event.target.value)
+                      }
+                      fullWidth
+                    />
+                  </Stack>
+                  <Divider />
+                  <Typography
+                    variant="subtitle2"
+                    sx={{ fontWeight: 700, color: "text.secondary" }}
+                  >
+                    Coordination Shaping
+                  </Typography>
+                  <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
                     <TextField
                       label="TOT Weight"
                       type="number"
@@ -1918,6 +2162,62 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                       fullWidth
                     />
                     <TextField
+                      label="ETA Progress Weight"
+                      type="number"
+                      value={form.rewardConfig.etaProgressWeight}
+                      onChange={(event) =>
+                        setRewardField(
+                          "etaProgressWeight",
+                          event.target.value
+                        )
+                      }
+                      fullWidth
+                    />
+                    <TextField
+                      label="Ready Bonus"
+                      type="number"
+                      value={form.rewardConfig.readyToFireBonus}
+                      onChange={(event) =>
+                        setRewardField("readyToFireBonus", event.target.value)
+                      }
+                      fullWidth
+                    />
+                  </Stack>
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    `ETA Progress Weight`는 선택한 표적까지의 launch ETA가 줄어들 때,
+                    `Ready Bonus`는 새로 발사 가능 상태에 들어간 기체 수가 늘어날 때
+                    추가 보상을 줍니다.
+                  </Typography>
+                  <Divider />
+                  <Typography
+                    variant="subtitle2"
+                    sx={{ fontWeight: 700, color: "text.secondary" }}
+                  >
+                    Anti-Stagnation Penalty
+                  </Typography>
+                  <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
+                    <TextField
+                      label="Stagnation Penalty"
+                      type="number"
+                      value={form.rewardConfig.stagnationPenaltyPerAssignment}
+                      onChange={(event) =>
+                        setRewardField(
+                          "stagnationPenaltyPerAssignment",
+                          event.target.value
+                        )
+                      }
+                      fullWidth
+                    />
+                    <TextField
+                      label="Target Switch Penalty"
+                      type="number"
+                      value={form.rewardConfig.targetSwitchPenalty}
+                      onChange={(event) =>
+                        setRewardField("targetSwitchPenalty", event.target.value)
+                      }
+                      fullWidth
+                    />
+                    <TextField
                       label="Threat Step Penalty"
                       type="number"
                       value={form.rewardConfig.threatStepPenalty}
@@ -1929,6 +2229,15 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                       }
                       fullWidth
                     />
+                  </Stack>
+                  <Divider />
+                  <Typography
+                    variant="subtitle2"
+                    sx={{ fontWeight: 700, color: "text.secondary" }}
+                  >
+                    Cost Shaping
+                  </Typography>
+                  <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
                     <TextField
                       label="Launch Cost"
                       type="number"
@@ -1941,8 +2250,6 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                       }
                       fullWidth
                     />
-                  </Stack>
-                  <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
                     <TextField
                       label="Time Cost"
                       type="number"
@@ -1964,25 +2271,12 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                       }
                       fullWidth
                     />
-                    <TextField
-                      label="Success Bonus"
-                      type="number"
-                      value={form.rewardConfig.successBonus}
-                      onChange={(event) =>
-                        setRewardField("successBonus", event.target.value)
-                      }
-                      fullWidth
-                    />
                   </Stack>
-                  <TextField
-                    label="Failure Penalty"
-                    type="number"
-                    value={form.rewardConfig.failurePenalty}
-                    onChange={(event) =>
-                      setRewardField("failurePenalty", event.target.value)
-                    }
-                    fullWidth
-                  />
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    `Stagnation Penalty`는 같은 표적을 골랐지만 launch ETA가 거의
+                    줄지 않는 step에, `Target Switch Penalty`는 살아 있는 표적 사이를
+                    불필요하게 바꾸는 step에 적용됩니다.
+                  </Typography>
                 </Stack>
               </Paper>
             </Stack>
@@ -2328,6 +2622,13 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                     emptyLabel="학습이 시작되면 평가 reward checkpoint가 이곳에 누적됩니다."
                   />
                   <RlLabLineChart
+                    title="멀티시드 성공률"
+                    subtitle="최종 선택 모델의 seed별 success rate (%)"
+                    color="#8a5b24"
+                    points={perSeedSuccessRatePoints}
+                    emptyLabel="최종 multi-seed evaluation이 완료되면 seed별 성공률이 표시됩니다."
+                  />
+                  <RlLabLineChart
                     title="Episode Reward 추이"
                     subtitle="훈련 중 종료된 episode reward"
                     color="#b56b2c"
@@ -2353,6 +2654,13 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                   <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
                     <Chip
                       label={`Algorithm ${formatAlgorithmLabel(currentAlgorithm)}`}
+                    />
+                    <Chip
+                      label={`Mode ${
+                        job?.summary?.training_mode ??
+                        job?.progress?.training_mode ??
+                        (form.curriculumEnabled ? "curriculum" : "standard")
+                      }`}
                     />
                     <Chip
                       label={`Win ${
@@ -2393,7 +2701,67 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                         0
                       }`}
                     />
+                    <Chip
+                      label={`Seeds ${
+                        finalEvaluation?.benchmark_seed_count ??
+                        job?.summary?.eval_seed_count ??
+                        form.evalSeedCount
+                      }`}
+                    />
+                    <Chip
+                      label={`Replay Seed ${
+                        finalEvaluation?.recording_seed ?? "-"
+                      }`}
+                    />
+                    <Chip
+                      label={`Survival ${formatPercent(
+                        finalEvaluation?.survivability,
+                        1
+                      )}`}
+                    />
+                    <Chip
+                      label={`Efficiency ${formatMetricNumber(
+                        finalEvaluation?.weapon_efficiency,
+                        2
+                      )}`}
+                    />
+                    <Chip
+                      label={`Ready ${formatMetricNumber(
+                        finalEvaluation?.time_to_ready,
+                        1
+                      )}`}
+                    />
+                    <Chip
+                      label={`TOT ${formatMetricNumber(
+                        finalEvaluation?.tot_quality,
+                        2
+                      )}`}
+                    />
+                    <Chip
+                      label={`Obs v${
+                        finalEvaluation?.observation_version ??
+                        job?.summary?.observation_version ??
+                        "-"
+                      } / Reward v${
+                        finalEvaluation?.reward_version ??
+                        job?.summary?.reward_version ??
+                        "-"
+                      }`}
+                    />
                   </Stack>
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    선택 기준:{" "}
+                    {job?.summary?.selection_metric ??
+                      "success_rate_then_mean_reward_then_shorter_mean_episode_steps"}
+                  </Typography>
+                  {finalEvaluation?.seed_variability_warning && (
+                    <Alert severity="warning">
+                      seed별 편차가 큽니다. 변동 원인:{" "}
+                      {formatSeedVariabilityReasons(
+                        finalEvaluation.seed_variability?.reasons
+                      )}
+                    </Alert>
+                  )}
                   {Object.keys(
                     finalEvaluation?.selected_target_assignments ??
                       latestCheckpoint?.selected_target_assignments ??
@@ -2468,6 +2836,20 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                                       run.evaluation.mean_reward
                                     )}`}
                                   />
+                                  <Chip
+                                    size="small"
+                                    label={`Survival ${formatPercent(
+                                      run.evaluation.survivability,
+                                      1
+                                    )}`}
+                                  />
+                                  <Chip
+                                    size="small"
+                                    label={`TOT ${formatMetricNumber(
+                                      run.evaluation.tot_quality,
+                                      2
+                                    )}`}
+                                  />
                                 </Stack>
                                 <Chip
                                   size="small"
@@ -2498,6 +2880,14 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                                 <Chip
                                   size="small"
                                   variant="outlined"
+                                  label={`Ready ${formatMetricNumber(
+                                    run.evaluation.time_to_ready,
+                                    1
+                                  )}`}
+                                />
+                                <Chip
+                                  size="small"
+                                  variant="outlined"
                                   label={`Model ${run.model_path.split(/[\\\\/]/).at(-1) ?? run.model_path}`}
                                 />
                               </Stack>
@@ -2513,6 +2903,67 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                         <Chip key={label} size="small" variant="outlined" label={label} />
                       ))}
                     </Stack>
+                  )}
+                  {perSeedEvaluations.length > 0 && (
+                    <Accordion elevation={0} sx={{ backgroundColor: "rgba(255,255,255,0.46)" }}>
+                      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                        <Typography sx={{ fontWeight: 700 }}>
+                          멀티시드 결과 상세 ({perSeedEvaluations.length} seeds)
+                        </Typography>
+                      </AccordionSummary>
+                      <AccordionDetails>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Seed</TableCell>
+                              <TableCell align="right">Win</TableCell>
+                              <TableCell align="right">Reward</TableCell>
+                              <TableCell align="right">Survival</TableCell>
+                              <TableCell align="right">Efficiency</TableCell>
+                              <TableCell align="right">Ready</TableCell>
+                              <TableCell align="right">TOT</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {perSeedEvaluations.map((evaluation, index) => (
+                              <TableRow
+                                key={`seed-${evaluation.evaluation_seed ?? index}`}
+                              >
+                                <TableCell>
+                                  {evaluation.evaluation_seed ??
+                                    finalEvaluation?.benchmark_seeds?.[index] ??
+                                    index + 1}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {formatPercent(
+                                    evaluation.success_rate ?? evaluation.win_rate,
+                                    0
+                                  )}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {formatMetricNumber(evaluation.mean_reward, 1)}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {formatPercent(evaluation.survivability, 0)}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {formatMetricNumber(
+                                    evaluation.weapon_efficiency,
+                                    2
+                                  )}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {formatMetricNumber(evaluation.time_to_ready, 1)}
+                                </TableCell>
+                                <TableCell align="right">
+                                  {formatMetricNumber(evaluation.tot_quality, 2)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </AccordionDetails>
+                    </Accordion>
                   )}
                   {job?.summary && (
                     <Alert severity="success">

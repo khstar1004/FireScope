@@ -31,13 +31,16 @@ Refer to the [README](https://github.com/Panopticon-AI-team/panopticon/blob/main
 
 The environment returns a `Dict[str, np.ndarray]` with these keys:
 
-- `allies`: `(max_allies, 8)` float32 ally features for position, heading, fuel, remaining weapons, centroid distance, centroid bearing, and an in-range indicator.
-- `targets`: `(max_targets, 6)` float32 target features for position, target type, threat radius, closest-ally distance, and bearing from the ally centroid.
+- `allies`: `(max_allies, 10)` float32 ally features for position, heading, fuel, remaining weapons, centroid distance, centroid bearing, in-range state, best launch ETA, and continuous threat exposure intensity.
+- `targets`: `(max_targets, 8)` float32 target features for position, target type, threat radius, closest-ally distance, closest launch ETA, bearing from the ally centroid, and ally in-range fraction.
 - `launch_eta`: `(max_allies, max_targets)` float32 launch ETA matrix.
 - `impact_eta`: `(max_allies, max_targets)` float32 impact ETA matrix.
+- `range_margin`: `(max_allies, max_targets)` float32 pair feature that directly encodes launch-envelope margin per ally-target pair.
+- `threat_exposure`: `(max_allies, max_targets)` float32 pair feature that encodes continuous exposure intensity against each target threat radius.
+- `weapon_range_advantage`: `(max_allies, max_targets)` float32 pair feature that compares the ally's best weapon range against the target threat radius.
 - `ally_mask`: `(max_allies,)` float32 binary mask for live controllable aircraft slots.
 - `target_mask`: `(max_targets,)` float32 binary mask for live hostile target slots.
-- `global`: `(6,)` float32 summary features for episode progress, force counts, airborne weapons, mean launch ETA, and threat exposure.
+- `global`: `(8,)` float32 summary features for episode progress, force counts, airborne weapons, mean launch ETA, mean threat exposure intensity, in-range pair fraction, and best launch ETA.
 
 ### Actions
 
@@ -56,13 +59,23 @@ The default reward breakdown is exposed through `info["reward_breakdown"]` with 
 
 - `kill_reward`: large positive reward for destroyed targets.
 - `tot_bonus`: positive bonus when multiple launches on the same target have tightly synchronized impact times.
+- `eta_progress_bonus`: positive shaping reward when selected assignments reduce launch ETA during the step.
+- `ready_to_fire_bonus`: positive shaping reward when more selected allies become ready to launch.
+- `stagnation_penalty`: negative shaping penalty when selected assignments stop improving launch ETA.
+- `target_switch_penalty`: negative shaping penalty when living targets are switched too aggressively between steps.
 - `threat_penalty`: per-step penalty for staying inside hostile threat envelopes.
 - `launch_cost`: small negative cost per weapon fired.
 - `time_cost`: small per-step negative cost to encourage faster completion.
 - `loss_cost`: large penalty for losing friendly aircraft.
 - `terminal_bonus`: positive on success and negative on failure.
 
-Additional debug fields such as `weapons_fired`, `threat_exposure_count`, `selected_target_id`, `selected_target_ids`, `ally_target_assignments`, `tot_group_count`, and per-target `tot_groups` are also included to make rollout inspection easier.
+Additional debug fields such as `weapons_fired`, `threat_exposure_count`, `selected_target_id`, `selected_target_ids`, `ally_target_assignments`, `stagnation_count`, `target_switch_count`, `tot_group_count`, and per-target `tot_groups` are also included to make rollout inspection easier.
+
+Final model selection can aggregate multiple deterministic evaluation seeds through the training script so checkpoint comparisons are less sensitive to a single rollout. The evaluation summary now also reports `survivability`, `weapon_efficiency`, `time_to_ready`, `tot_quality`, and a seed-variability warning when per-seed spread is large.
+
+The training script can optionally enable a curriculum schedule that starts from an easier scenario and gradually increases target count, threat radius, starting distance, and episode limit when stage success thresholds are met.
+
+Observation and reward contracts are versioned. Current checkpoints store observation and reward version metadata, and version-mismatched models are blocked from loading by the training script.
 
 The reference reward implementation intentionally does not use HP-style partial damage rewards.
 

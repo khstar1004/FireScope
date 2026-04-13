@@ -13,6 +13,7 @@ from blade.Scenario import Scenario
 from blade.envs.fixed_target_strike_types import (
     FixedTargetStrikeConfig,
     LaunchEvent,
+    OBSERVATION_VERSION,
     StepContext,
 )
 from blade.units.Airbase import Airbase
@@ -29,9 +30,9 @@ from blade.utils.utils import (
 
 FixedTarget = Facility | Airbase | Ship
 
-ALLY_FEATURE_COUNT = 8
-TARGET_FEATURE_COUNT = 6
-GLOBAL_FEATURE_COUNT = 6
+ALLY_FEATURE_COUNT = 10
+TARGET_FEATURE_COUNT = 8
+GLOBAL_FEATURE_COUNT = 8
 ALLY_ACTION_CONTROL_COUNT = 3
 MODE_HOLD_THRESHOLD = 1.0 / 3.0
 MODE_REPOSITION_THRESHOLD = 2.0 / 3.0
@@ -82,6 +83,24 @@ class FixedTargetStrikeEnv(gym.Env):
                     shape=(self.config.max_allies, self.config.max_targets),
                     dtype=np.float32,
                 ),
+                "range_margin": spaces.Box(
+                    low=0.0,
+                    high=1.0,
+                    shape=(self.config.max_allies, self.config.max_targets),
+                    dtype=np.float32,
+                ),
+                "threat_exposure": spaces.Box(
+                    low=0.0,
+                    high=1.0,
+                    shape=(self.config.max_allies, self.config.max_targets),
+                    dtype=np.float32,
+                ),
+                "weapon_range_advantage": spaces.Box(
+                    low=0.0,
+                    high=1.0,
+                    shape=(self.config.max_allies, self.config.max_targets),
+                    dtype=np.float32,
+                ),
                 "ally_mask": spaces.Box(
                     low=0.0,
                     high=1.0,
@@ -117,6 +136,7 @@ class FixedTargetStrikeEnv(gym.Env):
         self._ally_catalog: list[str] = []
         self._target_catalog: list[str] = []
         self._initial_ally_weapon_totals: dict[str, int] = {}
+        self._previous_ally_target_assignments: dict[str, str] = {}
         self._episode_step = 0
         self._get_reward_callable()
 
@@ -144,6 +164,7 @@ class FixedTargetStrikeEnv(gym.Env):
             ally.id: ally.get_total_weapon_quantity()
             for ally in self._resolve_allies(scenario)
         }
+        self._previous_ally_target_assignments = {}
         self._validate_target_margin_constraints()
         self._apply_controllable_doctrine()
 
@@ -222,6 +243,15 @@ class FixedTargetStrikeEnv(gym.Env):
             selection["ally_id"]: list(selection["target_priorities"])
             for selection in ally_target_selections
         }
+        selected_assignment_metrics = self._build_selected_assignment_metrics(
+            ally_target_selections,
+            launch_events,
+            destroyed_target_ids,
+        )
+        target_switch_count = self._count_target_switches(
+            ally_target_assignments,
+            pre_alive_target_ids,
+        )
 
         observation = self._build_observation()
         step_context = StepContext(
@@ -238,6 +268,12 @@ class FixedTargetStrikeEnv(gym.Env):
             selected_target_slots=selected_target_slots,
             ally_target_assignments=ally_target_assignments,
             ally_target_priority_vectors=ally_target_priority_vectors,
+            selected_launch_eta_before=selected_assignment_metrics["launch_eta_before"],
+            selected_launch_eta_after=selected_assignment_metrics["launch_eta_after"],
+            selected_ready_before_count=selected_assignment_metrics["ready_before_count"],
+            selected_ready_after_count=selected_assignment_metrics["ready_after_count"],
+            target_switch_count=target_switch_count,
+            stagnation_count=selected_assignment_metrics["stagnation_count"],
             launch_events=launch_events,
             destroyed_target_ids=destroyed_target_ids,
             lost_ally_ids=lost_ally_ids,
@@ -260,7 +296,9 @@ class FixedTargetStrikeEnv(gym.Env):
             "selected_target_ids": step_context.selected_target_ids,
             "selected_target_assignments": step_context.ally_target_assignments,
             "launch_count": len(launch_events),
+            "observation_version": OBSERVATION_VERSION,
         }
+        self._previous_ally_target_assignments = dict(ally_target_assignments)
         return observation, reward, terminated, truncated, info
 
     def _resolve_side_id(
@@ -356,6 +394,15 @@ class FixedTargetStrikeEnv(gym.Env):
         impact_eta = np.zeros(
             (self.config.max_allies, self.config.max_targets), dtype=np.float32
         )
+        range_margin = np.zeros(
+            (self.config.max_allies, self.config.max_targets), dtype=np.float32
+        )
+        threat_exposure = np.zeros(
+            (self.config.max_allies, self.config.max_targets), dtype=np.float32
+        )
+        weapon_range_advantage = np.zeros(
+            (self.config.max_allies, self.config.max_targets), dtype=np.float32
+        )
         ally_mask = np.zeros((self.config.max_allies,), dtype=np.float32)
         target_mask = np.zeros((self.config.max_targets,), dtype=np.float32)
 
@@ -395,6 +442,11 @@ class FixedTargetStrikeEnv(gym.Env):
                     ally.id, ally.get_total_weapon_quantity() or 1
                 ),
             )
+            best_launch_eta_seconds = (
+                min(self._estimate_launch_eta_seconds(ally, target) for target in active_targets)
+                if active_targets
+                else self.config.eta_clip_seconds
+            )
             allies[index] = np.asarray(
                 [
                     self._normalize_latitude(ally.latitude),
@@ -407,6 +459,8 @@ class FixedTargetStrikeEnv(gym.Env):
                     self._normalize_distance_nm(distance_to_centroid_nm),
                     self._normalize_heading(bearing_to_centroid),
                     float(any_in_range),
+                    self._normalize_eta_seconds(best_launch_eta_seconds),
+                    self._get_ally_threat_exposure_intensity(ally),
                 ],
                 dtype=np.float32,
             )
@@ -421,6 +475,20 @@ class FixedTargetStrikeEnv(gym.Env):
                 if active_allies
                 else self.config.normalize_margin_nm
             )
+            closest_launch_eta_seconds = (
+                min(self._estimate_launch_eta_seconds(ally, target) for ally in active_allies)
+                if active_allies
+                else self.config.eta_clip_seconds
+            )
+            in_range_ally_fraction = (
+                sum(
+                    int(self._can_aircraft_fire_at_target(ally, target))
+                    for ally in active_allies
+                )
+                / max(len(active_allies), 1)
+                if active_allies
+                else 0.0
+            )
             bearing_from_ally_centroid = get_bearing_between_two_points(
                 ally_centroid[0],
                 ally_centroid[1],
@@ -434,7 +502,9 @@ class FixedTargetStrikeEnv(gym.Env):
                     self._normalize_target_type(target),
                     self._normalize_distance_nm(self._get_target_threat_radius_nm(target)),
                     self._normalize_distance_nm(closest_ally_distance_nm),
+                    self._normalize_eta_seconds(closest_launch_eta_seconds),
                     self._normalize_heading(bearing_from_ally_centroid),
+                    float(np.clip(in_range_ally_fraction, 0.0, 1.0)),
                 ],
                 dtype=np.float32,
             )
@@ -447,11 +517,31 @@ class FixedTargetStrikeEnv(gym.Env):
                 target = self.game.current_scenario.get_target(target_id)
                 if target is None:
                     continue
+                weapon = self._get_best_weapon(ally)
+                distance_nm = self._distance_units_nm(ally, target)
+                launch_radius_nm = (
+                    min(ally.get_detection_range(), weapon.get_engagement_range())
+                    if weapon is not None
+                    else 0.0
+                )
+                target_threat_radius_nm = self._get_target_threat_radius_nm(target)
                 launch_eta[ally_index, target_index] = self._normalize_eta_seconds(
                     self._estimate_launch_eta_seconds(ally, target)
                 )
                 impact_eta[ally_index, target_index] = self._normalize_eta_seconds(
                     self._estimate_impact_eta_seconds(ally, target)
+                )
+                range_margin[ally_index, target_index] = self._normalize_signed_margin_nm(
+                    launch_radius_nm - distance_nm
+                )
+                threat_exposure[ally_index, target_index] = (
+                    self._compute_threat_exposure_intensity(distance_nm, target_threat_radius_nm)
+                )
+                weapon_range_advantage[ally_index, target_index] = (
+                    self._normalize_signed_margin_nm(
+                        (weapon.get_engagement_range() if weapon is not None else 0.0)
+                        - target_threat_radius_nm
+                    )
                 )
 
         current_friendly_weapons = len(
@@ -461,13 +551,20 @@ class FixedTargetStrikeEnv(gym.Env):
                 if weapon.side_id == self._controllable_side_id
             ]
         )
-        current_threat_exposure = self._count_threat_exposure()
-        active_pair_count = max(1, len(active_allies) * len(active_targets))
+        current_threat_exposure = self._get_mean_ally_threat_exposure(active_allies)
         valid_launch_etas = launch_eta[
             np.outer(ally_mask.astype(bool), target_mask.astype(bool))
         ]
         mean_launch_eta = (
             float(valid_launch_etas.mean()) if valid_launch_etas.size > 0 else 0.0
+        )
+        in_range_pair_fraction = (
+            float(np.count_nonzero(valid_launch_etas <= 0.0) / valid_launch_etas.size)
+            if valid_launch_etas.size > 0
+            else 0.0
+        )
+        best_launch_eta = (
+            float(valid_launch_etas.min()) if valid_launch_etas.size > 0 else 0.0
         )
 
         global_features = np.asarray(
@@ -477,7 +574,9 @@ class FixedTargetStrikeEnv(gym.Env):
                 self._normalize_fraction(len(active_targets), len(self._target_catalog)),
                 self._normalize_fraction(current_friendly_weapons, self.config.max_allies),
                 float(mean_launch_eta),
-                self._normalize_fraction(current_threat_exposure, active_pair_count),
+                float(np.clip(current_threat_exposure, 0.0, 1.0)),
+                float(np.clip(in_range_pair_fraction, 0.0, 1.0)),
+                float(np.clip(best_launch_eta, 0.0, 1.0)),
             ],
             dtype=np.float32,
         )
@@ -487,6 +586,9 @@ class FixedTargetStrikeEnv(gym.Env):
             "targets": targets,
             "launch_eta": launch_eta,
             "impact_eta": impact_eta,
+            "range_margin": range_margin,
+            "threat_exposure": threat_exposure,
+            "weapon_range_advantage": weapon_range_advantage,
             "ally_mask": ally_mask,
             "target_mask": target_mask,
             "global": global_features,
@@ -544,6 +646,10 @@ class FixedTargetStrikeEnv(gym.Env):
                         "target_name": selected_target.name,
                         "target_slot": selected_target_slot,
                         "target_priorities": priority_vector.tolist(),
+                        "pre_can_fire": self._can_aircraft_fire_at_target(ally, selected_target),
+                        "pre_launch_eta_seconds": self._estimate_launch_eta_seconds(
+                            ally, selected_target
+                        ),
                     }
                 )
 
@@ -760,6 +866,62 @@ class FixedTargetStrikeEnv(gym.Env):
             (remaining_distance_nm / spawned_weapon.speed) * 3600.0
         )
 
+    def _build_selected_assignment_metrics(
+        self,
+        ally_target_selections: list[dict[str, Any]],
+        launch_events: list[LaunchEvent],
+        destroyed_target_ids: list[str],
+    ) -> dict[str, Any]:
+        launch_targets_by_ally: dict[str, set[str]] = {}
+        for launch_event in launch_events:
+            launch_targets_by_ally.setdefault(launch_event.aircraft_id, set()).add(
+                launch_event.target_id
+            )
+
+        destroyed_target_id_set = set(destroyed_target_ids)
+        launch_eta_before: dict[str, float] = {}
+        launch_eta_after: dict[str, float] = {}
+        ready_before_count = 0
+        ready_after_count = 0
+        stagnation_count = 0
+
+        for selection in ally_target_selections:
+            ally_id = str(selection["ally_id"])
+            target_id = str(selection["target_id"])
+            before_eta_seconds = float(
+                selection.get("pre_launch_eta_seconds", self.config.eta_clip_seconds)
+            )
+            launch_eta_before[ally_id] = before_eta_seconds
+            ready_before = bool(selection.get("pre_can_fire", False))
+            ready_before_count += int(ready_before)
+
+            launched_on_selected_target = target_id in launch_targets_by_ally.get(ally_id, set())
+            if launched_on_selected_target or target_id in destroyed_target_id_set:
+                launch_eta_after[ally_id] = 0.0
+                ready_after_count += 1
+                continue
+
+            ally = self.game.current_scenario.get_aircraft(ally_id)
+            target = self.game.current_scenario.get_target(target_id)
+            if ally is None or target is None:
+                launch_eta_after[ally_id] = float(self.config.eta_clip_seconds)
+                continue
+
+            after_eta_seconds = float(self._estimate_launch_eta_seconds(ally, target))
+            launch_eta_after[ally_id] = after_eta_seconds
+            ready_after = self._can_aircraft_fire_at_target(ally, target)
+            ready_after_count += int(ready_after)
+            if after_eta_seconds >= before_eta_seconds - 1e-6 and not ready_after:
+                stagnation_count += 1
+
+        return {
+            "launch_eta_before": launch_eta_before,
+            "launch_eta_after": launch_eta_after,
+            "ready_before_count": ready_before_count,
+            "ready_after_count": ready_after_count,
+            "stagnation_count": stagnation_count,
+        }
+
     def _get_best_weapon(self, ally: Aircraft) -> Weapon | None:
         valid_weapons = [weapon for weapon in ally.weapons if weapon.current_quantity > 0]
         if len(valid_weapons) == 0:
@@ -813,6 +975,53 @@ class FixedTargetStrikeEnv(gym.Env):
                 ):
                     exposure_count += 1
         return exposure_count
+
+    def _is_ally_inside_threat_zone(self, ally: Aircraft) -> bool:
+        return self._get_ally_threat_exposure_intensity(ally) > 0.0
+
+    def _get_ally_threat_exposure_intensity(self, ally: Aircraft) -> float:
+        hostile_detectors = self._get_hostile_detectors()
+        if len(hostile_detectors) == 0:
+            return 0.0
+        return max(
+            self._compute_threat_exposure_intensity(
+                self._distance_units_nm(ally, detector),
+                self._get_detector_threat_radius_nm(detector),
+            )
+            for detector in hostile_detectors
+        )
+
+    def _get_mean_ally_threat_exposure(self, allies: list[Aircraft]) -> float:
+        if len(allies) == 0:
+            return 0.0
+        return float(
+            np.mean([self._get_ally_threat_exposure_intensity(ally) for ally in allies])
+        )
+
+    def _compute_threat_exposure_intensity(
+        self, distance_nm: float, threat_radius_nm: float
+    ) -> float:
+        if threat_radius_nm <= 0:
+            return 0.0
+        effective_radius_nm = max(threat_radius_nm + self.config.threat_buffer_nm, 1e-6)
+        return float(np.clip((effective_radius_nm - distance_nm) / effective_radius_nm, 0.0, 1.0))
+
+    def _count_target_switches(
+        self,
+        ally_target_assignments: dict[str, str],
+        previous_alive_target_ids: list[str],
+    ) -> int:
+        previous_alive_target_id_set = set(previous_alive_target_ids)
+        target_switch_count = 0
+        for ally_id, target_id in ally_target_assignments.items():
+            previous_target_id = self._previous_ally_target_assignments.get(ally_id)
+            if (
+                previous_target_id is not None
+                and previous_target_id != target_id
+                and previous_target_id in previous_alive_target_id_set
+            ):
+                target_switch_count += 1
+        return target_switch_count
 
     def _get_hostile_detectors(self) -> list[Aircraft | Facility | Ship]:
         scenario = self.game.current_scenario
@@ -980,6 +1189,11 @@ class FixedTargetStrikeEnv(gym.Env):
 
     def _normalize_eta_seconds(self, eta_seconds: float) -> float:
         return float(np.clip(eta_seconds / self.config.eta_clip_seconds, 0.0, 1.0))
+
+    def _normalize_signed_margin_nm(self, margin_nm: float) -> float:
+        return float(
+            np.clip((margin_nm / self.config.normalize_margin_nm) * 0.5 + 0.5, 0.0, 1.0)
+        )
 
     def _normalize_target_type(self, target: FixedTarget) -> float:
         if isinstance(target, Facility):

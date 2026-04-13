@@ -25,6 +25,10 @@ SCENARIO_PATH = SCRIPT_DIR / "scen.json"
 REQUIRED_REWARD_KEYS = {
     "kill_reward",
     "tot_bonus",
+    "eta_progress_bonus",
+    "ready_to_fire_bonus",
+    "stagnation_penalty",
+    "target_switch_penalty",
     "threat_penalty",
     "launch_cost",
     "time_cost",
@@ -89,13 +93,16 @@ def build_hold_action(config: FixedTargetStrikeConfig) -> np.ndarray:
 
 def assert_observation_contract(observation: dict[str, np.ndarray], config: FixedTargetStrikeConfig) -> None:
     expected_shapes = {
-        "allies": (config.max_allies, 8),
-        "targets": (config.max_targets, 6),
+        "allies": (config.max_allies, 10),
+        "targets": (config.max_targets, 8),
         "launch_eta": (config.max_allies, config.max_targets),
         "impact_eta": (config.max_allies, config.max_targets),
+        "range_margin": (config.max_allies, config.max_targets),
+        "threat_exposure": (config.max_allies, config.max_targets),
+        "weapon_range_advantage": (config.max_allies, config.max_targets),
         "ally_mask": (config.max_allies,),
         "target_mask": (config.max_targets,),
-        "global": (6,),
+        "global": (8,),
     }
 
     if set(observation) != set(expected_shapes):
@@ -266,6 +273,12 @@ def build_reward_context(
     threat_exposure_count: int = 0,
     destroyed_target_ids: list[str] | None = None,
     lost_ally_ids: list[str] | None = None,
+    selected_launch_eta_before: dict[str, float] | None = None,
+    selected_launch_eta_after: dict[str, float] | None = None,
+    selected_ready_before_count: int = 0,
+    selected_ready_after_count: int = 0,
+    target_switch_count: int = 0,
+    stagnation_count: int = 0,
     success: bool = False,
     failure: bool = False,
     done_reason: str | None = None,
@@ -290,6 +303,12 @@ def build_reward_context(
             "blue-striker-1": [0.0, 1.0],
             "blue-striker-2": [0.0, 1.0],
         },
+        selected_launch_eta_before=selected_launch_eta_before or {},
+        selected_launch_eta_after=selected_launch_eta_after or {},
+        selected_ready_before_count=selected_ready_before_count,
+        selected_ready_after_count=selected_ready_after_count,
+        target_switch_count=target_switch_count,
+        stagnation_count=stagnation_count,
         launch_events=launch_events or [],
         destroyed_target_ids=destroyed_target_ids or [],
         lost_ally_ids=lost_ally_ids or [],
@@ -377,6 +396,40 @@ def run_reward_checks() -> dict[str, float]:
     if tight_breakdown["tot_bonus"] <= loose_breakdown["tot_bonus"]:
         raise AssertionError("Tighter TOT synchronization should produce a larger tot_bonus")
 
+    progress_context = build_reward_context(
+        scenario,
+        observation,
+        config,
+        selected_launch_eta_before={
+            "blue-striker-1": 900.0,
+            "blue-striker-2": 600.0,
+        },
+        selected_launch_eta_after={
+            "blue-striker-1": 300.0,
+            "blue-striker-2": 0.0,
+        },
+        selected_ready_before_count=0,
+        selected_ready_after_count=2,
+    )
+    _, progress_breakdown = compute_fixed_target_strike_reward(progress_context, config)
+    if progress_breakdown["eta_progress_bonus"] <= 0:
+        raise AssertionError("Launch ETA reduction should produce a positive eta_progress_bonus")
+    if progress_breakdown["ready_to_fire_bonus"] <= 0:
+        raise AssertionError("Newly ready assignments should produce a positive ready_to_fire_bonus")
+
+    shaping_context = build_reward_context(
+        scenario,
+        observation,
+        config,
+        target_switch_count=2,
+        stagnation_count=3,
+    )
+    _, shaping_breakdown = compute_fixed_target_strike_reward(shaping_context, config)
+    if shaping_breakdown["stagnation_penalty"] >= 0:
+        raise AssertionError("Stagnation should apply a negative shaping penalty")
+    if shaping_breakdown["target_switch_penalty"] >= 0:
+        raise AssertionError("Target switching should apply a negative shaping penalty")
+
     safe_context = build_reward_context(scenario, observation, config, threat_exposure_count=0)
     unsafe_context = build_reward_context(scenario, observation, config, threat_exposure_count=3)
     safe_reward, _ = compute_fixed_target_strike_reward(safe_context, config)
@@ -419,6 +472,10 @@ def run_reward_checks() -> dict[str, float]:
         "tight_tot_bonus": float(tight_breakdown["tot_bonus"]),
         "loose_tot_bonus": float(loose_breakdown["tot_bonus"]),
         "unsafe_threat_penalty": float(unsafe_breakdown["threat_penalty"]),
+        "eta_progress_bonus": float(progress_breakdown["eta_progress_bonus"]),
+        "ready_to_fire_bonus": float(progress_breakdown["ready_to_fire_bonus"]),
+        "stagnation_penalty": float(shaping_breakdown["stagnation_penalty"]),
+        "target_switch_penalty": float(shaping_breakdown["target_switch_penalty"]),
         "success_reward": float(success_breakdown["total_reward"]),
         "failure_reward": float(failure_breakdown["total_reward"]),
         "tight_reward": float(tight_reward),

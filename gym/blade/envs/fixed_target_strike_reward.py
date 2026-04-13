@@ -5,7 +5,12 @@ from math import exp, isfinite
 from statistics import pstdev
 from typing import Any, Mapping
 
-from blade.envs.fixed_target_strike_types import FixedTargetStrikeConfig, LaunchEvent, StepContext
+from blade.envs.fixed_target_strike_types import (
+    FixedTargetStrikeConfig,
+    LaunchEvent,
+    REWARD_VERSION,
+    StepContext,
+)
 from blade.units.Airbase import Airbase
 
 
@@ -15,6 +20,10 @@ class FixedTargetStrikeRewardConfig:
     high_value_target_bonus: float = 50.0
     tot_weight: float = 40.0
     tot_tau_seconds: float = 8.0
+    eta_progress_weight: float = 6.0
+    ready_to_fire_bonus: float = 2.5
+    stagnation_penalty_per_assignment: float = -0.15
+    target_switch_penalty: float = -0.3
     threat_step_penalty: float = -2.0
     launch_cost_per_weapon: float = -1.0
     time_cost_per_step: float = -0.05
@@ -48,6 +57,19 @@ def compute_fixed_target_strike_reward(
         kill_reward += target_reward
 
     tot_bonus, tot_groups = _compute_tot_bonus(step_context.launch_events, reward_config)
+    eta_progress_ratio = _compute_eta_progress_ratio(step_context)
+    eta_progress_bonus = reward_config.eta_progress_weight * eta_progress_ratio
+    ready_to_fire_delta = max(
+        step_context.selected_ready_after_count - step_context.selected_ready_before_count,
+        0,
+    )
+    ready_to_fire_bonus = ready_to_fire_delta * reward_config.ready_to_fire_bonus
+    stagnation_penalty = (
+        step_context.stagnation_count * reward_config.stagnation_penalty_per_assignment
+    )
+    target_switch_penalty = (
+        step_context.target_switch_count * reward_config.target_switch_penalty
+    )
     weapons_fired = sum(max(int(event.weapon_quantity), 1) for event in step_context.launch_events)
     threat_penalty = step_context.threat_exposure_count * reward_config.threat_step_penalty
     launch_cost = weapons_fired * reward_config.launch_cost_per_weapon
@@ -62,6 +84,10 @@ def compute_fixed_target_strike_reward(
     total_reward = (
         kill_reward
         + tot_bonus
+        + eta_progress_bonus
+        + ready_to_fire_bonus
+        + stagnation_penalty
+        + target_switch_penalty
         + threat_penalty
         + launch_cost
         + time_cost
@@ -72,6 +98,10 @@ def compute_fixed_target_strike_reward(
     breakdown = {
         "kill_reward": float(kill_reward),
         "tot_bonus": float(tot_bonus),
+        "eta_progress_bonus": float(eta_progress_bonus),
+        "ready_to_fire_bonus": float(ready_to_fire_bonus),
+        "stagnation_penalty": float(stagnation_penalty),
+        "target_switch_penalty": float(target_switch_penalty),
         "threat_penalty": float(threat_penalty),
         "launch_cost": float(launch_cost),
         "time_cost": float(time_cost),
@@ -85,10 +115,25 @@ def compute_fixed_target_strike_reward(
         "selected_target_id": step_context.selected_target_id,
         "selected_target_ids": list(step_context.selected_target_ids),
         "ally_target_assignments": dict(step_context.ally_target_assignments),
+        "selected_launch_eta_before": {
+            ally_id: float(eta_seconds)
+            for ally_id, eta_seconds in step_context.selected_launch_eta_before.items()
+        },
+        "selected_launch_eta_after": {
+            ally_id: float(eta_seconds)
+            for ally_id, eta_seconds in step_context.selected_launch_eta_after.items()
+        },
+        "selected_ready_before_count": int(step_context.selected_ready_before_count),
+        "selected_ready_after_count": int(step_context.selected_ready_after_count),
+        "selected_ready_delta": int(ready_to_fire_delta),
+        "eta_progress_ratio": float(eta_progress_ratio),
+        "stagnation_count": int(step_context.stagnation_count),
+        "target_switch_count": int(step_context.target_switch_count),
         "tot_group_count": len(tot_groups),
         "tot_groups": tot_groups,
         "done_reason": step_context.done_reason,
         "step_index": int(step_context.step_index),
+        "reward_version": REWARD_VERSION,
         "total_reward": float(total_reward),
     }
     return float(total_reward), breakdown
@@ -183,6 +228,26 @@ def _compute_tot_bonus(
             }
         )
     return total_bonus, tot_groups
+
+
+def _compute_eta_progress_ratio(step_context: StepContext) -> float:
+    if len(step_context.selected_launch_eta_before) == 0:
+        return 0.0
+
+    total_progress = 0.0
+    assignment_count = 0
+    eta_clip_seconds = max(float(step_context.config.eta_clip_seconds), 1.0)
+    for ally_id, before_eta_seconds in step_context.selected_launch_eta_before.items():
+        after_eta_seconds = step_context.selected_launch_eta_after.get(
+            ally_id, eta_clip_seconds
+        )
+        total_progress += max(float(before_eta_seconds) - float(after_eta_seconds), 0.0)
+        assignment_count += 1
+
+    if assignment_count <= 0:
+        return 0.0
+
+    return min(total_progress / (assignment_count * eta_clip_seconds), 1.0)
 
 
 def _is_high_value_target(

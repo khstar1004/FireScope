@@ -19,15 +19,20 @@
 
 환경은 `Dict[str, np.ndarray]`를 반환합니다.
 
-- `allies`: `(max_allies, 8)`
-- `targets`: `(max_targets, 6)`
+- `allies`: `(max_allies, 10)`
+- `targets`: `(max_targets, 8)`
 - `launch_eta`: `(max_allies, max_targets)`
 - `impact_eta`: `(max_allies, max_targets)`
+- `range_margin`: `(max_allies, max_targets)`
+- `threat_exposure`: `(max_allies, max_targets)`
+- `weapon_range_advantage`: `(max_allies, max_targets)`
 - `ally_mask`: `(max_allies,)`
 - `target_mask`: `(max_targets,)`
-- `global`: `(6,)`
+- `global`: `(8,)`
 
 관측값의 실제 생성 로직은 [`FixedTargetStrikeEnv._build_observation`](../blade/envs/fixed_target_strike.py)에서 관리합니다.
+
+이번 버전에서는 ally-target pair 관계를 더 직접적으로 표현하기 위해 `range_margin`, `threat_exposure`, `weapon_range_advantage`를 추가했고, ally의 threat feature도 binary 대신 연속값으로 바뀌었습니다. 이 변경 때문에 예전 observation 버전으로 학습된 체크포인트는 그대로 재사용할 수 없습니다.
 
 ## 3. 행동값
 
@@ -61,6 +66,10 @@
 
 - `kill_reward`
 - `tot_bonus`
+- `eta_progress_bonus`
+- `ready_to_fire_bonus`
+- `stagnation_penalty`
+- `target_switch_penalty`
 - `threat_penalty`
 - `launch_cost`
 - `time_cost`
@@ -73,10 +82,14 @@
 
 `gym/scripts/fixed_target_strike/train.py`와 Vite dev server plugin의 기본값은 거의 동일합니다.
 
+- 지원 알고리즘: `ppo`, `a2c`, `sac`, `ddpg`, `td3`
+- RL Lab 프리셋: `smoke`, `quick`, `standard`, `extended`, `curriculum`
+
 - 알고리즘: `ppo`
 - `timesteps`: `4096`
 - `max_episode_steps`: `240`
 - `eval_episodes`: `1`
+- `eval_seed_count`: `3`
 - `seed`: `7`
 - `progress_eval_frequency`: `512`
 - `progress_eval_episodes`: `1`
@@ -90,12 +103,28 @@
 - `high_value_target_bonus`: `50`
 - `tot_weight`: `40`
 - `tot_tau_seconds`: `8`
+- `eta_progress_weight`: `6`
+- `ready_to_fire_bonus`: `2.5`
+- `stagnation_penalty_per_assignment`: `-0.15`
+- `target_switch_penalty`: `-0.3`
 - `threat_step_penalty`: `-2`
 - `launch_cost_per_weapon`: `-1`
 - `time_cost_per_step`: `-0.05`
 - `loss_penalty_per_ally`: `-80`
 - `success_bonus`: `150`
 - `failure_penalty`: `-150`
+
+최종 평가는 multi-seed benchmark를 기본으로 사용하고, 아래 지표를 함께 기록합니다.
+
+- `success_rate`
+- `survivability`
+- `weapon_efficiency`
+- `time_to_ready`
+- `tot_quality`
+
+seed별 편차가 크면 요약 JSON과 RL Lab UI에 경고가 표시됩니다.
+
+체크포인트는 observation/reward version 메타데이터를 함께 저장합니다. 현재 로드 정책은 `version mismatch면 차단`, `metadata가 없는 legacy 모델은 경고`입니다.
 
 ## 7. 실행 경로
 
@@ -107,6 +136,19 @@
 cd gym
 python scripts/fixed_target_strike/train.py
 ```
+
+커리큘럼 예시:
+
+```bash
+cd gym
+python scripts/fixed_target_strike/train.py --curriculum-enabled --algorithms ppo sac td3
+```
+
+추천 기본 조합:
+
+- `PPO`: 빠른 기준선 확보
+- `SAC`: 안정적인 연속행동 기준선
+- `TD3 / DDPG`: deterministic actor 비교 실험
 
 클라이언트의 RL Lab은 [`client/scripts/createRlDevServerPlugin.ts`](../../client/scripts/createRlDevServerPlugin.ts)에서 같은 train script를 호출합니다.
 

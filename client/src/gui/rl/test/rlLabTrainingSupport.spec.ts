@@ -15,6 +15,8 @@ describe("rlLabTrainingSupport", () => {
         timesteps: 4096,
         maxEpisodeSteps: 240,
         evalEpisodes: 1,
+        evalSeedCount: 3,
+        curriculumEnabled: false,
         seed: 7,
         progressEvalFrequency: 512,
         progressEvalEpisodes: 1,
@@ -30,9 +32,10 @@ describe("rlLabTrainingSupport", () => {
         },
       },
       {
-        algorithms: ["SAC", "ppo", "unsupported", "sac"],
+        algorithms: ["TD3", "DDPG", "SAC", "ppo", "unsupported", "sac"],
         timesteps: 2048,
         maxEpisodeSteps: 180,
+        curriculumEnabled: true,
         progressEvalFrequency: 256,
         controllableSideName: "ALPHA",
         targetSideName: "BRAVO",
@@ -46,9 +49,10 @@ describe("rlLabTrainingSupport", () => {
       "{\"scenario\":true}"
     );
 
-    expect(nextForm.algorithms).toEqual(["sac", "ppo"]);
+    expect(nextForm.algorithms).toEqual(["td3", "ddpg", "sac", "ppo"]);
     expect(nextForm.timesteps).toBe(2048);
     expect(nextForm.maxEpisodeSteps).toBe(180);
+    expect(nextForm.curriculumEnabled).toBe(true);
     expect(nextForm.progressEvalFrequency).toBe(256);
     expect(nextForm.controllableSideName).toBe("ALPHA");
     expect(nextForm.targetSideName).toBe("BRAVO");
@@ -83,7 +87,11 @@ describe("rlLabTrainingSupport", () => {
   });
 
   test("normalizes algorithm ids and falls back to PPO when none are valid", () => {
-    expect(normalizeAlgorithmIds(["SAC", "ppo", "invalid", "sac"])).toEqual([
+    expect(
+      normalizeAlgorithmIds(["TD3", "DDPG", "SAC", "ppo", "invalid", "sac"])
+    ).toEqual([
+      "td3",
+      "ddpg",
       "sac",
       "ppo",
     ]);

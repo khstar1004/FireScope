@@ -5,6 +5,9 @@ from typing import Any
 
 from blade.Scenario import Scenario
 
+OBSERVATION_VERSION = 3
+REWARD_VERSION = 3
+
 
 @dataclass(slots=True)
 class FixedTargetStrikeConfig:
@@ -78,6 +81,12 @@ class StepContext:
     selected_target_slots: list[int] = field(default_factory=list)
     ally_target_assignments: dict[str, str] = field(default_factory=dict)
     ally_target_priority_vectors: dict[str, list[float]] = field(default_factory=dict)
+    selected_launch_eta_before: dict[str, float] = field(default_factory=dict)
+    selected_launch_eta_after: dict[str, float] = field(default_factory=dict)
+    selected_ready_before_count: int = 0
+    selected_ready_after_count: int = 0
+    target_switch_count: int = 0
+    stagnation_count: int = 0
     launch_events: list[LaunchEvent] = field(default_factory=list)
     destroyed_target_ids: list[str] = field(default_factory=list)
     lost_ally_ids: list[str] = field(default_factory=list)

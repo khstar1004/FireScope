@@ -8,7 +8,7 @@ function createCapabilitiesResponse() {
     mode: "local",
     pythonCommand: "python",
     gymRoot: "C:/gym",
-    supportedAlgorithms: ["ppo"],
+    supportedAlgorithms: ["ppo", "ddpg", "td3"],
     defaultScenarioText: JSON.stringify(
       {
         name: "RL Test Scenario",
@@ -57,6 +57,8 @@ function createCapabilitiesResponse() {
       timesteps: 1000,
       maxEpisodeSteps: 200,
       evalEpisodes: 5,
+      evalSeedCount: 4,
+      curriculumEnabled: false,
       seed: 7,
       progressEvalFrequency: 100,
       progressEvalEpisodes: 2,
@@ -70,6 +72,10 @@ function createCapabilitiesResponse() {
         highValueTargetBonus: 5,
         totWeight: 1,
         totTauSeconds: 60,
+        etaProgressWeight: 2,
+        readyToFireBonus: 1,
+        stagnationPenaltyPerAssignment: -0.15,
+        targetSwitchPenalty: -0.3,
         threatStepPenalty: 0.1,
         launchCostPerWeapon: 0.2,
         timeCostPerStep: 0.01,
@@ -133,5 +139,9 @@ describe("RlLabPage", () => {
       overflowY: "auto",
       overflowX: "hidden",
     });
+    expect(screen.getByText("DDPG")).toBeInTheDocument();
+    expect(screen.getByText("TD3")).toBeInTheDocument();
+    expect(screen.getByLabelText("ETA Progress Weight")).toHaveValue(2);
+    expect(screen.getByLabelText("Eval Seed Count")).toHaveValue(4);
   });
 });

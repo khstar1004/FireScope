@@ -1,4 +1,4 @@
-export const RL_LAB_SUPPORTED_ALGORITHMS = ["ppo", "a2c", "sac"] as const;
+export const RL_LAB_SUPPORTED_ALGORITHMS = ["ppo", "a2c", "sac", "ddpg", "td3"] as const;
 export type RlLabSupportedAlgorithm =
   (typeof RL_LAB_SUPPORTED_ALGORITHMS)[number];
 
@@ -7,6 +7,8 @@ export interface RlLabTrainingRequestLike {
   timesteps?: number;
   maxEpisodeSteps?: number;
   evalEpisodes?: number;
+  evalSeedCount?: number;
+  curriculumEnabled?: boolean;
   seed?: number;
   progressEvalFrequency?: number;
   progressEvalEpisodes?: number;
@@ -23,6 +25,8 @@ export interface RlLabTrainingFormLike {
   timesteps: number;
   maxEpisodeSteps: number;
   evalEpisodes: number;
+  evalSeedCount: number;
+  curriculumEnabled: boolean;
   seed: number;
   progressEvalFrequency: number;
   progressEvalEpisodes: number;
@@ -96,6 +100,9 @@ export function applyTrainingRequestToForm<T extends RlLabTrainingFormLike>(
     timesteps: request.timesteps ?? baseForm.timesteps,
     maxEpisodeSteps: request.maxEpisodeSteps ?? baseForm.maxEpisodeSteps,
     evalEpisodes: request.evalEpisodes ?? baseForm.evalEpisodes,
+    evalSeedCount: request.evalSeedCount ?? baseForm.evalSeedCount,
+    curriculumEnabled:
+      request.curriculumEnabled ?? baseForm.curriculumEnabled,
     seed: request.seed ?? baseForm.seed,
     progressEvalFrequency:
       request.progressEvalFrequency ?? baseForm.progressEvalFrequency,
