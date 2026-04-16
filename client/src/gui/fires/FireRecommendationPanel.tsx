@@ -300,6 +300,23 @@ export default function FireRecommendationPanel({
       <Typography sx={{ fontSize: 12.5, color: "text.secondary" }}>
         선택 모델: {recommendation.selectionModelLabel}
       </Typography>
+      {topOption?.aiReasonSummary && (
+        <Typography sx={{ fontSize: 12.5, color: "text.secondary" }}>
+          AI 판단: {topOption.aiReasonSummary}
+        </Typography>
+      )}
+      {topOption?.aiPositiveSignals &&
+        topOption.aiPositiveSignals.length > 0 && (
+          <Typography sx={{ fontSize: 12.5, color: "text.secondary" }}>
+            강점: {topOption.aiPositiveSignals.join(" / ")}
+          </Typography>
+        )}
+      {topOption?.aiNegativeSignals &&
+        topOption.aiNegativeSignals.length > 0 && (
+          <Typography sx={{ fontSize: 12.5, color: "text.secondary" }}>
+            주의: {topOption.aiNegativeSignals.join(" / ")}
+          </Typography>
+        )}
       <Typography sx={{ fontSize: 12.5, color: "text.secondary" }}>
         학습 기준: {feedbackOptionLabel ?? "미지정"}
       </Typography>
@@ -422,6 +439,29 @@ export default function FireRecommendationPanel({
                     ? ` · AI ${option.rerankerScore.toFixed(3)}`
                     : ""}
                 </Typography>
+                {option.aiReasonSummary && (
+                  <Typography
+                    sx={{ mt: 0.35, fontSize: 12.5, color: "text.secondary" }}
+                  >
+                    AI 판단: {option.aiReasonSummary}
+                  </Typography>
+                )}
+                {option.aiPositiveSignals &&
+                  option.aiPositiveSignals.length > 0 && (
+                    <Typography
+                      sx={{ mt: 0.35, fontSize: 12.5, color: "text.secondary" }}
+                    >
+                      강점: {option.aiPositiveSignals.join(" / ")}
+                    </Typography>
+                  )}
+                {option.aiNegativeSignals &&
+                  option.aiNegativeSignals.length > 0 && (
+                    <Typography
+                      sx={{ mt: 0.35, fontSize: 12.5, color: "text.secondary" }}
+                    >
+                      주의: {option.aiNegativeSignals.join(" / ")}
+                    </Typography>
+                  )}
                 <Typography
                   sx={{ mt: 0.45, fontSize: 12, color: "text.secondary" }}
                 >

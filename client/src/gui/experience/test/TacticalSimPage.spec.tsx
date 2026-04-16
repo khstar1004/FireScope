@@ -35,6 +35,11 @@ describe("TacticalSimPage", () => {
     expect(
       screen.getByRole("button", { name: "360 모델" })
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "데모 재생" })
+    ).toBeInTheDocument();
+    expect(screen.getByText("TODO")).toBeInTheDocument();
+    expect(screen.getByText("Demo Flow")).toBeInTheDocument();
     expect(screen.queryByText("성공 기준")).not.toBeInTheDocument();
     expect(screen.queryByText("작전 흐름")).not.toBeInTheDocument();
 

@@ -351,7 +351,7 @@ export default function FacilityCard(props: Readonly<FacilityCardProps>) {
                     </IconButton>
                   </Tooltip>
                   <ExperienceLaunchButton
-                    tooltip={`${props.facility.name} 3D 시뮬레이터`}
+                    tooltip={`${props.facility.name} 3D 쇼룸`}
                     onClick={_handleOpenAssetExperience}
                   />
                   <Tooltip title={`추가 작업`}>

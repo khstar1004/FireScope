@@ -5,9 +5,9 @@ import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
-import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import { alpha } from "@mui/material/styles";
 import type {
   SimulationOutcomeNarrativeSource,
   SimulationOutcomeSummary,
@@ -20,6 +20,88 @@ interface SimulationOutcomeDialogProps {
   narrativeSource: SimulationOutcomeNarrativeSource;
   loading?: boolean;
   onClose: () => void;
+}
+
+interface ComparisonRow {
+  label: string;
+  leftValue: string;
+  rightValue: string;
+  leftNote?: string;
+  rightNote?: string;
+  emphasis?: boolean;
+}
+
+function formatSignedNumber(value: number) {
+  return value > 0 ? `+${value}` : `${value}`;
+}
+
+function formatGap(value: number, unit: string, zeroLabel: string) {
+  if (value === 0) {
+    return zeroLabel;
+  }
+  return `${value}${unit}`;
+}
+
+function condenseText(text: string, fallback: string, limit: number = 104) {
+  const compact = (text || fallback).replace(/\s+/g, " ").trim() || fallback;
+
+  if (compact.length <= limit) {
+    return compact;
+  }
+
+  return `${compact.slice(0, limit - 3)}...`;
+}
+
+function pickPrimary(items: string[], fallback: string) {
+  return items.find(Boolean)?.trim() ?? fallback;
+}
+
+function buildInsightLabel(
+  narrativeSource: SimulationOutcomeNarrativeSource,
+  loading: boolean
+) {
+  if (loading) {
+    return "해석 갱신 중";
+  }
+  return narrativeSource === "llm" ? "LLM 브리핑" : "자동 브리핑";
+}
+
+function buildComparisonValue(
+  value: string,
+  note?: string,
+  align: "left" | "right" = "left"
+) {
+  return (
+    <Box
+      sx={{
+        minWidth: 0,
+        textAlign: align,
+      }}
+    >
+      <Typography
+        sx={{
+          fontSize: 16.5,
+          fontWeight: 800,
+          lineHeight: 1.12,
+          letterSpacing: "0.01em",
+        }}
+      >
+        {value}
+      </Typography>
+      {note && (
+        <Typography
+          sx={{
+            mt: 0.18,
+            fontSize: 11.25,
+            color: "text.secondary",
+            lineHeight: 1.3,
+          }}
+        >
+          {note}
+        </Typography>
+      )}
+    </Box>
+  );
 }
 
 export default function SimulationOutcomeDialog({
@@ -40,86 +122,750 @@ export default function SimulationOutcomeDialog({
       assessment,
     ])
   );
+  const displaySides = summary.sides.slice(0, 2);
+  const leftSide = displaySides[0];
+  const rightSide = displaySides[1];
+  const leftAssessment = leftSide
+    ? assessmentBySideId.get(leftSide.sideId)
+    : undefined;
+  const rightAssessment = rightSide
+    ? assessmentBySideId.get(rightSide.sideId)
+    : undefined;
+  const topTurningPoint = summary.report.turningPoints[0];
+  const decisiveFactors = summary.report.decisiveFactors.slice(0, 4);
+  const combatPowerGap =
+    leftSide && rightSide
+      ? Math.abs(leftSide.remainingCombatPower - rightSide.remainingCombatPower)
+      : 0;
+  const comparisonRows: ComparisonRow[] = [
+    {
+      label: "점수",
+      leftValue: `${leftSide?.score ?? 0}`,
+      rightValue: `${rightSide?.score ?? 0}`,
+      leftNote: leftSide
+        ? `격차 ${formatGap(
+            Math.abs((leftSide?.score ?? 0) - (rightSide?.score ?? 0)),
+            "점",
+            "동률"
+          )}`
+        : undefined,
+      rightNote: rightSide
+        ? `격차 ${formatGap(
+            Math.abs((leftSide?.score ?? 0) - (rightSide?.score ?? 0)),
+            "점",
+            "동률"
+          )}`
+        : undefined,
+      emphasis: true,
+    },
+    {
+      label: "잔존 전력",
+      leftValue: `${leftSide?.remainingCombatPower ?? 0}`,
+      rightValue: `${rightSide?.remainingCombatPower ?? 0}`,
+      leftNote: leftSide
+        ? `전투 단위 ${leftSide.remainingCombatUnits}개`
+        : undefined,
+      rightNote: rightSide
+        ? `전투 단위 ${rightSide.remainingCombatUnits}개`
+        : undefined,
+      emphasis: true,
+    },
+    {
+      label: "유효타",
+      leftValue: `${leftSide?.confirmedHits ?? 0}`,
+      rightValue: `${rightSide?.confirmedHits ?? 0}`,
+      leftNote: leftAssessment?.engagementEfficiencyLabel ?? "평가 제한",
+      rightNote: rightAssessment?.engagementEfficiencyLabel ?? "평가 제한",
+    },
+    {
+      label: "명중률",
+      leftValue: leftAssessment?.hitRateLabel ?? "교전 제한",
+      rightValue: rightAssessment?.hitRateLabel ?? "교전 제한",
+      leftNote: leftSide ? `발사 ${leftSide.launches}` : undefined,
+      rightNote: rightSide ? `발사 ${rightSide.launches}` : undefined,
+    },
+    {
+      label: "소모전",
+      leftValue:
+        leftAssessment?.attritionLabel ??
+        formatSignedNumber(leftSide?.attritionBalance ?? 0),
+      rightValue:
+        rightAssessment?.attritionLabel ??
+        formatSignedNumber(rightSide?.attritionBalance ?? 0),
+      leftNote: leftSide
+        ? `격파 ${leftSide.kills.total} · 손실 ${leftSide.losses.total}`
+        : undefined,
+      rightNote: rightSide
+        ? `격파 ${rightSide.kills.total} · 손실 ${rightSide.losses.total}`
+        : undefined,
+      emphasis: true,
+    },
+    {
+      label: "임무 성과",
+      leftValue: `${leftSide?.missionSuccesses ?? 0}`,
+      rightValue: `${rightSide?.missionSuccesses ?? 0}`,
+      leftNote: leftSide
+        ? `타격 ${leftSide.strikeMissionSuccesses} · 초계 ${leftSide.patrolMissionSuccesses}`
+        : undefined,
+      rightNote: rightSide
+        ? `타격 ${rightSide.strikeMissionSuccesses} · 초계 ${rightSide.patrolMissionSuccesses}`
+        : undefined,
+    },
+    {
+      label: "잔여 무장",
+      leftValue: `${leftSide?.weaponInventory ?? 0}`,
+      rightValue: `${rightSide?.weaponInventory ?? 0}`,
+      leftNote: leftSide
+        ? `미명중 ${leftSide.misses} · 무장 손실 ${leftSide.weaponLosses}`
+        : undefined,
+      rightNote: rightSide
+        ? `미명중 ${rightSide.misses} · 무장 손실 ${rightSide.weaponLosses}`
+        : undefined,
+    },
+  ];
+  const briefingText = condenseText(narrative, summary.report.executiveSummary, 92);
+  const riskText = condenseText(
+    pickPrimary(
+      summary.report.operationalRisks,
+      "즉시 확인된 추가 위험은 크지 않습니다."
+    ),
+    "즉시 확인된 추가 위험은 크지 않습니다.",
+    78
+  );
+  const recommendationText = condenseText(
+    pickPrimary(
+      summary.report.recommendations,
+      "현 전과를 유지할 수 있도록 감시와 재정비를 병행해야 합니다."
+    ),
+    "현 전과를 유지할 수 있도록 감시와 재정비를 병행해야 합니다.",
+    78
+  );
+  const extraSides = summary.sides.slice(2);
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
       fullWidth
-      maxWidth="md"
+      maxWidth="lg"
       aria-labelledby="simulation-outcome-dialog-title"
+      PaperProps={{
+        sx: {
+          borderRadius: 3,
+          overflow: "hidden",
+          background: (theme) =>
+            `linear-gradient(180deg, ${alpha(theme.palette.background.paper, 0.98)} 0%, ${alpha("#031114", 0.99)} 100%)`,
+        },
+      }}
     >
-      <DialogTitle id="simulation-outcome-dialog-title">
-        전투 결과 요약
+      <DialogTitle
+        id="simulation-outcome-dialog-title"
+        component="div"
+        sx={{
+          px: { xs: 1.8, sm: 2.2 },
+          py: 1.45,
+          borderBottom: (theme) =>
+            `1px solid ${alpha(theme.palette.primary.main, 0.16)}`,
+          background: (theme) =>
+            `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.12)} 0%, ${alpha(theme.palette.background.paper, 0)} 76%)`,
+        }}
+      >
+        <Typography
+          component="span"
+          sx={{
+            display: "block",
+            fontSize: 11,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            color: "text.secondary",
+          }}
+        >
+          Battle Outcome Report
+        </Typography>
+        <Typography
+          component="span"
+          variant="h5"
+          sx={{ mt: 0.25, display: "block" }}
+        >
+          전투 결과
+        </Typography>
+        <Typography
+          component="span"
+          sx={{ mt: 0.35, display: "block", color: "text.secondary" }}
+        >
+          {summary.scenarioName}
+        </Typography>
       </DialogTitle>
-      <DialogContent dividers>
-        <Stack spacing={1.5}>
-          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-            <Chip
-              color={summary.winnerName ? "success" : "default"}
-              label={summary.winnerName ?? "무승부"}
-            />
-            <Chip variant="outlined" label={summary.endReason} />
-            <Chip
-              variant="outlined"
-              label={`종료 시각 ${summary.endedAtLabel}`}
-            />
-          </Stack>
 
-          <Box>
-            <Typography sx={{ fontWeight: 700 }}>
-              {summary.report.headline}
-            </Typography>
-            <Typography sx={{ mt: 0.6, color: "text.secondary" }}>
-              {summary.report.executiveSummary}
-            </Typography>
+      <DialogContent
+        dividers
+        sx={{
+          px: { xs: 1.3, sm: 2 },
+          py: 1.35,
+          borderColor: (theme) => alpha(theme.palette.primary.main, 0.12),
+        }}
+      >
+        <Stack spacing={1.05}>
+          <Box
+            sx={{
+              position: "relative",
+              p: { xs: 1, sm: 1.2 },
+              borderRadius: 3,
+              border: (theme) =>
+                `1px solid ${alpha(theme.palette.primary.main, 0.18)}`,
+              background: (theme) =>
+                `linear-gradient(155deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.background.paper, 0.22)} 52%, ${alpha(theme.palette.secondary.main, 0.06)} 100%)`,
+              boxShadow: (theme) =>
+                `0 0 0 1px ${alpha(theme.palette.primary.main, 0.04)} inset`,
+              "&::before": {
+                content: '""',
+                position: "absolute",
+                inset: 0,
+                pointerEvents: "none",
+                borderRadius: 3,
+                background: (theme) =>
+                  `repeating-linear-gradient(180deg, transparent 0, transparent 16px, ${alpha(theme.palette.primary.main, 0.018)} 16px, ${alpha(theme.palette.primary.main, 0.018)} 17px)`,
+              },
+            }}
+          >
+            <Stack
+              direction="row"
+              spacing={0.55}
+              sx={{ flexWrap: "wrap", position: "relative", zIndex: 1 }}
+            >
+              <Chip
+                size="small"
+                color={summary.winnerName ? "success" : "secondary"}
+                label={summary.winnerName ?? "무승부"}
+                sx={{ fontWeight: 800 }}
+              />
+              <Chip size="small" variant="outlined" label={summary.endReason} />
+              <Chip
+                size="small"
+                variant="outlined"
+                label={summary.activeSideSummary}
+              />
+              <Chip
+                size="small"
+                variant="outlined"
+                label={`종료 ${summary.endedAtLabel}`}
+              />
+            </Stack>
+
+            <Box
+              sx={{
+                mt: 0.9,
+                display: "grid",
+                gap: 0.8,
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  md: "minmax(0, 1fr) 208px minmax(0, 1fr)",
+                },
+                position: "relative",
+                zIndex: 1,
+              }}
+            >
+              {displaySides.map((side, index) => {
+                const assessment = assessmentBySideId.get(side.sideId);
+                const isWinner =
+                  Boolean(summary.winnerName) &&
+                  summary.winnerName === side.name;
+                const accentColor = isWinner ? "#4cd67a" : "#35d9c6";
+                const accentTone = isWinner
+                  ? "WINNER"
+                  : index === 0
+                    ? "LEADER"
+                    : "RUNNER-UP";
+
+                return (
+                  <Box
+                    key={side.sideId}
+                    sx={{
+                      p: 0.95,
+                      borderRadius: 2.2,
+                      border: (theme) =>
+                        `1px solid ${alpha(
+                          isWinner
+                            ? theme.palette.success.main
+                            : theme.palette.primary.main,
+                          isWinner ? 0.26 : 0.14
+                        )}`,
+                      background: (theme) =>
+                        `linear-gradient(180deg, ${alpha(accentColor, isWinner ? 0.16 : 0.09)} 0%, ${alpha(theme.palette.background.paper, 0.34)} 100%)`,
+                      boxShadow: isWinner
+                        ? `0 0 26px ${alpha(accentColor, 0.16)}`
+                        : "none",
+                    }}
+                  >
+                    <Stack
+                      direction="row"
+                      spacing={0.7}
+                      sx={{ justifyContent: "space-between", alignItems: "flex-start" }}
+                    >
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography
+                          sx={{
+                            fontSize: 10.5,
+                            letterSpacing: "0.12em",
+                            textTransform: "uppercase",
+                            color: "text.secondary",
+                          }}
+                        >
+                          {accentTone}
+                        </Typography>
+                        <Typography
+                          sx={{
+                            mt: 0.35,
+                            fontSize: 22,
+                            fontWeight: 800,
+                            color: isWinner ? "success.main" : "text.primary",
+                            lineHeight: 1.02,
+                          }}
+                        >
+                          {side.name}
+                        </Typography>
+                      </Box>
+                      {assessment && (
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          label={assessment.combatPosture}
+                          sx={{
+                            height: 24,
+                            color: isWinner ? "success.main" : "text.primary",
+                            borderColor: alpha(accentColor, 0.34),
+                            backgroundColor: alpha(accentColor, 0.1),
+                          }}
+                        />
+                      )}
+                    </Stack>
+
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      sx={{ mt: 0.7, justifyContent: "space-between", alignItems: "flex-end" }}
+                    >
+                      <Box>
+                        <Typography
+                          sx={{
+                            fontSize: 28,
+                            fontWeight: 900,
+                            lineHeight: 0.98,
+                            letterSpacing: "-0.02em",
+                          }}
+                        >
+                          {side.score}
+                        </Typography>
+                        <Typography
+                          sx={{ mt: 0.12, fontSize: 11, color: "text.secondary" }}
+                        >
+                          SCORE
+                        </Typography>
+                      </Box>
+                      <Box sx={{ textAlign: "right" }}>
+                        <Typography sx={{ fontSize: 16, fontWeight: 800, lineHeight: 1 }}>
+                          {side.remainingCombatPower}
+                        </Typography>
+                        <Typography
+                          sx={{ mt: 0.12, fontSize: 11, color: "text.secondary" }}
+                        >
+                          COMBAT POWER
+                        </Typography>
+                      </Box>
+                    </Stack>
+
+                    <Box
+                      sx={{
+                        mt: 0.75,
+                        display: "grid",
+                        gap: 0.45,
+                        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          p: 0.55,
+                          borderRadius: 1.6,
+                          backgroundColor: (theme) =>
+                            alpha(theme.palette.background.paper, 0.34),
+                        }}
+                      >
+                        <Typography sx={{ fontSize: 10.5, color: "text.secondary" }}>
+                          명중률
+                        </Typography>
+                        <Typography sx={{ mt: 0.1, fontSize: 13.5, fontWeight: 800 }}>
+                          {leftSide?.sideId === side.sideId
+                            ? leftAssessment?.hitRateLabel ?? "교전 제한"
+                            : rightAssessment?.hitRateLabel ?? "교전 제한"}
+                        </Typography>
+                      </Box>
+                      <Box
+                        sx={{
+                          p: 0.55,
+                          borderRadius: 1.6,
+                          backgroundColor: (theme) =>
+                            alpha(theme.palette.background.paper, 0.34),
+                        }}
+                      >
+                        <Typography sx={{ fontSize: 10.5, color: "text.secondary" }}>
+                          유효타
+                        </Typography>
+                        <Typography sx={{ mt: 0.1, fontSize: 13.5, fontWeight: 800 }}>
+                          {side.confirmedHits}
+                        </Typography>
+                      </Box>
+                      <Box
+                        sx={{
+                          p: 0.55,
+                          borderRadius: 1.6,
+                          backgroundColor: (theme) =>
+                            alpha(theme.palette.background.paper, 0.34),
+                        }}
+                      >
+                        <Typography sx={{ fontSize: 10.5, color: "text.secondary" }}>
+                          소모전
+                        </Typography>
+                        <Typography sx={{ mt: 0.1, fontSize: 13.5, fontWeight: 800 }}>
+                          {assessment?.attritionLabel ??
+                            formatSignedNumber(side.attritionBalance)}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
+                );
+              })}
+
+              <Box
+                sx={{
+                  order: { xs: -1, md: 0 },
+                  p: 1,
+                  borderRadius: 2.8,
+                  border: (theme) =>
+                    `1px solid ${alpha(
+                      summary.winnerName
+                        ? theme.palette.success.main
+                        : theme.palette.secondary.main,
+                      0.22
+                    )}`,
+                  background: (theme) =>
+                    `radial-gradient(circle at 50% 12%, ${alpha(
+                      summary.winnerName
+                        ? theme.palette.success.main
+                        : theme.palette.secondary.main,
+                      0.18
+                    )} 0%, ${alpha(theme.palette.background.paper, 0.5)} 46%, ${alpha(theme.palette.background.paper, 0.62)} 100%)`,
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  textAlign: "center",
+                  boxShadow: (theme) =>
+                    `0 0 28px ${alpha(
+                      summary.winnerName
+                        ? theme.palette.success.main
+                        : theme.palette.secondary.main,
+                      0.12
+                    )}`,
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontSize: 10.5,
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    color: "text.secondary",
+                  }}
+                >
+                  Result Locked
+                </Typography>
+                <Typography
+                  sx={{
+                    mt: 0.45,
+                    fontSize: 36,
+                    fontWeight: 900,
+                    lineHeight: 1.04,
+                    color: summary.winnerName
+                      ? "success.main"
+                      : "secondary.main",
+                  }}
+                >
+                  {summary.winnerName ?? "무승부"}
+                </Typography>
+                <Typography
+                  sx={{
+                    mt: 0.55,
+                    fontSize: 12.5,
+                    color: "text.secondary",
+                    lineHeight: 1.45,
+                  }}
+                >
+                  {summary.winnerBasis}
+                </Typography>
+                <Box
+                  sx={{
+                    mt: 0.8,
+                    display: "grid",
+                    gap: 0.55,
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                  }}
+                >
+                  <Box
+                    sx={{
+                      p: 0.8,
+                      borderRadius: 2,
+                      backgroundColor: (theme) =>
+                        alpha(theme.palette.background.paper, 0.42),
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 11, color: "text.secondary" }}>
+                      점수 차
+                    </Typography>
+                    <Typography sx={{ mt: 0.2, fontWeight: 800 }}>
+                      {formatGap(summary.scoreGap, "점", "동률")}
+                    </Typography>
+                  </Box>
+                  <Box
+                    sx={{
+                      p: 0.8,
+                      borderRadius: 2,
+                      backgroundColor: (theme) =>
+                        alpha(theme.palette.background.paper, 0.42),
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 11, color: "text.secondary" }}>
+                      잔존 차
+                    </Typography>
+                    <Typography sx={{ mt: 0.2, fontWeight: 800 }}>
+                      {formatGap(combatPowerGap, "", "동급")}
+                    </Typography>
+                  </Box>
+                </Box>
+                <Typography
+                  sx={{
+                    mt: 0.7,
+                    fontSize: 11.25,
+                    color: "text.secondary",
+                    letterSpacing: "0.03em",
+                  }}
+                >
+                  {summary.activeSideSummary}
+                </Typography>
+              </Box>
+            </Box>
+
+            <Box
+              sx={{
+                mt: 0.75,
+                p: 0.85,
+                borderRadius: 2.4,
+                backgroundColor: (theme) =>
+                  alpha(theme.palette.background.paper, 0.3),
+                border: (theme) =>
+                  `1px solid ${alpha(theme.palette.primary.main, 0.12)}`,
+              }}
+            >
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1}
+                sx={{ justifyContent: "space-between" }}
+              >
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 12, color: "text.secondary" }}>
+                    결정 장면
+                  </Typography>
+                  <Typography
+                    sx={{
+                      mt: 0.32,
+                      fontSize: 15,
+                      fontWeight: 700,
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    {topTurningPoint?.headline ?? "결정적 장면 기록 없음"}
+                  </Typography>
+                </Box>
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={
+                    topTurningPoint
+                      ? `${topTurningPoint.sideName} · ${topTurningPoint.occurredAtLabel}`
+                      : summary.activeSideSummary
+                  }
+                />
+              </Stack>
+            </Box>
           </Box>
 
           <Box
             sx={{
-              p: 1.5,
-              borderRadius: 2,
-              backgroundColor: "rgba(95, 112, 65, 0.08)",
-              border: "1px solid rgba(95, 112, 65, 0.18)",
+              p: { xs: 0.95, sm: 1.05 },
+              borderRadius: 3,
+              backgroundColor: (theme) =>
+                alpha(theme.palette.primary.main, 0.05),
+              border: (theme) =>
+                `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
             }}
           >
-            <Typography sx={{ fontWeight: 700 }}>
-              {narrativeSource === "llm" ? "LLM 전투 해석" : "자동 전투 요약"}
-            </Typography>
-            <Typography
+            <Stack
+              direction={{ xs: "column", md: "row" }}
+              spacing={0.9}
               sx={{
-                mt: 0.8,
-                whiteSpace: "pre-wrap",
-                color: "text.secondary",
+                justifyContent: "space-between",
+                alignItems: { md: "center" },
               }}
             >
-              {narrative}
-            </Typography>
-            {loading && (
-              <Typography
-                sx={{ mt: 0.8, fontSize: 12, color: "text.secondary" }}
+              <Typography sx={{ fontWeight: 700 }}>전투 통계판</Typography>
+              <Chip
+                size="small"
+                variant="outlined"
+                label={`${leftSide?.name ?? "-"} vs ${rightSide?.name ?? "-"}`}
+              />
+            </Stack>
+
+            {leftSide && (
+              <Box
+                sx={{
+                  mt: 0.7,
+                  display: { xs: "grid", md: "grid" },
+                  gap: 0.55,
+                  gridTemplateColumns: {
+                    xs: "repeat(2, minmax(0, 1fr))",
+                    md: "minmax(0, 1fr) 84px minmax(0, 1fr)",
+                  },
+                }}
               >
-                LLM 해석을 요청 중이며, 현재는 자동 요약을 먼저 표시합니다.
-              </Typography>
+                <Box
+                  sx={{
+                    p: 0.8,
+                    borderRadius: 1.7,
+                    textAlign: "center",
+                    backgroundColor: (theme) =>
+                      alpha(theme.palette.success.main, 0.1),
+                  }}
+                >
+                  <Typography sx={{ fontWeight: 700 }}>
+                    {leftSide.name}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: { xs: "none", md: "block" } }} />
+                <Box
+                  sx={{
+                    p: 0.8,
+                    borderRadius: 1.7,
+                    textAlign: "center",
+                    backgroundColor: (theme) =>
+                      alpha(theme.palette.primary.main, 0.1),
+                  }}
+                >
+                  <Typography sx={{ fontWeight: 700 }}>
+                    {rightSide?.name ?? "상대 없음"}
+                  </Typography>
+                </Box>
+              </Box>
             )}
-            {!loading && narrativeSource === "fallback" && (
-              <Typography
-                sx={{ mt: 0.8, fontSize: 12, color: "text.secondary" }}
-              >
-                LLM 응답을 받지 못해 규칙 기반 요약을 표시했습니다.
-              </Typography>
-            )}
+
+            <Stack spacing={0.45} sx={{ mt: 0.55 }}>
+              {comparisonRows.map((row) => (
+                <Box
+                  key={row.label}
+                  sx={{
+                    p: 0.55,
+                    borderRadius: 1.8,
+                    backgroundColor: (theme) =>
+                      alpha(
+                        theme.palette.background.paper,
+                        row.emphasis ? 0.28 : 0.16
+                      ),
+                    border: (theme) =>
+                      `1px solid ${alpha(
+                        row.emphasis
+                          ? theme.palette.primary.main
+                          : theme.palette.primary.main,
+                        row.emphasis ? 0.14 : 0.08
+                      )}`,
+                  }}
+                >
+                  <Box sx={{ display: { xs: "block", md: "none" } }}>
+                    <Typography
+                      sx={{
+                        mb: 0.4,
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        color: "text.secondary",
+                        textAlign: "center",
+                      }}
+                    >
+                      {row.label}
+                    </Typography>
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gap: 0.55,
+                        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                      }}
+                    >
+                      {buildComparisonValue(row.leftValue, row.leftNote)}
+                      {buildComparisonValue(
+                        row.rightValue,
+                        row.rightNote,
+                        "right"
+                      )}
+                    </Box>
+                  </Box>
+
+                  <Box
+                    sx={{
+                      display: { xs: "none", md: "grid" },
+                      gap: 0.55,
+                      gridTemplateColumns: "minmax(0, 1fr) 84px minmax(0, 1fr)",
+                      alignItems: "center",
+                    }}
+                  >
+                    {buildComparisonValue(row.leftValue, row.leftNote)}
+                    <Typography
+                      sx={{
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        color: row.emphasis ? "primary.light" : "text.secondary",
+                        textAlign: "center",
+                        letterSpacing: row.emphasis ? "0.04em" : undefined,
+                      }}
+                    >
+                      {row.label}
+                    </Typography>
+                    {buildComparisonValue(
+                      row.rightValue,
+                      row.rightNote,
+                      "right"
+                    )}
+                  </Box>
+                </Box>
+              ))}
+            </Stack>
           </Box>
 
-          {summary.report.decisiveFactors.length > 0 && (
-            <Box>
+          <Stack direction={{ xs: "column", lg: "row" }} spacing={1}>
+            <Box
+              sx={{
+                flex: 0.95,
+                p: 0.95,
+                borderRadius: 2.6,
+                backgroundColor: (theme) =>
+                  alpha(theme.palette.primary.main, 0.05),
+                border: (theme) =>
+                  `1px solid ${alpha(theme.palette.primary.main, 0.12)}`,
+              }}
+            >
               <Typography sx={{ fontWeight: 700 }}>핵심 요인</Typography>
               <Stack
                 direction="row"
-                spacing={1}
+                spacing={0.8}
                 sx={{ mt: 0.8, flexWrap: "wrap" }}
               >
-                {summary.report.decisiveFactors.map((factor) => (
+                {(decisiveFactors.length > 0
+                  ? decisiveFactors
+                  : ["결정 요인 정리 중"]
+                ).map((factor) => (
                   <Chip
                     key={factor}
                     size="small"
@@ -129,217 +875,132 @@ export default function SimulationOutcomeDialog({
                 ))}
               </Stack>
             </Box>
-          )}
 
-          <Box>
-            <Typography sx={{ fontWeight: 700 }}>판정 근거</Typography>
-            <Typography sx={{ mt: 0.6, color: "text.secondary" }}>
-              {summary.winnerBasis}
-            </Typography>
-          </Box>
+            <Box
+              sx={{
+                flex: 1.1,
+                p: 0.95,
+                borderRadius: 2.6,
+                backgroundColor: (theme) =>
+                  alpha(theme.palette.success.main, 0.06),
+                border: (theme) =>
+                  `1px solid ${alpha(theme.palette.success.main, 0.14)}`,
+              }}
+            >
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ justifyContent: "space-between", flexWrap: "wrap" }}
+              >
+                <Typography sx={{ fontWeight: 700 }}>작전 메모</Typography>
+                <Chip
+                  size="small"
+                  color={narrativeSource === "llm" ? "primary" : "default"}
+                  variant={narrativeSource === "llm" ? "filled" : "outlined"}
+                  label={buildInsightLabel(narrativeSource, loading)}
+                />
+              </Stack>
+              <Typography
+                sx={{ mt: 0.65, color: "text.secondary", lineHeight: 1.5, fontSize: 13 }}
+              >
+                {briefingText}
+              </Typography>
+            </Box>
 
-          <Divider />
-
-          <Stack spacing={1}>
-            {summary.sides.map((side) => {
-              const assessment = assessmentBySideId.get(side.sideId);
-
-              return (
-                <Box
-                  key={side.sideId}
-                  sx={{
-                    p: 1.3,
-                    borderRadius: 2,
-                    backgroundColor: "rgba(0, 0, 0, 0.02)",
-                    border: "1px solid rgba(0, 0, 0, 0.08)",
-                  }}
-                >
-                  <Stack
-                    direction="row"
-                    spacing={1}
-                    sx={{ justifyContent: "space-between", flexWrap: "wrap" }}
-                  >
-                    <Typography sx={{ fontWeight: 700 }}>
-                      {side.name}
-                    </Typography>
-                    {assessment && (
-                      <Stack direction="row" spacing={0.8}>
-                        <Chip
-                          size="small"
-                          label={assessment.combatPosture}
-                          color={
-                            summary.winnerName === side.name
-                              ? "success"
-                              : "default"
-                          }
-                        />
-                        <Chip
-                          size="small"
-                          variant="outlined"
-                          label={`${assessment.engagementEfficiencyLabel} · 명중률 ${assessment.hitRateLabel}`}
-                        />
-                      </Stack>
-                    )}
-                  </Stack>
-                  <Typography sx={{ mt: 0.5, color: "text.secondary" }}>
-                    점수 {side.score} / 잔존 전력 {side.remainingCombatUnits} /
-                    유효타 {side.confirmedHits} / 발사 {side.launches} / 임무
-                    성과 {side.missionSuccesses}
-                  </Typography>
-                  <Typography sx={{ mt: 0.4, color: "text.secondary" }}>
-                    항공 {side.aircraft} · 함정 {side.ships} · 지상{" "}
-                    {side.facilities} · 기지 {side.airbases} · 잔탄{" "}
-                    {side.weaponInventory}
-                  </Typography>
-                  <Typography sx={{ mt: 0.4, color: "text.secondary" }}>
-                    미명중 {side.misses} · 무장 손실 {side.weaponLosses} · 복귀{" "}
-                    {side.returnToBaseEvents} · 임무 중단 {side.abortedMissions}
-                  </Typography>
-
-                  {assessment && (
-                    <Stack spacing={0.7} sx={{ mt: 1 }}>
-                      <Box>
-                        <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
-                          강점
-                        </Typography>
-                        {assessment.strengths.map((item) => (
-                          <Typography
-                            key={item}
-                            sx={{
-                              mt: 0.25,
-                              fontSize: 13,
-                              color: "text.secondary",
-                            }}
-                          >
-                            • {item}
-                          </Typography>
-                        ))}
-                      </Box>
-                      <Box>
-                        <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
-                          유의점
-                        </Typography>
-                        {assessment.concerns.map((item) => (
-                          <Typography
-                            key={item}
-                            sx={{
-                              mt: 0.25,
-                              fontSize: 13,
-                              color: "text.secondary",
-                            }}
-                          >
-                            • {item}
-                          </Typography>
-                        ))}
-                      </Box>
-                    </Stack>
-                  )}
-                </Box>
-              );
-            })}
+            <Box
+              sx={{
+                flex: 1,
+                p: 0.95,
+                borderRadius: 2.6,
+                backgroundColor: (theme) =>
+                  alpha(theme.palette.warning.main, 0.05),
+                border: (theme) =>
+                  `1px solid ${alpha(theme.palette.warning.main, 0.12)}`,
+              }}
+            >
+              <Typography sx={{ fontWeight: 700 }}>후속 조치</Typography>
+              <Typography
+                sx={{
+                  mt: 0.75,
+                  fontSize: 12,
+                  color: "text.secondary",
+                  fontWeight: 700,
+                }}
+              >
+                위험
+              </Typography>
+              <Typography
+                sx={{
+                  mt: 0.25,
+                  fontSize: 12.5,
+                  color: "text.secondary",
+                  lineHeight: 1.45,
+                }}
+              >
+                {riskText}
+              </Typography>
+              <Typography
+                sx={{
+                  mt: 0.8,
+                  fontSize: 12,
+                  color: "text.secondary",
+                  fontWeight: 700,
+                }}
+              >
+                권고
+              </Typography>
+              <Typography
+                sx={{
+                  mt: 0.25,
+                  fontSize: 12.5,
+                  color: "text.secondary",
+                  lineHeight: 1.45,
+                }}
+              >
+                {recommendationText}
+              </Typography>
+            </Box>
           </Stack>
 
-          {summary.report.turningPoints.length > 0 && (
-            <Box>
-              <Typography sx={{ fontWeight: 700 }}>전환점</Typography>
-              <Stack spacing={1} sx={{ mt: 0.8 }}>
-                {summary.report.turningPoints.map((turningPoint) => (
-                  <Box
-                    key={turningPoint.id}
-                    sx={{
-                      p: 1.1,
-                      borderRadius: 2,
-                      backgroundColor: "rgba(95, 112, 65, 0.05)",
-                      border: "1px solid rgba(95, 112, 65, 0.14)",
-                    }}
-                  >
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      sx={{ justifyContent: "space-between", flexWrap: "wrap" }}
-                    >
-                      <Typography sx={{ fontWeight: 700, fontSize: 14 }}>
-                        {turningPoint.headline}
-                      </Typography>
-                      <Chip
-                        size="small"
-                        variant="outlined"
-                        label={`${turningPoint.importanceLabel} · ${turningPoint.occurredAtLabel}`}
-                      />
-                    </Stack>
-                    <Typography
-                      sx={{ mt: 0.5, fontSize: 13, color: "text.secondary" }}
-                    >
-                      [{turningPoint.sideName}] {turningPoint.detail}
-                    </Typography>
-                  </Box>
-                ))}
-              </Stack>
-            </Box>
-          )}
-
-          {(summary.report.operationalRisks.length > 0 ||
-            summary.report.recommendations.length > 0) && (
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2}>
-              <Box
-                sx={{
-                  flex: 1,
-                  p: 1.3,
-                  borderRadius: 2,
-                  backgroundColor: "rgba(117, 76, 36, 0.05)",
-                  border: "1px solid rgba(117, 76, 36, 0.14)",
-                }}
+          {extraSides.length > 0 && (
+            <Box
+              sx={{
+                p: 1.05,
+                borderRadius: 2.4,
+                backgroundColor: (theme) =>
+                  alpha(theme.palette.background.paper, 0.2),
+                border: (theme) =>
+                  `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+              }}
+            >
+              <Typography sx={{ fontWeight: 700 }}>기타 세력</Typography>
+              <Stack
+                direction="row"
+                spacing={0.75}
+                sx={{ mt: 0.7, flexWrap: "wrap" }}
               >
-                <Typography sx={{ fontWeight: 700 }}>운용 위험</Typography>
-                {summary.report.operationalRisks.map((risk) => (
-                  <Typography
-                    key={risk}
-                    sx={{ mt: 0.45, fontSize: 13, color: "text.secondary" }}
-                  >
-                    • {risk}
-                  </Typography>
-                ))}
-              </Box>
-              <Box
-                sx={{
-                  flex: 1,
-                  p: 1.3,
-                  borderRadius: 2,
-                  backgroundColor: "rgba(51, 88, 127, 0.05)",
-                  border: "1px solid rgba(51, 88, 127, 0.14)",
-                }}
-              >
-                <Typography sx={{ fontWeight: 700 }}>권고 조치</Typography>
-                {summary.report.recommendations.map((recommendation) => (
-                  <Typography
-                    key={recommendation}
-                    sx={{ mt: 0.45, fontSize: 13, color: "text.secondary" }}
-                  >
-                    • {recommendation}
-                  </Typography>
-                ))}
-              </Box>
-            </Stack>
-          )}
-
-          {summary.recentLogs.length > 0 && (
-            <Box>
-              <Typography sx={{ fontWeight: 700 }}>최근 주요 기록</Typography>
-              <Stack spacing={0.7} sx={{ mt: 0.8 }}>
-                {summary.recentLogs.map((log) => (
-                  <Typography
-                    key={log}
-                    sx={{ fontSize: 13, color: "text.secondary" }}
-                  >
-                    {log}
-                  </Typography>
+                {extraSides.map((side) => (
+                  <Chip
+                    key={side.sideId}
+                    size="small"
+                    variant="outlined"
+                    label={`${side.name} · 점수 ${side.score}`}
+                  />
                 ))}
               </Stack>
             </Box>
           )}
         </Stack>
       </DialogContent>
-      <DialogActions>
+
+      <DialogActions
+        sx={{
+          px: { xs: 1.8, sm: 2.4 },
+          py: 1.2,
+          borderTop: (theme) =>
+            `1px solid ${alpha(theme.palette.primary.main, 0.12)}`,
+        }}
+      >
         <Button onClick={onClose}>닫기</Button>
       </DialogActions>
     </Dialog>

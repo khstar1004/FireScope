@@ -94,7 +94,8 @@ function createCommanderCapabilitiesResponse() {
     mode: "local",
     pythonCommand: "python",
     gymRoot: "C:/gym",
-    commanderScriptPath: "C:/gym/scripts/fixed_target_strike/commander_optimize.py",
+    commanderScriptPath:
+      "C:/gym/scripts/fixed_target_strike/commander_optimize.py",
     presets: [
       {
         key: "smoke",
@@ -132,7 +133,8 @@ function createRlJobSnapshot() {
       eval_std_reward: 0,
       eval_success_rate: 0.25,
       replay_available: true,
-      recording_path: "C:/jobs/job-1/runs/ppo/checkpoints/0000000/eval_recording.jsonl",
+      recording_path:
+        "C:/jobs/job-1/runs/ppo/checkpoints/0000000/eval_recording.jsonl",
     },
     {
       algorithm: "ppo",
@@ -141,7 +143,8 @@ function createRlJobSnapshot() {
       eval_std_reward: 0,
       eval_success_rate: 0.75,
       replay_available: true,
-      recording_path: "C:/jobs/job-1/runs/ppo/checkpoints/0000512/eval_recording.jsonl",
+      recording_path:
+        "C:/jobs/job-1/runs/ppo/checkpoints/0000512/eval_recording.jsonl",
     },
   ];
   return {
@@ -256,7 +259,10 @@ describe("RlLabPage", () => {
           } as Response;
         }
 
-        if (url === "/api/rl/jobs/job-1/checkpoint-recording?algorithm=ppo&timesteps=512") {
+        if (
+          url ===
+          "/api/rl/jobs/job-1/checkpoint-recording?algorithm=ppo&timesteps=512"
+        ) {
           return {
             ok: true,
             text: async () => "checkpoint replay content",
@@ -285,7 +291,9 @@ describe("RlLabPage", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByText("고정표적 타격 강화학습 설계")).toBeInTheDocument()
+      expect(
+        screen.getByText("고정표적 타격 강화학습 설계")
+      ).toBeInTheDocument()
     );
 
     expect(screen.getByTestId("rl-lab-page")).toHaveStyle({
@@ -299,6 +307,32 @@ describe("RlLabPage", () => {
     expect(screen.getByLabelText("ETA Progress Weight")).toHaveValue(2);
     expect(screen.getByLabelText("Eval Seed Count")).toHaveValue(4);
     expect(screen.getByText("지휘관 자원·배치 최적화")).toBeInTheDocument();
+  });
+
+  test("applies the beginner baseline setup with the standard preset", async () => {
+    render(
+      <RlLabPage
+        onBack={vi.fn()}
+        initialJobId={null}
+        onJobIdChange={vi.fn()}
+        openReplayOnMap={vi.fn()}
+      />
+    );
+
+    const baselineButton = await screen.findByRole("button", {
+      name: "체험 기본 세팅",
+    });
+
+    fireEvent.click(baselineButton);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/기본 시나리오 기준 기본 세팅을 적용했습니다/)
+      ).toBeInTheDocument()
+    );
+    expect(screen.getByLabelText("Timesteps")).toHaveValue(4096);
+    expect(screen.getByLabelText("Eval Episodes")).toHaveValue(2);
+    expect(screen.getByLabelText("Progress Eval Frequency")).toHaveValue(512);
   });
 
   test("opens the latest checkpoint replay on the map", async () => {
@@ -357,6 +391,6 @@ describe("RlLabPage", () => {
     );
     expect(
       window.sessionStorage.getItem(RL_CHECKPOINT_SPECTATOR_KEY)
-    ).toContain("\"jobId\":\"job-1\"");
+    ).toContain('"jobId":"job-1"');
   });
 });

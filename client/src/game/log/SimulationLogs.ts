@@ -43,6 +43,7 @@ export type SimulationLogResultTag =
 export interface SimulationLogMetadata {
   actorId?: string;
   actorName?: string;
+  actorSideId?: string;
   actorType?: SimulationLogEntityType;
   launcherId?: string;
   launcherName?: string;
@@ -52,6 +53,7 @@ export interface SimulationLogMetadata {
   weaponClassName?: string;
   targetId?: string;
   targetName?: string;
+  targetSideId?: string;
   targetType?: SimulationLogEntityType;
   missionId?: string;
   missionName?: string;

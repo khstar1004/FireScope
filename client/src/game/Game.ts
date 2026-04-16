@@ -62,6 +62,7 @@ import {
   FOCUS_FIRE_RERANKER_FEATURE_NAMES,
   type FocusFireRerankerModel,
   createDefaultFocusFireRerankerModel,
+  explainFocusFireRerankerCandidate,
   getFocusFireRerankerConfidence,
   rerankFocusFireCandidates,
   trainFocusFireRerankerFromTelemetry,
@@ -88,6 +89,23 @@ interface IAttackParams {
 }
 
 export type Mission = PatrolMission | StrikeMission;
+
+export type GameDoneReason = "in_progress" | "terminated" | "truncated";
+
+export type GameDoneReasonDetail =
+  | "in_progress"
+  | "time_limit"
+  | "single_side_remaining"
+  | "no_active_sides";
+
+export interface GameStepInfo {
+  doneReason: GameDoneReason;
+  doneReasonDetail: GameDoneReasonDetail;
+  activeSideIds: string[];
+  activeSideNames: string[];
+}
+
+export type GameStepResult = [Scenario, number, boolean, boolean, GameStepInfo];
 
 export interface FocusFireOperation {
   enabled: boolean;
@@ -297,6 +315,9 @@ export interface FocusFireRecommendationOption {
   heuristicScore: number;
   rerankerScore: number | null;
   suitabilityScore: number;
+  aiReasonSummary?: string | null;
+  aiPositiveSignals?: string[];
+  aiNegativeSignals?: string[];
   rationale: string;
   firingPlan: FocusFireFiringPlanItem[];
 }
@@ -825,6 +846,135 @@ function normalizeImportedFocusFireRerankerModel(
     }
   }
 
+  type ImportedFocusFireTreeNode = {
+    feature?: (typeof FOCUS_FIRE_RERANKER_FEATURE_NAMES)[number];
+    threshold?: number;
+    left?: ImportedFocusFireTreeNode;
+    right?: ImportedFocusFireTreeNode;
+    value?: number;
+  };
+
+  const normalizeImportedFocusFireTreeNode = (
+    nodeCandidate: unknown
+  ): ImportedFocusFireTreeNode | null => {
+    if (!nodeCandidate || typeof nodeCandidate !== "object") {
+      return null;
+    }
+    const nodeRecord = nodeCandidate as Record<string, unknown>;
+
+    const value =
+      typeof nodeRecord.value === "number" && Number.isFinite(nodeRecord.value)
+        ? nodeRecord.value
+        : undefined;
+    const feature =
+      typeof nodeRecord.feature === "string" &&
+      FOCUS_FIRE_RERANKER_FEATURE_NAMES.includes(
+        nodeRecord.feature as (typeof FOCUS_FIRE_RERANKER_FEATURE_NAMES)[number]
+      )
+        ? (nodeRecord.feature as (typeof FOCUS_FIRE_RERANKER_FEATURE_NAMES)[number])
+        : undefined;
+    const threshold =
+      typeof nodeRecord.threshold === "number" &&
+      Number.isFinite(nodeRecord.threshold)
+        ? nodeRecord.threshold
+        : undefined;
+    const left = normalizeImportedFocusFireTreeNode(nodeRecord.left);
+    const right = normalizeImportedFocusFireTreeNode(nodeRecord.right);
+
+    if (value !== undefined && (!feature || threshold === undefined)) {
+      return {
+        value,
+      };
+    }
+    if (feature && threshold !== undefined && left && right) {
+      return {
+        feature,
+        threshold,
+        left,
+        right,
+      };
+    }
+
+    return null;
+  };
+
+  const normalizeImportedFocusFireTreeModel = (treeCandidate: unknown) => {
+    if (!treeCandidate || typeof treeCandidate !== "object") {
+      return null;
+    }
+    const treeRecord = treeCandidate as Record<string, unknown>;
+
+    if ("root" in treeRecord) {
+      const root = normalizeImportedFocusFireTreeNode(treeRecord.root);
+      if (!root) {
+        return null;
+      }
+      return {
+        root,
+      };
+    }
+
+    const feature =
+      typeof treeRecord.feature === "string" &&
+      FOCUS_FIRE_RERANKER_FEATURE_NAMES.includes(
+        treeRecord.feature as (typeof FOCUS_FIRE_RERANKER_FEATURE_NAMES)[number]
+      )
+        ? (treeRecord.feature as (typeof FOCUS_FIRE_RERANKER_FEATURE_NAMES)[number])
+        : null;
+    const threshold =
+      typeof treeRecord.threshold === "number" &&
+      Number.isFinite(treeRecord.threshold)
+        ? treeRecord.threshold
+        : null;
+    const leftValue =
+      typeof treeRecord.leftValue === "number" &&
+      Number.isFinite(treeRecord.leftValue)
+        ? treeRecord.leftValue
+        : null;
+    const rightValue =
+      typeof treeRecord.rightValue === "number" &&
+      Number.isFinite(treeRecord.rightValue)
+        ? treeRecord.rightValue
+        : null;
+
+    if (
+      feature &&
+      threshold !== null &&
+      leftValue !== null &&
+      rightValue !== null
+    ) {
+      return {
+        feature,
+        threshold,
+        leftValue,
+        rightValue,
+      };
+    }
+
+    return null;
+  };
+
+  const normalizedTreeEnsemble =
+    importedRerankerModel.treeEnsemble &&
+    typeof importedRerankerModel.treeEnsemble === "object" &&
+    Array.isArray(importedRerankerModel.treeEnsemble.trees)
+      ? {
+          trainer:
+            typeof importedRerankerModel.treeEnsemble.trainer === "string"
+              ? importedRerankerModel.treeEnsemble.trainer
+              : null,
+          trees: importedRerankerModel.treeEnsemble.trees
+            .map((tree) => normalizeImportedFocusFireTreeModel(tree))
+            .filter((tree): tree is NonNullable<typeof tree> => tree !== null),
+        }
+      : null;
+  const normalizedModelFamily =
+    importedRerankerModel.modelFamily === "tree-ensemble" &&
+    normalizedTreeEnsemble &&
+    normalizedTreeEnsemble.trees.length > 0
+      ? "tree-ensemble"
+      : defaultModel.modelFamily;
+
   return {
     version:
       typeof importedRerankerModel.version === "number" &&
@@ -836,9 +986,13 @@ function normalizeImportedFocusFireRerankerModel(
         ? importedRerankerModel.trainedAt
         : defaultModel.trainedAt,
     source:
-      importedRerankerModel.source === "telemetry-pairwise"
-        ? "telemetry-pairwise"
-        : defaultModel.source,
+      importedRerankerModel.source === "telemetry-pairwise" ||
+      importedRerankerModel.source === "telemetry-tree-ensemble"
+        ? importedRerankerModel.source
+        : normalizedModelFamily === "tree-ensemble"
+          ? "telemetry-tree-ensemble"
+          : defaultModel.source,
+    modelFamily: normalizedModelFamily,
     sampleCount:
       typeof importedRerankerModel.sampleCount === "number" &&
       Number.isFinite(importedRerankerModel.sampleCount)
@@ -870,6 +1024,8 @@ function normalizeImportedFocusFireRerankerModel(
         ? importedRerankerModel.intercept
         : defaultModel.intercept,
     weights: normalizedWeights,
+    treeEnsemble:
+      normalizedModelFamily === "tree-ensemble" ? normalizedTreeEnsemble : null,
   };
 }
 
@@ -2448,10 +2604,22 @@ export default class Game {
             desiredEffect: desiredEffectRequested,
           })),
           this.focusFireRerankerModel
-        ).map(({ candidate, rerankerScore }) => ({
-          ...candidate,
-          rerankerScore: roundToDigits(rerankerScore, 4),
-        }))
+        ).map(({ candidate, rerankerScore }) => {
+          const explanation = explainFocusFireRerankerCandidate(
+            {
+              ...candidate,
+              desiredEffect: desiredEffectRequested,
+            },
+            this.focusFireRerankerModel
+          );
+          return {
+            ...candidate,
+            rerankerScore: roundToDigits(rerankerScore, 4),
+            aiReasonSummary: explanation.summary,
+            aiPositiveSignals: explanation.positiveSignals,
+            aiNegativeSignals: explanation.negativeSignals,
+          };
+        })
       : heuristicRecommendations;
     const recommendations = rankedRecommendations
       .slice(0, 3)
@@ -2464,6 +2632,19 @@ export default class Game {
     const rerankerConfidenceScore = rerankerApplied
       ? getFocusFireRerankerConfidence(this.focusFireRerankerModel)
       : 0;
+    const treeTrainerLabel =
+      this.focusFireRerankerModel.treeEnsemble?.trainer ?? "";
+    const rerankerSelectionLabel = rerankerApplied
+      ? `${
+          this.focusFireRerankerModel.modelFamily === "tree-ensemble"
+            ? treeTrainerLabel.includes("LightGBM")
+              ? "AI LambdaRank"
+              : "AI TreeRank"
+            : "AI 재정렬"
+        } v${this.focusFireRerankerModel.version} · 신뢰도 ${Math.round(
+          rerankerConfidenceScore * 100
+        )}%`
+      : "규칙 기반";
     let priorityScore =
       targetCombatPower +
       highValueTargetCount * 18 +
@@ -2544,11 +2725,7 @@ export default class Game {
       threatExposureScore: bestRecommendation?.threatExposureScore ?? 0,
       launchReadinessLabel:
         bestRecommendation?.executionReadinessLabel ?? "추천 없음",
-      selectionModelLabel: rerankerApplied
-        ? `AI 재정렬 v${this.focusFireRerankerModel.version} · 신뢰도 ${Math.round(
-            rerankerConfidenceScore * 100
-          )}%`
-        : "규칙 기반",
+      selectionModelLabel: rerankerSelectionLabel,
       rerankerApplied,
       weaponName: bestRecommendation?.weaponName ?? null,
       shotCount: bestRecommendation?.shotCount ?? 0,
@@ -5371,6 +5548,7 @@ export default class Game {
           {
             actorId: aircraft.id,
             actorName: aircraft.name,
+            actorSideId: aircraft.sideId,
             actorType: "aircraft",
             resultTag: "fuel_loss",
             actorScoreDelta: scoreDelta.actorDelta,
@@ -5506,50 +5684,128 @@ export default class Game {
     return this.currentScenario;
   }
 
-  _getInfo() {
-    return null;
+  private getActiveCombatSideIds() {
+    return [
+      ...new Set(
+        [
+          ...this.currentScenario.aircraft.map((unit) => unit.sideId),
+          ...this.currentScenario.ships.map((unit) => unit.sideId),
+          ...this.currentScenario.facilities.map((unit) => unit.sideId),
+          ...this.currentScenario.airbases.map((unit) => unit.sideId),
+        ].filter(Boolean)
+      ),
+    ];
   }
 
-  step(): [Scenario, number, boolean, boolean, null] {
+  getGameEndState(): {
+    terminated: boolean;
+    truncated: boolean;
+    info: GameStepInfo;
+  } {
+    const activeSideIds = this.getActiveCombatSideIds();
+    const infoBase = {
+      activeSideIds,
+      activeSideNames: activeSideIds.map((sideId) =>
+        this.currentScenario.getSideName(sideId)
+      ),
+    };
+
+    if (this.currentScenario.currentTime >= this.currentScenario.endTime) {
+      return {
+        terminated: false,
+        truncated: true,
+        info: {
+          doneReason: "truncated",
+          doneReasonDetail: "time_limit",
+          ...infoBase,
+        },
+      };
+    }
+
+    if (this.currentScenario.sides.length > 1 && activeSideIds.length === 0) {
+      return {
+        terminated: true,
+        truncated: false,
+        info: {
+          doneReason: "terminated",
+          doneReasonDetail: "no_active_sides",
+          ...infoBase,
+        },
+      };
+    }
+
+    if (this.currentScenario.sides.length > 1 && activeSideIds.length === 1) {
+      return {
+        terminated: true,
+        truncated: false,
+        info: {
+          doneReason: "terminated",
+          doneReasonDetail: "single_side_remaining",
+          ...infoBase,
+        },
+      };
+    }
+
+    return {
+      terminated: false,
+      truncated: false,
+      info: {
+        doneReason: "in_progress",
+        doneReasonDetail: "in_progress",
+        ...infoBase,
+      },
+    };
+  }
+
+  _getInfo() {
+    return this.getGameEndState().info;
+  }
+
+  step(): GameStepResult {
+    const preStepEndState = this.getGameEndState();
+    if (preStepEndState.terminated || preStepEndState.truncated) {
+      return [
+        this._getObservation(),
+        0,
+        preStepEndState.terminated,
+        preStepEndState.truncated,
+        preStepEndState.info,
+      ];
+    }
+
     this.updateGameState();
-    const terminated = false; // FIXME
-    const truncated = this.checkGameEnded(); //FIXME
+    const endState = this.getGameEndState();
     const reward = 0;
     const observation = this._getObservation();
-    const info = this._getInfo();
-    return [observation, reward, terminated, truncated, info];
+    return [
+      observation,
+      reward,
+      endState.terminated,
+      endState.truncated,
+      endState.info,
+    ];
+  }
+
+  stepForTimeCompression(
+    stepSize: number = this.currentScenario.timeCompression
+  ): GameStepResult {
+    const normalizedStepSize = Math.max(1, Math.floor(stepSize));
+    let result = this.step();
+    let steps = 1;
+
+    while (steps < normalizedStepSize && !result[2] && !result[3]) {
+      result = this.step();
+      steps += 1;
+    }
+
+    return result;
   }
 
   reset() {}
-  // TODO: send string msg instead
+
   checkGameEnded(): boolean {
-    // 1. Time Limit - works!
-    if (this.currentScenario.currentTime >= this.currentScenario.endTime) {
-      console.log(
-        "this.currentScenario.currentTime: ",
-        this.currentScenario.currentTime
-      );
-      console.log(
-        "this.currentScenario.duration",
-        this.currentScenario.duration
-      );
-      return true;
-    }
-
-    // 2. Annihilation (Future Implementation)
-    // const sidesWithUnits = this.currentScenario.sides.filter(side => {
-    //   const hasAircraft = this.currentScenario.aircraft.some(u => u.sideId === side.id);
-    //   const hasShips = this.currentScenario.ships.some(u => u.sideId === side.id);
-    //   const hasFacilities = this.currentScenario.facilities.some(u => u.sideId === side.id);
-    //   const hasAirbases = this.currentScenario.airbases.some(u => u.sideId === side.id);
-    //   return hasAircraft || hasShips || hasFacilities || hasAirbases;
-    // });
-    // if (sidesWithUnits.length <= 1) {
-    //   return true;
-    // }
-
-    // else
-    return false;
+    const endState = this.getGameEndState();
+    return endState.terminated || endState.truncated;
   }
 
   startRecording() {

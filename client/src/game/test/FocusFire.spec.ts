@@ -509,6 +509,10 @@ describe("focus fire mode", () => {
     expect(aiSummary.recommendation?.selectionModelLabel).toContain(
       "AI 재정렬"
     );
+    expect(aiSummary.recommendation?.options[0]?.aiReasonSummary).toBeTruthy();
+    expect(
+      aiSummary.recommendation?.options[0]?.aiPositiveSignals?.length ?? 0
+    ).toBeGreaterThan(0);
 
     const exportedScenario = game.exportCurrentScenario();
     const { game: reloadedGame } = createFocusFireGame();
@@ -542,6 +546,66 @@ describe("focus fire mode", () => {
     expect(imported.model).toEqual(trainingResult.model);
     expect(game.getFocusFireRerankerState().model).toEqual(
       trainingResult.model
+    );
+  });
+
+  test("imports telemetry tree-ensemble models and enables tree ranking labels", () => {
+    const { game, hostileCommandPost } = createFocusFireGame();
+
+    game.setFocusFireObjective(
+      hostileCommandPost.latitude,
+      hostileCommandPost.longitude
+    );
+
+    const imported = game.importFocusFireRerankerModel(
+      JSON.stringify({
+        version: 7,
+        trainedAt: "2026-04-16T00:00:00.000Z",
+        source: "telemetry-tree-ensemble",
+        modelFamily: "tree-ensemble",
+        sampleCount: 18,
+        operatorFeedbackCount: 7,
+        ruleSeedCount: 5,
+        epochCount: 24,
+        learningRate: 0.18,
+        intercept: 0,
+        weights: {},
+        treeEnsemble: {
+          trainer: "LightGBM LambdaMART",
+          trees: [
+            {
+              root: {
+                feature: "blockedRatio",
+                threshold: 0.2,
+                left: {
+                  feature: "responseTempo",
+                  threshold: 0.65,
+                  left: {
+                    value: -0.3,
+                  },
+                  right: {
+                    value: 0.9,
+                  },
+                },
+                right: {
+                  value: -0.8,
+                },
+              },
+            },
+          ],
+        },
+      })
+    );
+    const summary = game.getFocusFireSummary();
+
+    expect(imported.enabled).toBe(true);
+    expect(imported.model.modelFamily).toBe("tree-ensemble");
+    expect(imported.model.source).toBe("telemetry-tree-ensemble");
+    expect(imported.model.treeEnsemble?.trainer).toBe("LightGBM LambdaMART");
+    expect(imported.model.treeEnsemble?.trees).toHaveLength(1);
+    expect(summary.recommendation?.rerankerApplied).toBe(true);
+    expect(summary.recommendation?.selectionModelLabel).toContain(
+      "AI TreeRank"
     );
   });
 

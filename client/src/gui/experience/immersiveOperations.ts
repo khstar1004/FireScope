@@ -182,7 +182,7 @@ export function buildImmersiveModeBrief(
     case "base":
       return `${option.note}. 현재 ${buildCountLabel(
         selectedModels
-      )} 기준으로 전투기, 헬기, 드론 라인업을 비교합니다.`;
+      )} 기준으로 항공 자산 라인업을 비교합니다.`;
   }
 }
 
@@ -320,7 +320,7 @@ export function buildImmersiveOperationsDeck(
         {
           label: "Flight Line",
           value: selectionSummary,
-          hint: "선택된 전개 라인업",
+          hint: "선택된 기지 전개 라인업",
         },
         {
           label: "Launch Window",
@@ -330,7 +330,7 @@ export function buildImmersiveOperationsDeck(
               : option.id === "drone-watch"
                 ? "Persistent Orbit"
                 : "Immediate Launch",
-          hint: "활주/이동/체공 중심 운용 상태",
+          hint: "활주, 이동, 체공 중심 운용 상태",
         },
       ];
   }

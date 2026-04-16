@@ -57,6 +57,71 @@ describe("tacticalExperience", () => {
     expect(scenario.config.supportWeapon.kind).toBe("missile");
   });
 
+  test("builds operation-mode-specific scenarios for richer demos", () => {
+    const firesAsset: AssetExperienceSummary = {
+      kind: "facility",
+      id: "facility-fires-1",
+      name: "Chunmoo Battery",
+      className: "Chunmoo MRLS",
+      sideName: "BLUE",
+      latitude: 37.45,
+      longitude: 127.02,
+      altitude: 150,
+      range: 45,
+      weaponCount: 2,
+    };
+    const defenseAsset: AssetExperienceSummary = {
+      kind: "facility",
+      id: "facility-defense-2",
+      name: "L-SAM Battery",
+      className: "L-SAM",
+      sideName: "BLUE",
+      latitude: 37.41,
+      longitude: 126.88,
+      altitude: 200,
+      range: 120,
+      weaponCount: 4,
+    };
+
+    const counterBattery = createTacticalExperienceScenario(
+      firesAsset,
+      "fires",
+      "counter-battery"
+    );
+    const saturation = createTacticalExperienceScenario(
+      firesAsset,
+      "fires",
+      "saturation"
+    );
+    const radarPicket = createTacticalExperienceScenario(
+      defenseAsset,
+      "defense",
+      "radar-picket"
+    );
+
+    expect(counterBattery.config.supportWeapon.label).toContain("Counter");
+    expect(
+      counterBattery.config.hostileContacts.some(
+        (contact) => contact.role === "적 포대"
+      )
+    ).toBe(true);
+    expect(saturation.config.supportWeapon.salvo).toBeGreaterThan(
+      counterBattery.config.supportWeapon.salvo
+    );
+    expect(saturation.config.hostileContacts.length).toBeGreaterThan(
+      counterBattery.config.hostileContacts.length
+    );
+    expect(radarPicket.config.sensorRangeM).toBeGreaterThan(
+      createTacticalExperienceScenario(defenseAsset, "defense").config
+        .sensorRangeM
+    );
+    expect(
+      radarPicket.config.sites.some(
+        (site) => site.label === "Forward Radar Picket"
+      )
+    ).toBe(true);
+  });
+
   test("round trips local coordinates through lon/lat conversion", () => {
     const origin = { lon: 127.031, lat: 37.519 };
     const point = { x: 1530, y: -870 };

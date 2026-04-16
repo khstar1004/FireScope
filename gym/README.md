@@ -15,3 +15,18 @@
 
 ## RL Settings
 See [`docs/rl_settings.md`](docs/rl_settings.md) for a concise summary of the current RL environment, action/observation space, defaults, and training entrypoints.
+
+## Focus-Fire Tree Ranker
+FireScope can also import a portable tree-based focus-fire ranker trained from recommendation telemetry.
+
+1. In the client, export `집중포격 > JSONL`.
+2. Train a tree ranker:
+   `python scripts/focus_fire/train_tree_ranker.py --input <telemetry.jsonl> --output <focus_fire_tree_ranker.json>`
+3. In the client, use `집중포격 > 모델 불러오기` and load the generated JSON.
+
+The script runs in `auto` mode by default and prefers `LightGBM LambdaMART` when `lightgbm` is installed. If LightGBM is unavailable, it falls back to the built-in portable stump trainer.
+
+To make a fresh environment reproducible:
+- `pip install -e .[ranker]`
+
+The script produces a `tree-ensemble` reranker model that the frontend can execute locally without a server dependency, so no manual model download is required.

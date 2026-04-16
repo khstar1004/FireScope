@@ -18,7 +18,17 @@ describe("preset scenarios", () => {
     expect(game.currentScenario.name).toBe("가용화력자산");
     expect(game.currentSideId).toBe("focus-force");
     expect(game.currentScenario.sides).toHaveLength(2);
-    expect(game.currentScenario.aircraft).toHaveLength(5);
+    expect(game.currentScenario.aircraft.length).toBeGreaterThanOrEqual(7);
+    expect(
+      game.currentScenario.aircraft.some(
+        (aircraft) => aircraft.className === "TA-50 Lead-In Fighter Trainer"
+      )
+    ).toBe(true);
+    expect(
+      game.currentScenario.aircraft.filter(
+        (aircraft) => aircraft.className === "KF-21 Boramae"
+      ).length
+    ).toBeGreaterThanOrEqual(3);
     expect(
       game.currentScenario.aircraft.some(
         (aircraft) => aircraft.className === "MQ-9 Reaper"
@@ -29,6 +39,16 @@ describe("preset scenarios", () => {
         (facility) => facility.name === "영향권 중심"
       )
     ).toBe(true);
+    expect(
+      game.currentScenario.facilities.some(
+        (facility) => facility.className === "L-SAM"
+      )
+    ).toBe(true);
+    expect(
+      game.currentScenario.facilities.filter(
+        (facility) => facility.className === "K2 Black Panther"
+      ).length
+    ).toBeGreaterThanOrEqual(5);
     expect(game.currentScenario.getAircraft("kf21-201")?.speed).toBe(340);
     expect(
       game.currentScenario

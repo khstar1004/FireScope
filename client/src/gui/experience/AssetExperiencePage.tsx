@@ -73,7 +73,7 @@ function getTheme(kind: AssetExperienceKind): ThemeConfig {
     case "aircraft":
       return {
         overline: "FIRE SCOPE AIR COMBAT LAB",
-        title: "전투기 3D 시뮬레이터",
+        title: "전투기 3D 쇼룸",
         description:
           "속도, 고도, 탐지 범위와 무장 구성을 한 화면에서 확인하고, 3D 프로파일로 자산 특성을 바로 비교합니다.",
         accentColor: "#7dc7ff",
@@ -84,7 +84,7 @@ function getTheme(kind: AssetExperienceKind): ThemeConfig {
     case "ship":
       return {
         overline: "FIRE SCOPE MARITIME LAB",
-        title: "함정 3D 시뮬레이터",
+        title: "함정 3D 쇼룸",
         description:
           "해상 자산의 속도, 감시 범위, 탑재 전력을 3D 실루엣과 함께 확인합니다.",
         accentColor: "#69d4ff",
@@ -95,7 +95,7 @@ function getTheme(kind: AssetExperienceKind): ThemeConfig {
     case "weapon":
       return {
         overline: "FIRE SCOPE STRIKE LAB",
-        title: "무기 3D 시뮬레이터",
+        title: "무기 3D 쇼룸",
         description:
           "유도무기 속도, 사거리, 명중력을 3D 시각화와 함께 빠르게 비교할 수 있습니다.",
         accentColor: "#ff9a5a",
@@ -106,7 +106,7 @@ function getTheme(kind: AssetExperienceKind): ThemeConfig {
     case "facility":
       return {
         overline: "FIRE SCOPE DEFENSE LAB",
-        title: "시설 3D 시뮬레이터",
+        title: "시설 3D 쇼룸",
         description:
           "방공/레이더 시설의 배치 구조와 탐지 범위를 3D 전술 패널로 확인합니다.",
         accentColor: "#95ffa0",
@@ -117,7 +117,7 @@ function getTheme(kind: AssetExperienceKind): ThemeConfig {
     case "airbase":
       return {
         overline: "FIRE SCOPE BASE OPERATIONS LAB",
-        title: "기지 3D 시뮬레이터",
+        title: "기지 3D 쇼룸",
         description:
           "출격 거점의 고도와 탑재 자산 현황을 3D 운영 보드로 확인합니다.",
         accentColor: "#d4b87c",
@@ -418,10 +418,10 @@ export default function AssetExperiencePage({
             FIRE SCOPE EXPERIENCE
           </Typography>
           <Typography variant="h4" sx={{ fontWeight: 800 }}>
-            시뮬레이션 대상 정보를 찾지 못했습니다.
+            3D 쇼룸 대상을 찾지 못했습니다.
           </Typography>
           <Typography sx={{ color: "rgba(255, 244, 244, 0.8)" }}>
-            지도에서 다시 자산을 선택한 뒤 `3D` 버튼으로 진입해야 합니다.
+            지도에서 자산을 다시 선택한 뒤 3D 보기로 진입해야 합니다.
           </Typography>
           <Button
             variant="contained"
@@ -578,8 +578,8 @@ export default function AssetExperiencePage({
                   color: "rgba(226, 240, 255, 0.74)",
                 }}
               >
-                여기서 고른 3D 모델이 그대로 다음 브리프와 실제 맵 시뮬레이션으로
-                연결됩니다.
+                여기서 고른 3D 모델이 그대로 다음 작전 브리프와 실전
+                시뮬레이터로 연결됩니다.
               </Typography>
               <Stack spacing={0.9}>
                 {immersiveModelOptions.map((model) => {
@@ -649,7 +649,7 @@ export default function AssetExperiencePage({
                   fontWeight: 800,
                 }}
               >
-                자유 비행 열기
+                항공 시뮬레이터 열기
               </Button>
             )}
             {asset.kind !== "aircraft" && (
@@ -667,7 +667,7 @@ export default function AssetExperiencePage({
                   fontWeight: 800,
                 }}
               >
-                {immersiveLabel} 브리프
+                {immersiveLabel} 열기
               </Button>
             )}
             <Button

@@ -89,6 +89,7 @@ import {
 } from "@/gui/contextProviders/contexts/UnitDbContext";
 import { useChatbot } from "@/gui/agent/chatbot";
 import { buildFocusFireInsight } from "@/gui/analysis/operationInsight";
+import { resolveFocusFireDockStage } from "@/gui/fires/focusFireDockState";
 import { isScenarioEmptyForOnboarding } from "@/gui/map/scenarioOnboarding";
 import { getDisplayName, getEntityTypeLabel } from "@/utils/koreanCatalog";
 import { ImmersiveExperienceProfile } from "@/gui/experience/immersiveExperience";
@@ -98,7 +99,6 @@ import {
   ToolbarEntityType,
 } from "@/utils/assetTypeCatalog";
 import Dba from "@/game/db/Dba";
-import FireRecommendationPanel from "@/gui/fires/FireRecommendationPanel";
 
 interface ToolBarProps {
   mobileView: boolean;
@@ -164,6 +164,7 @@ interface ToolBarProps {
   clearFocusFireObjective: () => void;
   openBattleSpectator: () => void;
   openFocusFireAirwatch: () => void;
+  openFocusFireDock: () => void;
 }
 
 const scenarioNameRegex: RegExp = /^[a-zA-Z0-9가-힣 :-]{1,25}$/;
@@ -1076,74 +1077,78 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
 
   const experienceSections = [
     {
-      title: "항공 시뮬레이터",
-      items: [
-        {
-          key: "experience-jet",
-          label: "전투기 3D 시뮬레이터",
-          description: "현재 시점에서 제트 전투기 비행 시뮬레이션",
-          entityType: "aircraft" as const,
-          onClick: () => props.openFlightSimPage("jet"),
-        },
-        {
-          key: "experience-drone",
-          label: "드론 3D 시뮬레이터",
-          description: "저속·저고도 드론 시점 비행 시뮬레이션",
-          entityType: "aircraft" as const,
-          onClick: () => props.openFlightSimPage("drone"),
-        },
-        {
-          key: "experience-air-wing",
-          label: "항공자산 3D 시뮬레이터",
-          description: "전투기, Apache, Black Hawk, 드론 모델 전환 시뮬레이션",
-          entityType: "aircraft" as const,
-          onClick: () => props.openImmersiveExperiencePage("base"),
-        },
-      ],
-    },
-    {
-      title: "전장 시뮬레이터",
+      title: "지상전",
       items: [
         {
           key: "experience-battle-spectator",
-          label: "전장 관전자 3D 시뮬레이터",
+          label: "전장 3D 관전",
           description: "현재 시나리오를 3D 지형 위에서 실시간 관전",
           entityType: "facility" as const,
           onClick: props.openBattleSpectator,
         },
         {
           key: "experience-ground",
-          label: "지상 기동 3D 시뮬레이터",
-          description: "전차·장갑차 계열 시점 전술 시뮬레이션",
+          label: "지상 기동 브리프",
+          description: "지상 기동 작전 흐름을 미리 확인하는 준비 화면",
           entityType: "facility" as const,
           onClick: () => props.openImmersiveExperiencePage("ground"),
         },
         {
           key: "experience-fires",
-          label: "화력 운용 3D 시뮬레이터",
-          description: "포병·미사일 발사축 시뮬레이션",
+          label: "화력 운용 브리프",
+          description: "화력 임무 흐름과 발사 구성을 정리하는 준비 화면",
           entityType: "facility" as const,
           onClick: () => props.openImmersiveExperiencePage("fires"),
         },
         {
           key: "experience-defense",
-          label: "방공 체계 3D 시뮬레이터",
-          description: "탐지·추적·요격 레이더 HUD 시뮬레이션",
+          label: "방공 체계 브리프",
+          description: "방공 임무 흐름과 요격 구성을 정리하는 준비 화면",
           entityType: "facility" as const,
           onClick: () => props.openImmersiveExperiencePage("defense"),
         },
+      ],
+    },
+    {
+      title: "해상전",
+      items: [
         {
           key: "experience-maritime",
-          label: "함정 운용 3D 시뮬레이터",
-          description:
-            "구축함·항모·잠수함 모델을 바꿔보는 해상 전력 시뮬레이션",
+          label: "함정 운용 브리프",
+          description: "해상 전력 모델과 임무 흐름을 정리하는 준비 화면",
           entityType: "ship" as const,
           onClick: () => props.openImmersiveExperiencePage("maritime"),
         },
+      ],
+    },
+    {
+      title: "항공전",
+      items: [
+        {
+          key: "experience-drone",
+          label: "드론 시뮬레이터",
+          description: "저속·저고도 드론 시점 비행 시뮬레이션",
+          entityType: "aircraft" as const,
+          onClick: () => props.openFlightSimPage("drone"),
+        },
+        {
+          key: "experience-helicopter",
+          label: "헬기 대응 브리프",
+          description: "헬기 출격과 기지 대응 흐름을 정리하는 준비 화면",
+          entityType: "aircraft" as const,
+          onClick: () => props.openImmersiveExperiencePage("base"),
+        },
+        {
+          key: "experience-jet",
+          label: "전투기 시뮬레이터",
+          description: "제트 전투기 고속 비행 시뮬레이션",
+          entityType: "aircraft" as const,
+          onClick: () => props.openFlightSimPage("jet"),
+        },
         {
           key: "experience-base",
-          label: "기지 운영 3D 시뮬레이터",
-          description: "전투기·헬기·드론 모델을 바꿔보는 기지 운용 시뮬레이션",
+          label: "기지 운용 브리프",
+          description: "기지 방호와 출격 구성을 정리하는 준비 화면",
           entityType: "airbase" as const,
           onClick: () => props.openImmersiveExperiencePage("base"),
         },
@@ -1152,262 +1157,10 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   ];
   const focusFireSummary = props.game.getFocusFireSummary();
   const focusFireInsight = buildFocusFireInsight(focusFireSummary);
-  const focusFireRecommendation = focusFireSummary.recommendation;
-  const focusFireRerankerState = props.game.getFocusFireRerankerState();
-  const focusFireRecommendationTelemetry =
-    props.game.getFocusFireRecommendationTelemetry(
-      props.game.currentSideId || undefined
-    );
-  const focusFireRecommendationTelemetryCount =
-    focusFireRecommendationTelemetry.length;
-  const focusFireFeedbackCount = focusFireRecommendationTelemetry.filter(
-    (entry) => entry.feedbackOptionLabel
-  ).length;
-  const focusFireTrainableCount = focusFireRecommendationTelemetry.filter(
-    (entry) =>
-      entry.options.length >= 2 &&
-      Boolean(
-        entry.feedbackOptionLabel ||
-          (!entry.rerankerApplied && entry.recommendedOptionLabel)
-      )
-  ).length;
-  const focusFireFeedbackOptionLabel =
-    focusFireRecommendation &&
-    focusFireSummary.objectiveLatitude != null &&
-    focusFireSummary.objectiveLongitude != null
-      ? props.game.getFocusFireRecommendationFeedbackLabel(
-          {
-            name: focusFireSummary.objectiveName ?? "집중포격 목표",
-            latitude: focusFireSummary.objectiveLatitude,
-            longitude: focusFireSummary.objectiveLongitude,
-          },
-          props.game.focusFireOperation.sideId,
-          focusFireRecommendation.primaryTargetId
-        )
-      : null;
+  const focusFireDockStage = resolveFocusFireDockStage(focusFireSummary);
   const showEmptyScenarioGuide = isScenarioEmptyForOnboarding(
     props.game.currentScenario
   );
-  const [focusFireDesiredEffectInput, setFocusFireDesiredEffectInput] =
-    useState("");
-  const [, setFocusFireAiRevision] = useState(0);
-
-  useEffect(() => {
-    setFocusFireDesiredEffectInput(
-      focusFireSummary.desiredEffectOverride != null
-        ? `${focusFireSummary.desiredEffectOverride}`
-        : ""
-    );
-  }, [focusFireSummary.desiredEffectOverride]);
-
-  const applyFocusFireDesiredEffectOverride = () => {
-    if (!focusFireSummary.enabled) {
-      toastContext?.addToast("집중포격 모드를 먼저 켜세요.", "error");
-      return;
-    }
-
-    const trimmedValue = focusFireDesiredEffectInput.trim();
-    if (!trimmedValue) {
-      props.game.setFocusFireDesiredEffectOverride(null);
-      setFocusFireDesiredEffectInput("");
-      toastContext?.addToast("요망 효과를 자동 산정값으로 되돌렸습니다.");
-      return;
-    }
-
-    const parsedValue = Number(trimmedValue);
-    if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
-      toastContext?.addToast(
-        "요망 효과는 0보다 큰 숫자로 입력하세요.",
-        "error"
-      );
-      return;
-    }
-
-    const appliedValue =
-      props.game.setFocusFireDesiredEffectOverride(parsedValue);
-    if (appliedValue == null) {
-      toastContext?.addToast(
-        "요망 효과를 적용할 수 없습니다. 세력과 집중포격 상태를 확인하세요.",
-        "error"
-      );
-      return;
-    }
-
-    setFocusFireDesiredEffectInput(`${appliedValue}`);
-    toastContext?.addToast(
-      `요망 효과 ${appliedValue.toFixed(1)}을 반영했습니다.`
-    );
-  };
-
-  const resetFocusFireDesiredEffectOverride = () => {
-    props.game.setFocusFireDesiredEffectOverride(null);
-    setFocusFireDesiredEffectInput("");
-    toastContext?.addToast("요망 효과를 자동 산정값으로 전환했습니다.");
-  };
-
-  const bumpFocusFireAiRevision = () => {
-    setFocusFireAiRevision((previousRevision) => previousRevision + 1);
-  };
-
-  const handleFocusFireRerankerToggle = () => {
-    const enabled = props.game.setFocusFireRerankerEnabled(
-      !focusFireRerankerState.enabled
-    );
-    bumpFocusFireAiRevision();
-    toastContext?.addToast(`AI 재정렬: ${enabled ? "켜짐" : "꺼짐"}`);
-  };
-
-  const handleFocusFireRerankerTrain = () => {
-    if (focusFireTrainableCount === 0) {
-      toastContext?.addToast(
-        "AI 학습에는 운용자 피드백 또는 규칙 기반 추천 기록이 더 필요합니다.",
-        "error"
-      );
-      return;
-    }
-
-    const result = props.game.trainFocusFireRerankerModel();
-    if (result.summary.recordsUsed === 0) {
-      toastContext?.addToast(
-        "학습 가능한 기록이 없어 모델을 업데이트하지 않았습니다.",
-        "error"
-      );
-      return;
-    }
-    bumpFocusFireAiRevision();
-    toastContext?.addToast(
-      `AI 재정렬 모델을 학습했습니다. 비교 ${result.summary.comparisons}건, 기록 ${result.summary.recordsUsed}건, 피드백 ${result.summary.operatorFeedbackRecords}건, 신뢰도 ${Math.round(
-        props.game.getFocusFireRerankerState().confidenceScore * 100
-      )}%.`
-    );
-  };
-
-  const handleFocusFireRerankerReset = () => {
-    props.game.resetFocusFireRerankerModel();
-    bumpFocusFireAiRevision();
-    toastContext?.addToast("AI 재정렬 모델을 초기화했습니다.");
-  };
-
-  const handleExportFocusFireTelemetryJsonl = () => {
-    const content = props.game.exportFocusFireRecommendationTelemetryJsonl(
-      props.game.currentSideId || undefined
-    );
-    if (!content.trim()) {
-      toastContext?.addToast("내보낼 추천 데이터가 없습니다.", "error");
-      return;
-    }
-
-    downloadTextFile(
-      `focus_fire_recommendations_${buildSafeDownloadTimestamp()}.jsonl`,
-      content,
-      "text/plain"
-    );
-    toastContext?.addToast("추천 데이터 JSONL을 내보냈습니다.");
-  };
-
-  const handleExportFocusFireTelemetryCsv = () => {
-    const content = props.game.exportFocusFireRecommendationTelemetryCsv(
-      props.game.currentSideId || undefined
-    );
-    if (!content.trim()) {
-      toastContext?.addToast("내보낼 추천 데이터가 없습니다.", "error");
-      return;
-    }
-
-    downloadTextFile(
-      `focus_fire_recommendations_${buildSafeDownloadTimestamp()}.csv`,
-      content,
-      "text/csv"
-    );
-    toastContext?.addToast("추천 데이터 CSV를 내보냈습니다.");
-  };
-
-  const handleExportFocusFireRerankerModel = () => {
-    const content = props.game.exportFocusFireRerankerModel();
-    if (!content.trim()) {
-      toastContext?.addToast("내보낼 AI 모델이 없습니다.", "error");
-      return;
-    }
-
-    downloadTextFile(
-      `focus_fire_reranker_model_${buildSafeDownloadTimestamp()}.json`,
-      content,
-      "application/json"
-    );
-    toastContext?.addToast("집중포격 AI 모델 JSON을 내보냈습니다.");
-  };
-
-  const handleImportFocusFireRerankerModel = () => {
-    const input = document.createElement("input");
-    input.style.display = "none";
-    input.type = "file";
-    input.accept = ".json";
-    input.onchange = (event) => {
-      input.remove();
-      const file = (event.target as HTMLInputElement).files?.[0];
-      if (!file) {
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.readAsText(file, "UTF-8");
-      reader.onload = (readerEvent) => {
-        try {
-          const modelJson = readerEvent.target?.result as string;
-          const result = props.game.importFocusFireRerankerModel(modelJson);
-          bumpFocusFireAiRevision();
-          toastContext?.addToast(
-            `AI 모델 v${result.model.version} (${result.model.source})을 불러왔습니다.`,
-            "success"
-          );
-        } catch (_error) {
-          toastContext?.addToast(
-            "AI 모델 JSON 형식이 올바르지 않아 불러오지 못했습니다.",
-            "error"
-          );
-        }
-      };
-      reader.onerror = () => {
-        reader.abort();
-        toastContext?.addToast("AI 모델 파일을 읽지 못했습니다.", "error");
-      };
-    };
-    input.click();
-  };
-
-  const handleRecordFocusFireFeedback = (optionLabel: string) => {
-    if (
-      !focusFireRecommendation ||
-      focusFireSummary.objectiveLatitude == null ||
-      focusFireSummary.objectiveLongitude == null
-    ) {
-      toastContext?.addToast(
-        "현재 추천안이 없어 피드백을 기록할 수 없습니다.",
-        "error"
-      );
-      return;
-    }
-
-    const record = props.game.setFocusFireRecommendationFeedback(
-      optionLabel,
-      {
-        name: focusFireSummary.objectiveName ?? "집중포격 목표",
-        latitude: focusFireSummary.objectiveLatitude,
-        longitude: focusFireSummary.objectiveLongitude,
-      },
-      props.game.focusFireOperation.sideId,
-      focusFireRecommendation
-    );
-    if (!record) {
-      toastContext?.addToast("피드백 기록에 실패했습니다.", "error");
-      return;
-    }
-
-    bumpFocusFireAiRevision();
-    toastContext?.addToast(
-      `${optionLabel}을(를) 운용자 학습 기준으로 기록했습니다.`
-    );
-  };
 
   const focusFireSection = () => (
     <Stack spacing={1.2} sx={{ p: 1.5 }}>
@@ -1442,204 +1195,9 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
         <Typography variant="body2" sx={{ mt: 0.45, color: "text.secondary" }}>
           비행 중 탄체: {focusFireSummary.weaponsInFlight}
         </Typography>
-      </Box>
-
-      <Box
-        sx={{
-          p: 1.2,
-          borderRadius: 2,
-          background:
-            "linear-gradient(180deg, rgba(14, 40, 46, 0.98) 0%, rgba(8, 23, 28, 0.96) 100%)",
-          border: "1px solid rgba(45, 214, 196, 0.24)",
-          boxShadow:
-            "0 18px 34px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(134, 255, 242, 0.06)",
-        }}
-      >
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Typography sx={{ fontWeight: 700 }}>화력 추천</Typography>
-          <Chip
-            size="small"
-            variant="filled"
-            label={focusFireRecommendation ? "권장안 준비" : "분석 대기"}
-          />
-        </Stack>
-        <Stack
-          direction="row"
-          spacing={0.8}
-          sx={{ mt: 1, alignItems: "flex-start", flexWrap: "wrap" }}
-        >
-          <TextField
-            id="focus-fire-desired-effect-input"
-            size="small"
-            type="number"
-            label="요망 효과 입력"
-            value={focusFireDesiredEffectInput}
-            onChange={(event) =>
-              setFocusFireDesiredEffectInput(event.target.value)
-            }
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                applyFocusFireDesiredEffectOverride();
-              }
-            }}
-            inputProps={{ min: 0.1, step: 0.1 }}
-            disabled={!focusFireSummary.enabled}
-            sx={{
-              mb: 0,
-              minWidth: 140,
-              flex: 1,
-              bgcolor: "rgba(255,255,255,0.04)",
-            }}
-          />
-          <Button
-            size="small"
-            variant="contained"
-            onClick={applyFocusFireDesiredEffectOverride}
-            disabled={!focusFireSummary.enabled}
-          >
-            반영
-          </Button>
-          <Button
-            size="small"
-            variant="text"
-            onClick={resetFocusFireDesiredEffectOverride}
-            disabled={
-              !focusFireSummary.enabled &&
-              focusFireSummary.desiredEffectOverride == null
-            }
-          >
-            자동
-          </Button>
-        </Stack>
-        <Typography sx={{ mt: 0.7, fontSize: 12, color: "text.secondary" }}>
-          자동 산정값:{" "}
-          {focusFireRecommendation
-            ? focusFireRecommendation.desiredEffectEstimated.toFixed(1)
-            : "산출 대기"}{" "}
-          · 현재 기준:{" "}
-          {focusFireRecommendation?.desiredEffectIsUserDefined
-            ? "사용자 입력"
-            : "자동 산정"}
+        <Typography variant="body2" sx={{ mt: 0.55, color: "text.secondary" }}>
+          다음 단계: {focusFireDockStage.title}
         </Typography>
-        <Stack
-          direction="row"
-          spacing={0.8}
-          sx={{ mt: 1, alignItems: "center", flexWrap: "wrap" }}
-        >
-          <Chip
-            size="small"
-            color={focusFireRerankerState.enabled ? "success" : "default"}
-            label={
-              focusFireRerankerState.enabled ? "AI 재정렬 ON" : "AI 재정렬 OFF"
-            }
-          />
-          <Chip
-            size="small"
-            variant="outlined"
-            label={`데이터 ${focusFireRecommendationTelemetryCount}건`}
-          />
-          <Chip
-            size="small"
-            variant="outlined"
-            label={`피드백 ${focusFireFeedbackCount}건`}
-          />
-          <Chip
-            size="small"
-            variant="outlined"
-            label={`학습 가능 ${focusFireTrainableCount}건`}
-          />
-          <Chip
-            size="small"
-            variant="outlined"
-            label={`모델 ${focusFireRerankerState.model.source}`}
-          />
-          <Chip
-            size="small"
-            variant="outlined"
-            label={`신뢰도 ${Math.round(
-              focusFireRerankerState.confidenceScore * 100
-            )}%`}
-          />
-          <Chip
-            size="small"
-            variant="outlined"
-            label={`v${focusFireRerankerState.model.version} / 표본 ${focusFireRerankerState.model.sampleCount}`}
-          />
-          <Chip
-            size="small"
-            variant="outlined"
-            label={`운용자 ${focusFireRerankerState.model.operatorFeedbackCount} / 규칙 ${focusFireRerankerState.model.ruleSeedCount}`}
-          />
-        </Stack>
-        <Stack
-          direction="row"
-          spacing={0.8}
-          sx={{ mt: 1, alignItems: "flex-start", flexWrap: "wrap" }}
-        >
-          <Button
-            size="small"
-            variant="contained"
-            onClick={handleFocusFireRerankerToggle}
-          >
-            {focusFireRerankerState.enabled ? "AI 끄기" : "AI 켜기"}
-          </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={handleFocusFireRerankerTrain}
-          >
-            AI 학습
-          </Button>
-          <Button
-            size="small"
-            variant="text"
-            onClick={handleFocusFireRerankerReset}
-          >
-            AI 초기화
-          </Button>
-        </Stack>
-        <Stack
-          direction="row"
-          spacing={0.8}
-          sx={{ mt: 0.6, alignItems: "flex-start", flexWrap: "wrap" }}
-        >
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={handleExportFocusFireRerankerModel}
-          >
-            모델 JSON
-          </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={handleImportFocusFireRerankerModel}
-          >
-            모델 불러오기
-          </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={handleExportFocusFireTelemetryJsonl}
-          >
-            JSONL
-          </Button>
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={handleExportFocusFireTelemetryCsv}
-          >
-            CSV
-          </Button>
-        </Stack>
-        <FireRecommendationPanel
-          recommendation={focusFireRecommendation}
-          objectiveName={focusFireSummary.objectiveName}
-          objectiveLatitude={focusFireSummary.objectiveLatitude}
-          objectiveLongitude={focusFireSummary.objectiveLongitude}
-          feedbackOptionLabel={focusFireFeedbackOptionLabel}
-          onRecordFeedback={handleRecordFocusFireFeedback}
-        />
       </Box>
 
       <Box
@@ -1647,32 +1205,26 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
           p: 1.2,
           borderRadius: 2,
           background:
-            "linear-gradient(180deg, rgba(10, 26, 34, 0.95) 0%, rgba(6, 17, 22, 0.92) 100%)",
+            "linear-gradient(180deg, rgba(10, 26, 34, 0.96) 0%, rgba(6, 17, 22, 0.94) 100%)",
           border: "1px solid rgba(45, 214, 196, 0.16)",
         }}
       >
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Typography sx={{ fontWeight: 700 }}>
-            충격량 지수 {focusFireInsight.shockIndex}
-          </Typography>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: "wrap" }}>
+          <Typography sx={{ fontWeight: 700 }}>작전 패널</Typography>
           <Chip
             size="small"
-            color={focusFireInsight.shockIndex >= 65 ? "warning" : "default"}
-            label={focusFireInsight.intensityLabel}
+            variant="outlined"
+            label={`충격량 ${focusFireInsight.shockIndex}`}
           />
         </Stack>
         <Typography sx={{ mt: 0.8, fontSize: 12.5, color: "text.secondary" }}>
-          포대 {focusFireInsight.breakdown.artillery} + 항공{" "}
-          {focusFireInsight.breakdown.aircraft} + 기갑{" "}
-          {focusFireInsight.breakdown.armor} + 탄체{" "}
-          {focusFireInsight.breakdown.weaponsInFlight} + 점령{" "}
-          {focusFireInsight.breakdown.captureProgress}
+          상세 화력 추천, AI 학습, 데이터 내보내기는 우하단 작전 패널에서 다룹니다.
         </Typography>
         <Typography sx={{ mt: 0.7, fontSize: 12.5, color: "text.secondary" }}>
-          주도 축: {focusFireInsight.dominantAxis}
+          {focusFireInsight.intensityLabel} · {focusFireInsight.dominantAxis}
         </Typography>
         <Typography sx={{ mt: 0.7, fontSize: 12.5, color: "text.secondary" }}>
-          {focusFireInsight.summary}
+          {focusFireDockStage.description}
         </Typography>
       </Box>
 
@@ -1691,27 +1243,12 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
         >
           목표 지정
         </Button>
-      </Stack>
-
-      <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
         <Button
           size="small"
           variant="contained"
-          onClick={props.openFocusFireAirwatch}
-          disabled={!focusFireSummary.objectiveName}
+          onClick={props.openFocusFireDock}
         >
-          공중 관측 3D
-        </Button>
-        <Button
-          size="small"
-          variant="text"
-          color="error"
-          onClick={props.clearFocusFireObjective}
-          disabled={
-            !focusFireSummary.enabled && !focusFireSummary.objectiveName
-          }
-        >
-          초기화
+          {focusFireDockStage.panelButtonLabel}
         </Button>
       </Stack>
     </Stack>
@@ -3092,7 +2629,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                   },
                 }}
               >
-                {compactToolbar ? "관전" : "전장 관전자 3D"}
+                {compactToolbar ? "관전" : "전장 3D 관전"}
               </Button>
             )}
             {showExperienceShortcut && (
@@ -3116,7 +2653,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                   },
                 }}
               >
-                {compactToolbar ? "3D" : "3D 시뮬레이터"}
+                {compactToolbar ? "3D" : "3D 모드"}
               </Button>
             )}
             {experienceMenu()}

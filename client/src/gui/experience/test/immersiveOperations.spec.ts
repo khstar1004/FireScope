@@ -88,6 +88,6 @@ describe("immersiveOperations", () => {
 
     expect(brief).toContain("무인기 감시");
     expect(brief).toContain("3 Selected");
-    expect(brief).toContain("전투기, 헬기, 드론");
+    expect(brief).toContain("항공 자산 라인업");
   });
 });

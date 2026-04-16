@@ -56,7 +56,17 @@ function createSummary() {
     blue.id,
     "천무 포대가 목표를 명중시켰습니다.",
     3590,
-    SimulationLogType.WEAPON_HIT
+    SimulationLogType.WEAPON_HIT,
+    {
+      actorId: "blue-battery",
+      actorName: "천무 포대",
+      actorType: "facility",
+      targetId: "red-sam",
+      targetName: "RED 방공포대",
+      targetSideId: red.id,
+      targetType: "facility",
+      resultTag: "kill",
+    }
   );
   game.simulationLogs.addLog(
     blue.id,
@@ -75,7 +85,7 @@ function createSummary() {
 }
 
 describe("SimulationOutcomeDialog", () => {
-  test("renders structured report sections", () => {
+  test("renders compact battle scoreboard sections", () => {
     const summary = createSummary();
 
     render(
@@ -88,13 +98,22 @@ describe("SimulationOutcomeDialog", () => {
       />
     );
 
+    expect(screen.getByText("Result Locked")).toBeInTheDocument();
+    expect(screen.getByText("전투 통계판")).toBeInTheDocument();
     expect(screen.getByText("핵심 요인")).toBeInTheDocument();
-    expect(screen.getByText("전환점")).toBeInTheDocument();
-    expect(screen.getByText("운용 위험")).toBeInTheDocument();
-    expect(screen.getByText("권고 조치")).toBeInTheDocument();
-    expect(screen.getByText(summary.report.headline)).toBeInTheDocument();
+    expect(screen.getByText("작전 메모")).toBeInTheDocument();
+    expect(screen.getByText("후속 조치")).toBeInTheDocument();
+    expect(screen.getByText("결정 장면")).toBeInTheDocument();
+    expect(screen.getByText("점수 차")).toBeInTheDocument();
+    expect(screen.getAllByText("BLUE").length).toBeGreaterThan(0);
+    expect(screen.getByText("점수 180점 우세")).toBeInTheDocument();
     expect(
-      screen.getByText("천무 포대가 목표를 명중시켰습니다.")
+      screen.getByText("타격 임무가 성공적으로 종료됐습니다.")
     ).toBeInTheDocument();
+    expect(screen.getAllByText("소폭 우세").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("생존 세력 BLUE · RED").length).toBeGreaterThan(
+      0
+    );
+    expect(screen.getAllByText("격파 1 · 손실 0").length).toBeGreaterThan(0);
   });
 });

@@ -3,6 +3,7 @@ import type { FocusFireSummary } from "@/game/Game";
 import {
   SimulationLogType,
   type SimulationLog,
+  type SimulationLogEntityType,
 } from "@/game/log/SimulationLogs";
 import {
   requestAssistantCompletionResult,
@@ -21,6 +22,7 @@ const FOCUS_FIRE_WEIGHTS = {
 
 const MAX_RECENT_REPORT_LOGS = 6;
 const MAX_REPORT_ITEMS = 3;
+const MAX_DECISIVE_FACTORS = 4;
 const MAX_TURNING_POINTS = 4;
 
 type FocusFireInsightSource = Pick<
@@ -48,6 +50,16 @@ export interface FocusFireInsight {
   summary: string;
 }
 
+export interface SimulationOutcomeEntityBreakdown {
+  aircraft: number;
+  ships: number;
+  facilities: number;
+  airbases: number;
+  weapons: number;
+  other: number;
+  total: number;
+}
+
 export interface SimulationOutcomeSideSummary {
   sideId: string;
   name: string;
@@ -69,6 +81,9 @@ export interface SimulationOutcomeSideSummary {
   strikeMissionSuccesses: number;
   patrolMissionSuccesses: number;
   missionSuccesses: number;
+  kills: SimulationOutcomeEntityBreakdown;
+  losses: SimulationOutcomeEntityBreakdown;
+  attritionBalance: number;
 }
 
 export interface SimulationOutcomeTurningPoint {
@@ -87,6 +102,7 @@ export interface SimulationOutcomeSideAssessment {
   name: string;
   combatPosture: string;
   engagementEfficiencyLabel: string;
+  attritionLabel: string;
   hitRate: number | null;
   hitRateLabel: string;
   strengths: string[];
@@ -103,9 +119,19 @@ export interface SimulationOutcomeReport {
   recommendations: string[];
 }
 
+export type SimulationOutcomeEndReasonDetail =
+  | "in_progress"
+  | "time_limit"
+  | "single_side_remaining"
+  | "no_active_sides";
+
 export interface SimulationOutcomeSummary {
   scenarioName: string;
   endReason: string;
+  endReasonDetail: SimulationOutcomeEndReasonDetail;
+  activeSideIds: string[];
+  activeSideNames: string[];
+  activeSideSummary: string;
   endedAtUnix: number;
   endedAtLabel: string;
   winnerName: string | null;
@@ -131,6 +157,105 @@ function clamp(value: number, min: number, max: number) {
 
 function takeUnique(values: string[], limit: number = MAX_REPORT_ITEMS) {
   return [...new Set(values.filter(Boolean))].slice(0, limit);
+}
+
+function formatSideNameList(sideNames: string[]) {
+  return sideNames.join(" · ");
+}
+
+function buildActiveSideSummary(activeSideNames: string[]) {
+  if (activeSideNames.length < 1) {
+    return "잔존 전력 없음";
+  }
+
+  return `생존 세력 ${formatSideNameList(activeSideNames)}`;
+}
+
+function createEntityBreakdown(): SimulationOutcomeEntityBreakdown {
+  return {
+    aircraft: 0,
+    ships: 0,
+    facilities: 0,
+    airbases: 0,
+    weapons: 0,
+    other: 0,
+    total: 0,
+  };
+}
+
+function getEntityBreakdownKey(
+  entityType?: SimulationLogEntityType
+): keyof Omit<SimulationOutcomeEntityBreakdown, "total"> {
+  switch (entityType) {
+    case "aircraft":
+      return "aircraft";
+    case "ship":
+      return "ships";
+    case "facility":
+      return "facilities";
+    case "airbase":
+      return "airbases";
+    case "weapon":
+      return "weapons";
+    default:
+      return "other";
+  }
+}
+
+function incrementEntityBreakdown(
+  breakdown: SimulationOutcomeEntityBreakdown,
+  entityType?: SimulationLogEntityType
+) {
+  const key = getEntityBreakdownKey(entityType);
+  breakdown[key] += 1;
+  breakdown.total += 1;
+}
+
+function formatEntityBreakdownSummary(
+  breakdown: SimulationOutcomeEntityBreakdown
+) {
+  return [
+    breakdown.aircraft > 0 ? `항공 ${breakdown.aircraft}` : "",
+    breakdown.ships > 0 ? `함정 ${breakdown.ships}` : "",
+    breakdown.facilities > 0 ? `지상 ${breakdown.facilities}` : "",
+    breakdown.airbases > 0 ? `기지 ${breakdown.airbases}` : "",
+    breakdown.weapons > 0 ? `무장 ${breakdown.weapons}` : "",
+    breakdown.other > 0 ? `기타 ${breakdown.other}` : "",
+  ]
+    .filter(Boolean)
+    .slice(0, MAX_REPORT_ITEMS)
+    .join(" · ");
+}
+
+function buildAttritionFactorText(side: SimulationOutcomeSideSummary) {
+  if (side.attritionBalance > 0) {
+    return `소모전 차 ${formatSignedNumber(side.attritionBalance)}`;
+  }
+  if (side.kills.total > 0) {
+    return `적 전투 단위 ${side.kills.total}개 격파`;
+  }
+  return "";
+}
+
+function buildAttritionSnapshotText(
+  leader: SimulationOutcomeSideSummary,
+  runnerUp?: SimulationOutcomeSideSummary
+) {
+  if (!runnerUp) {
+    if (leader.kills.total === 0 && leader.losses.total === 0) {
+      return "";
+    }
+    return `소모전 차 ${formatSignedNumber(leader.attritionBalance)}`;
+  }
+  if (
+    leader.kills.total === 0 &&
+    leader.losses.total === 0 &&
+    runnerUp.kills.total === 0 &&
+    runnerUp.losses.total === 0
+  ) {
+    return "";
+  }
+  return `소모전 차 ${formatSignedNumber(leader.attritionBalance)} 대 ${formatSignedNumber(runnerUp.attritionBalance)}`;
 }
 
 function getHitRate(side: SimulationOutcomeSideSummary) {
@@ -162,6 +287,22 @@ function getEngagementEfficiencyLabel(side: SimulationOutcomeSideSummary) {
     return "소모적";
   }
   return "불발";
+}
+
+function getAttritionLabel(side: SimulationOutcomeSideSummary) {
+  if (side.attritionBalance >= 2) {
+    return "격파 우세";
+  }
+  if (side.attritionBalance > 0) {
+    return "소폭 우세";
+  }
+  if (side.attritionBalance < 0) {
+    return "손실 우세";
+  }
+  if (side.kills.total > 0 || side.losses.total > 0) {
+    return "교환전";
+  }
+  return "변화 제한";
 }
 
 function formatSignedNumber(value: number) {
@@ -296,12 +437,48 @@ export function buildFocusFireInsight(
   };
 }
 
+function buildSideAttritionSummary(
+  sideId: string,
+  allLogs: SimulationLog[]
+): Pick<SimulationOutcomeSideSummary, "kills" | "losses" | "attritionBalance"> {
+  const kills = createEntityBreakdown();
+  const losses = createEntityBreakdown();
+
+  allLogs.forEach((log) => {
+    if (
+      log.type === SimulationLogType.WEAPON_HIT &&
+      log.metadata?.resultTag === "kill"
+    ) {
+      if (log.sideId === sideId) {
+        incrementEntityBreakdown(kills, log.metadata.targetType);
+      }
+      if (log.metadata.targetSideId === sideId) {
+        incrementEntityBreakdown(losses, log.metadata.targetType);
+      }
+    }
+
+    if (
+      log.type === SimulationLogType.AIRCRAFT_CRASHED &&
+      (log.metadata?.actorSideId ?? log.sideId) === sideId
+    ) {
+      incrementEntityBreakdown(losses, "aircraft");
+    }
+  });
+
+  return {
+    kills,
+    losses,
+    attritionBalance: kills.total - losses.total,
+  };
+}
+
 function buildSideOutcomeSummary(
   game: Game,
-  sideId: string
+  sideId: string,
+  allLogs: SimulationLog[]
 ): SimulationOutcomeSideSummary {
   const scenario = game.currentScenario;
-  const logs = game.simulationLogs.getLogs([sideId]);
+  const logs = allLogs.filter((log) => log.sideId === sideId);
   const aircraft = scenario.aircraft.filter((unit) => unit.sideId === sideId);
   const ships = scenario.ships.filter((unit) => unit.sideId === sideId);
   const facilities = scenario.facilities.filter(
@@ -348,6 +525,7 @@ function buildSideOutcomeSummary(
   const abortedMissions = logs.filter(
     (log) => log.type === SimulationLogType.STRIKE_MISSION_ABORTED
   ).length;
+  const attrition = buildSideAttritionSummary(sideId, allLogs);
 
   return {
     sideId,
@@ -370,6 +548,9 @@ function buildSideOutcomeSummary(
     strikeMissionSuccesses,
     patrolMissionSuccesses,
     missionSuccesses: strikeMissionSuccesses + patrolMissionSuccesses,
+    kills: attrition.kills,
+    losses: attrition.losses,
+    attritionBalance: attrition.attritionBalance,
   };
 }
 
@@ -470,6 +651,12 @@ function buildSideStrengths(
       `임무 성과 ${side.missionSuccesses}회를 확보해 작전 축을 유지했습니다.`
     );
   }
+  if (side.kills.total > 0) {
+    const breakdownText = formatEntityBreakdownSummary(side.kills);
+    strengths.push(
+      `적 전투 단위 ${side.kills.total}개를 격파${breakdownText ? ` (${breakdownText})` : ""}해 소모전 우위를 만들었습니다.`
+    );
+  }
   if (
     side.weaponInventory >= Math.max(8, averageWeaponInventory) &&
     side.weaponInventory > 0
@@ -506,6 +693,12 @@ function buildSideConcerns(
       `항공 손실 ${side.aircraftLosses}건이 발생해 공중 압박 유지가 어려워졌습니다.`
     );
   }
+  if (side.losses.total > 0) {
+    const breakdownText = formatEntityBreakdownSummary(side.losses);
+    concerns.push(
+      `전투 단위 ${side.losses.total}개를 상실${breakdownText ? ` (${breakdownText})` : ""}해 전력 보존 부담이 커졌습니다.`
+    );
+  }
   if (side.weaponLosses > side.confirmedHits && side.weaponLosses > 0) {
     concerns.push(
       `유효타보다 무장 손실이 많아 화력 소모가 빠르게 진행됐습니다.`
@@ -522,6 +715,11 @@ function buildSideConcerns(
   if (side.weaponInventory <= 4 && side.launches > 0) {
     concerns.push(
       `잔여 무장이 ${side.weaponInventory}발 수준이라 후속 타격 폭이 좁습니다.`
+    );
+  }
+  if (side.attritionBalance < 0 && side.losses.total > side.kills.total) {
+    concerns.push(
+      `격파 ${side.kills.total} 대비 손실 ${side.losses.total}로 소모전 교환비가 불리했습니다.`
     );
   }
 
@@ -544,6 +742,7 @@ function buildSideAssessments(
       name: side.name,
       combatPosture: buildCombatPosture(side, summary),
       engagementEfficiencyLabel: getEngagementEfficiencyLabel(side),
+      attritionLabel: getAttritionLabel(side),
       hitRate,
       hitRateLabel: formatHitRateLabel(hitRate),
       strengths: buildSideStrengths(side, summary),
@@ -764,32 +963,41 @@ function buildDecisiveFactors(
         : runnerUp
           ? "잔존 전투력 동일"
           : "";
+    const attritionSnapshot = buildAttritionSnapshotText(leader, runnerUp);
 
-    return takeUnique([
-      summary.scoreGap === 0 ? "점수 동률" : `점수 차 ${summary.scoreGap}점`,
-      combatPowerDelta,
-      "결정타 부족",
-    ]);
+    return takeUnique(
+      [
+        summary.scoreGap === 0 ? "점수 동률" : `점수 차 ${summary.scoreGap}점`,
+        combatPowerDelta,
+        attritionSnapshot,
+        "결정타 부족",
+      ],
+      MAX_DECISIVE_FACTORS
+    );
   }
 
-  return takeUnique([
-    recentObjectiveLog?.metadata?.missionName
-      ? `임무 '${recentObjectiveLog.metadata.missionName}' 달성`
-      : recentObjectiveLog?.metadata?.objectiveName
-        ? `목표 ${recentObjectiveLog.metadata.objectiveName} 확보`
+  return takeUnique(
+    [
+      recentObjectiveLog?.metadata?.missionName
+        ? `임무 '${recentObjectiveLog.metadata.missionName}' 달성`
+        : recentObjectiveLog?.metadata?.objectiveName
+          ? `목표 ${recentObjectiveLog.metadata.objectiveName} 확보`
+          : "",
+      recentKillLog?.metadata?.targetName
+        ? `${recentKillLog.metadata.targetName} 격파`
         : "",
-    recentKillLog?.metadata?.targetName
-      ? `${recentKillLog.metadata.targetName} 격파`
-      : "",
-    runnerUp ? `점수 ${summary.scoreGap}점 차 우세` : summary.winnerBasis,
-    runnerUp
-      ? `잔존 전투력 ${leader.remainingCombatPower - runnerUp.remainingCombatPower} 우세`
-      : `잔존 전투력 ${leader.remainingCombatPower}`,
-    leader.confirmedHits > 0 ? `유효타 ${leader.confirmedHits}회 주도` : "",
-    leader.missionSuccesses > 0
-      ? `임무 성과 ${leader.missionSuccesses}회 확보`
-      : "",
-  ]);
+      runnerUp ? `점수 ${summary.scoreGap}점 차 우세` : summary.winnerBasis,
+      buildAttritionFactorText(leader),
+      runnerUp
+        ? `잔존 전투력 ${leader.remainingCombatPower - runnerUp.remainingCombatPower} 우세`
+        : `잔존 전투력 ${leader.remainingCombatPower}`,
+      leader.confirmedHits > 0 ? `유효타 ${leader.confirmedHits}회 주도` : "",
+      leader.missionSuccesses > 0
+        ? `임무 성과 ${leader.missionSuccesses}회 확보`
+        : "",
+    ],
+    MAX_DECISIVE_FACTORS
+  );
 }
 
 function buildOperationalRisks(summary: SimulationOutcomeSummary) {
@@ -823,6 +1031,15 @@ function buildOperationalRisks(summary: SimulationOutcomeSummary) {
         `${leader.name}의 잔여 무장이 ${leader.weaponInventory}발 수준이라 추격 여력이 제한적입니다.`
       );
     }
+    if (
+      runnerUp &&
+      leader.attritionBalance <= runnerUp.attritionBalance &&
+      (leader.kills.total > 0 || leader.losses.total > 0)
+    ) {
+      risks.push(
+        `${leader.name}은(는) 점수 우세에도 소모전 교환비가 박빙이라 재교전 시 손실 부담이 커질 수 있습니다.`
+      );
+    }
   }
   const unstableSide = summary.sides.find(
     (side) => side.returnToBaseEvents > 0 || side.abortedMissions > 0
@@ -851,20 +1068,30 @@ function buildRecommendations(summary: SimulationOutcomeSummary) {
   }
 
   if (summary.isTie || !summary.winnerName) {
+    const fragileSide = summary.sides.find(
+      (side) => side.attritionBalance < 0 && side.losses.total > 0
+    );
+
     return takeUnique([
       "정찰과 감시 축을 먼저 복원해 다음 교전의 표적 우선순위를 재설정해야 합니다.",
       "분산 발사보다 고가치 표적 1~2개에 동시 타격을 집중해 결정타를 만들어야 합니다.",
+      fragileSide
+        ? `${fragileSide.name}은(는) 누적 손실이 난 구간을 줄이도록 방공과 생존성 보강을 우선해야 합니다.`
+        : "",
       "복귀 중인 전력과 잔여 무장을 재편성해 다음 교전의 지속 시간을 늘려야 합니다.",
     ]);
   }
 
   return takeUnique([
     `${leader.name}은(는) 잔존 화력을 보전하면서 고가치 표적 위주로 우세를 굳혀야 합니다.`,
+    leader.attritionBalance <= 0 && leader.losses.total > 0
+      ? `${leader.name}은(는) 점수 우세와 별개로 소모전 교환비가 빡빡하므로 불필요한 맞교환을 줄여야 합니다.`
+      : "",
     leader.weaponInventory <= 6
       ? `${leader.name}은(는) 재무장 주기를 먼저 정리해 우세가 끊기지 않도록 해야 합니다.`
       : "",
     runnerUp
-      ? `${runnerUp.name}은(는) 임무 중단과 낮은 효율 구간을 복구한 뒤 단일 공격 축으로 다시 압박해야 합니다.`
+      ? `${runnerUp.name}은(는) 임무 중단과 낮은 효율 구간을 복구한 뒤${runnerUp.attritionBalance < 0 ? " 손실 억제와 방공 재정비를 선행하고" : ""} 단일 공격 축으로 다시 압박해야 합니다.`
       : "",
   ]);
 }
@@ -883,19 +1110,20 @@ function buildExecutiveSummary(
 ) {
   const firstFactor = decisiveFactors[0];
   const turningPoint = turningPoints[0];
+  const endStateClause = buildEndStateClause(summary);
 
   if (summary.isTie || !summary.winnerName) {
     if (turningPoint) {
-      return `전투는 무승부로 종료됐습니다. 핵심 배경은 ${firstFactor}이며, 가장 큰 전환점은 "${turningPoint.headline}"입니다.`;
+      return `전투는 무승부로 종료됐습니다. ${endStateClause ? `${endStateClause} ` : ""}핵심 배경은 ${firstFactor}이며, 가장 큰 전환점은 "${turningPoint.headline}"입니다.`;
     }
-    return `전투는 무승부로 종료됐습니다. 핵심 배경은 ${firstFactor}입니다.`;
+    return `전투는 무승부로 종료됐습니다. ${endStateClause ? `${endStateClause} ` : ""}핵심 배경은 ${firstFactor}입니다.`;
   }
 
   if (turningPoint) {
-    return `${summary.winnerName} 우세로 종료됐습니다. 핵심 요인은 ${firstFactor}이며, 결정적 장면은 "${turningPoint.headline}"입니다.`;
+    return `${summary.winnerName} 우세로 종료됐습니다. ${endStateClause ? `${endStateClause} ` : ""}핵심 요인은 ${firstFactor}이며, 결정적 장면은 "${turningPoint.headline}"입니다.`;
   }
 
-  return `${summary.winnerName} 우세로 종료됐습니다. 핵심 요인은 ${firstFactor}입니다.`;
+  return `${summary.winnerName} 우세로 종료됐습니다. ${endStateClause ? `${endStateClause} ` : ""}핵심 요인은 ${firstFactor}입니다.`;
 }
 
 function buildSimulationOutcomeReport(
@@ -925,6 +1153,7 @@ function buildOutcomeFallbackSummary(summary: SimulationOutcomeSummary) {
   const runnerUp = summary.sides[1];
   const recentLog = summary.recentLogs[0];
   const decisiveFactor = summary.report.decisiveFactors[0];
+  const endStateDetailText = ` 종료 시점 ${summary.activeSideSummary} 상태였습니다.`;
 
   if (!leader) {
     return "전투 결과를 정리할 수 있는 세력 정보가 없습니다.";
@@ -932,24 +1161,78 @@ function buildOutcomeFallbackSummary(summary: SimulationOutcomeSummary) {
 
   if (summary.isTie || !summary.winnerName) {
     if (!runnerUp) {
-      return `${leader.name}만 남아 있어 전장을 단독 통제 중입니다.`;
+      return `${leader.name}만 남아 있어 전장을 단독 통제 중입니다.${endStateDetailText}`;
     }
-    return `${leader.name}와 ${runnerUp.name}이(가) 사실상 무승부로 종료됐습니다. 점수 ${leader.score}점 동률이며 잔존 전력도 큰 차이가 없습니다.`;
+    const attritionText = buildAttritionSnapshotText(leader, runnerUp);
+    return `${leader.name}와 ${runnerUp.name}이(가) 사실상 무승부로 종료됐습니다. 점수 ${leader.score}점 동률이며 잔존 전력도 큰 차이가 없습니다.${attritionText ? ` ${attritionText}입니다.` : ""}${endStateDetailText}`;
   }
 
   const headline = `${summary.winnerName} 우세로 시뮬레이션이 종료됐습니다. ${summary.winnerBasis}.`;
   const detail = runnerUp
-    ? `점수 ${leader.score} 대 ${runnerUp.score}, 잔존 전력 ${leader.remainingCombatUnits} 대 ${runnerUp.remainingCombatUnits}입니다.`
+    ? `점수 ${leader.score} 대 ${runnerUp.score}, 잔존 전력 ${leader.remainingCombatUnits} 대 ${runnerUp.remainingCombatUnits}${buildAttritionSnapshotText(leader, runnerUp) ? `, ${buildAttritionSnapshotText(leader, runnerUp)}` : ""}입니다.`
     : `현재 잔존 전력은 ${leader.remainingCombatUnits}개 전투 단위입니다.`;
   const factorText = decisiveFactor
     ? ` 핵심 요인은 ${decisiveFactor}입니다.`
     : "";
 
   if (!recentLog) {
-    return `${headline} ${detail}${factorText}`;
+    return `${headline} ${detail}${endStateDetailText}${factorText}`;
   }
 
-  return `${headline} ${detail}${factorText} 마지막 주요 기록은 "${recentLog}"입니다.`;
+  return `${headline} ${detail}${endStateDetailText}${factorText} 마지막 주요 기록은 "${recentLog}"입니다.`;
+}
+
+function buildEndStateClause(
+  summary: Pick<
+    SimulationOutcomeSummary,
+    "endReasonDetail" | "activeSideNames" | "activeSideSummary"
+  >
+) {
+  switch (summary.endReasonDetail) {
+    case "single_side_remaining":
+      return summary.activeSideNames[0]
+        ? `${summary.activeSideNames[0]}만 생존한 채`
+        : "단일 세력만 생존한 채";
+    case "no_active_sides":
+      return "활성 전력이 모두 소실된 채";
+    case "time_limit":
+      return summary.activeSideNames.length > 0
+        ? `${summary.activeSideSummary}를 유지한 채`
+        : "잔존 전력 없이";
+    default:
+      return "";
+  }
+}
+
+function buildSimulationEndState(game: Game) {
+  const {
+    info: { doneReason, doneReasonDetail, activeSideIds, activeSideNames },
+  } = game.getGameEndState();
+  const activeSideSummary = buildActiveSideSummary(activeSideNames);
+  let endReason: string;
+
+  switch (doneReasonDetail) {
+    case "time_limit":
+      endReason = "시나리오 종료 시간 도달";
+      break;
+    case "single_side_remaining":
+      endReason = "단일 세력 생존";
+      break;
+    case "no_active_sides":
+      endReason = "활성 전력 소실";
+      break;
+    default:
+      endReason = doneReason === "in_progress" ? "교전 진행 중" : "교전 종결";
+      break;
+  }
+
+  return {
+    endReason,
+    endReasonDetail: doneReasonDetail,
+    activeSideIds,
+    activeSideNames,
+    activeSideSummary,
+  };
 }
 
 export function buildSimulationOutcomeSummary(
@@ -958,7 +1241,7 @@ export function buildSimulationOutcomeSummary(
   const scenario = game.currentScenario;
   const allLogs = game.simulationLogs.getLogs();
   const rankedSides = scenario.sides
-    .map((side) => buildSideOutcomeSummary(game, side.id))
+    .map((side) => buildSideOutcomeSummary(game, side.id, allLogs))
     .sort(compareOutcomeSides);
   const leader = rankedSides[0];
   const runnerUp = rankedSides[1];
@@ -974,13 +1257,15 @@ export function buildSimulationOutcomeSummary(
   const isTie = winnerName === null && rankedSides.length > 1;
   const scoreGap =
     leader && runnerUp ? Math.abs(leader.score - runnerUp.score) : 0;
+  const endState = buildSimulationEndState(game);
 
   const summary: SimulationOutcomeSummary = {
     scenarioName: scenario.name,
-    endReason:
-      scenario.currentTime >= scenario.endTime
-        ? "시나리오 종료 시간 도달"
-        : "교전 종결",
+    endReason: endState.endReason,
+    endReasonDetail: endState.endReasonDetail,
+    activeSideIds: endState.activeSideIds,
+    activeSideNames: endState.activeSideNames,
+    activeSideSummary: endState.activeSideSummary,
     endedAtUnix: scenario.currentTime,
     endedAtLabel: unixToLocalTime(scenario.currentTime),
     winnerName,
@@ -1015,8 +1300,8 @@ export function buildSimulationOutcomeSummary(
 function buildSimulationOutcomePrompt(summary: SimulationOutcomeSummary) {
   return [
     "아래는 FireScope 전투 종료 요약입니다.",
-    "승자 또는 무승부를 첫 문장에 명확히 말하고, 점수/잔존 전력/유효타 중 근거가 되는 2개 정도만 짚어 주세요.",
-    "report.executiveSummary, decisiveFactors, turningPoints를 우선 활용하세요.",
+    "승자 또는 무승부를 첫 문장에 명확히 말하고, 종료 사유와 생존 세력을 먼저 짚은 뒤 점수/잔존 전력/유효타 중 근거가 되는 2개 정도만 짚어 주세요.",
+    "report.executiveSummary, decisiveFactors, turningPoints, sideAssessments와 activeSideSummary의 소모전 평가를 우선 활용하세요.",
     "최대 3문장, 한국어, 간결하게 작성하세요.",
     "",
     JSON.stringify(summary, null, 2),

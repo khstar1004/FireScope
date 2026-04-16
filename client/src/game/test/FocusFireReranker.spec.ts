@@ -1,6 +1,7 @@
 import {
   getFocusFireRerankerConfidence,
   createDefaultFocusFireRerankerModel,
+  explainFocusFireRerankerCandidate,
   rerankFocusFireCandidates,
   scoreFocusFireRerankerCandidate,
   trainFocusFireRerankerFromTelemetry,
@@ -91,6 +92,86 @@ describe("focus fire reranker", () => {
     );
 
     expect(ranked[0]?.candidate.label).toBe("Balanced");
+  });
+
+  test("supports imported tree-ensemble rankers for option ordering", () => {
+    const baseModel = createDefaultFocusFireRerankerModel();
+    const treeModel: FocusFireRerankerModel = {
+      ...baseModel,
+      source: "telemetry-tree-ensemble",
+      modelFamily: "tree-ensemble",
+      sampleCount: 24,
+      operatorFeedbackCount: 10,
+      ruleSeedCount: 8,
+      epochCount: 20,
+      intercept: 0,
+      weights: Object.fromEntries(
+        Object.keys(baseModel.weights).map((key) => [key, 0])
+      ) as FocusFireRerankerModel["weights"],
+      treeEnsemble: {
+        trainer: "LightGBM LambdaMART",
+        trees: [
+          {
+            root: {
+              feature: "blockedRatio",
+              threshold: 0.1,
+              left: {
+                feature: "threatAdjustedCoverage",
+                threshold: 0.72,
+                left: {
+                  value: -0.2,
+                },
+                right: {
+                  value: 0.95,
+                },
+              },
+              right: {
+                value: -0.7,
+              },
+            },
+          },
+        ],
+      },
+    };
+    const preferred = createCandidate("TreePreferred", {
+      expectedStrikeEffect: 4.1,
+      desiredEffect: 4,
+      blockedLauncherCount: 0,
+      threatExposureScore: 1.3,
+    });
+    const blocked = createCandidate("Blocked", {
+      expectedStrikeEffect: 3.3,
+      desiredEffect: 4,
+      blockedLauncherCount: 2,
+      launcherCount: 2,
+      threatExposureScore: 3.8,
+    });
+
+    const ranked = rerankFocusFireCandidates([blocked, preferred], treeModel);
+
+    expect(ranked[0]?.candidate.label).toBe("TreePreferred");
+    expect(ranked[0]?.rawRerankerScore).toBeGreaterThan(
+      ranked[1]?.rawRerankerScore ?? 0
+    );
+  });
+
+  test("produces readable positive and negative ranking signals", () => {
+    const model = createDefaultFocusFireRerankerModel();
+    const candidate = createCandidate("Explained", {
+      immediateLaunchReadyCount: 1,
+      repositionRequiredCount: 0,
+      blockedLauncherCount: 1,
+      averageTimeToFireSeconds: 20,
+      threatExposureScore: 4.8,
+      expectedStrikeEffect: 2.2,
+      desiredEffect: 4,
+    });
+
+    const explanation = explainFocusFireRerankerCandidate(candidate, model);
+
+    expect(explanation.summary.length).toBeGreaterThan(0);
+    expect(explanation.positiveSignals.length).toBeGreaterThan(0);
+    expect(explanation.negativeSignals.length).toBeGreaterThan(0);
   });
 
   test("improves preferred-vs-rejected score margin after telemetry training", () => {

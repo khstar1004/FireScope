@@ -556,7 +556,7 @@ export default function AircraftCard(props: Readonly<AircraftCardProps>) {
                     </IconButton>
                   </Tooltip>
                   <ExperienceLaunchButton
-                    tooltip={`${props.aircraft.name} 3D 시뮬레이터`}
+                    tooltip={`${props.aircraft.name} 3D 쇼룸`}
                     onClick={_handleOpenAssetExperience}
                   />
                   <Tooltip title={`추가 작업`}>

@@ -22,6 +22,7 @@ import Game, {
   type BattleSpectatorSnapshot,
   type FocusFireLaunchPlatform,
   type FocusFireWeaponTrack,
+  type GameStepResult,
 } from "@/game/Game";
 import Scenario from "@/game/Scenario";
 import "@/styles/ScenarioMap.css";
@@ -129,6 +130,7 @@ import {
   isMajorSimulationLog,
   type LiveCommentaryNotification,
 } from "@/gui/map/toolbar/liveCommentary";
+import FocusFireDockPanel from "@/gui/fires/FocusFireDockPanel";
 import TargetFireRecommendationCard from "@/gui/fires/TargetFireRecommendationCard";
 import DragSelectionCard from "@/gui/map/DragSelectionCard";
 
@@ -246,6 +248,7 @@ export default function ScenarioMap({
   const scenarioMapActiveRef = useRef(true);
   const defaultProjection = getProjection(DEFAULT_OL_PROJECTION_CODE);
   const [drawerOpen, setDrawerOpen] = useState(true);
+  const [focusFireDockOpen, setFocusFireDockOpen] = useState(false);
   const mapTilerBasicUrl = `https://api.maptiler.com/maps/basic-v2/256/{z}/{x}/{y}.png?key=${MAPTILER_DEFAULT_KEY}`;
   const mapTilerSatelliteJsonUrl = `https://api.maptiler.com/tiles/satellite-v2/tiles.json?key=${MAPTILER_DEFAULT_KEY}`;
   const vworldHybridUrl = import.meta.env.VITE_VWORLD_API_KEY
@@ -1665,6 +1668,7 @@ export default function ScenarioMap({
         return;
       }
       game.setFocusFireMode(true);
+      setFocusFireDockOpen(true);
       setCurrentGameStatusToContext(
         "집중포격 모드가 켜졌습니다. 화력을 모은 뒤 목표 지점을 지정하세요."
       );
@@ -1693,6 +1697,7 @@ export default function ScenarioMap({
       game.setFocusFireMode(true);
     }
 
+    setFocusFireDockOpen(true);
     setSelectingFocusFireObjective(true);
     changeCursorType("crosshair");
     setCurrentGameStatusToContext("집중포격 목표 지점을 클릭하세요.");
@@ -1707,6 +1712,7 @@ export default function ScenarioMap({
     setSelectingFocusFireObjective(false);
     changeCursorType("");
     if (objective) {
+      setFocusFireDockOpen(true);
       refreshAllLayers();
       setCurrentGameStatusToContext(
         "집중포격 목표를 지정했습니다. 항공/화력 자산이 즉시 집중됩니다."
@@ -2061,6 +2067,7 @@ export default function ScenarioMap({
     setSimulationOutcomeNarrativeSource("fallback");
     setSimulationOutcomeLoading(true);
     setIsGameOver(true);
+    setCurrentGameStatusToContext(`${summary.endReason} · ${summary.activeSideSummary}`);
 
     const narrative = await requestSimulationOutcomeNarrative(summary);
     if (simulationOutcomeRequestIdRef.current !== requestId) {
@@ -2155,7 +2162,8 @@ export default function ScenarioMap({
     game.recordStep(true);
     setCurrentGameStatusToContext("시뮬레이션 진행 중");
     game.scenarioPaused = false;
-    let gameEnded = game.checkGameEnded();
+    const initialEndState = game.getGameEndState();
+    let gameEnded = initialEndState.terminated || initialEndState.truncated;
     if (gameEnded) {
       void presentSimulationOutcome();
       return;
@@ -2179,16 +2187,8 @@ export default function ScenarioMap({
     }
   }
 
-  function stepGameForStepSize(
-    stepSize: number
-  ): [Scenario, number, boolean, boolean, null] {
-    let steps = 1;
-    let [observation, reward, terminated, truncated, info] = game.step();
-    while (steps < stepSize) {
-      [observation, reward, terminated, truncated, info] = game.step();
-      steps++;
-    }
-    return [observation, reward, terminated, truncated, info];
+  function stepGameForStepSize(stepSize: number): GameStepResult {
+    return game.stepForTimeCompression(stepSize);
   }
 
   function stepGameAndDrawFrame() {
@@ -3564,6 +3564,13 @@ export default function ScenarioMap({
       )
     : [];
   const selectedCombatant = resolveSelectedCombatantSummary();
+  const focusFireSummary = game.getFocusFireSummary();
+
+  useEffect(() => {
+    if (focusFireSummary.enabled || focusFireSummary.objectiveName) {
+      setFocusFireDockOpen(true);
+    }
+  }, [focusFireSummary.enabled, focusFireSummary.objectiveName]);
 
   // GUI START
   return (
@@ -3651,6 +3658,7 @@ export default function ScenarioMap({
         clearFocusFireObjective={clearFocusFireObjective}
         openBattleSpectator={openBattleSpectator}
         openFocusFireAirwatch={openFocusFireAirwatch}
+        openFocusFireDock={() => setFocusFireDockOpen(true)}
       />
 
       <LayerVisibilityPanelToggle
@@ -3669,6 +3677,19 @@ export default function ScenarioMap({
         mobileView={mobileView}
         replayMetric={activeReplayMetric}
         selectedCombatant={selectedCombatant}
+        focusFireDock={
+          <FocusFireDockPanel
+            game={game}
+            mobileView={mobileView}
+            open={focusFireDockOpen}
+            onOpen={() => setFocusFireDockOpen(true)}
+            onClose={() => setFocusFireDockOpen(false)}
+            onToggleFocusFireMode={toggleFocusFireMode}
+            onArmObjectiveSelection={armFocusFireObjectiveSelection}
+            onClearObjective={clearFocusFireObjective}
+            onOpenAirwatch={openFocusFireAirwatch}
+          />
+        }
       />
 
       {dragSelectedFeatures.length > 0 && (

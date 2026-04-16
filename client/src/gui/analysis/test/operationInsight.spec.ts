@@ -77,6 +77,7 @@ function createOutcomeTestGame() {
       actorType: "aircraft",
       targetId: "red-command",
       targetName: "적 지휘소",
+      targetSideId: red.id,
       targetType: "facility",
       resultTag: "kill",
       actorScoreDelta: 50,
@@ -136,6 +137,10 @@ describe("operationInsight", () => {
     expect(summary.winnerName).toBe("BLUE");
     expect(summary.isTie).toBe(false);
     expect(summary.winnerBasis).toContain("점수");
+    expect(summary.endReason).toBe("시나리오 종료 시간 도달");
+    expect(summary.endReasonDetail).toBe("time_limit");
+    expect(summary.activeSideSummary).toBe("생존 세력 BLUE · RED");
+    expect(summary.activeSideNames).toEqual(["BLUE", "RED"]);
     expect(summary.sides[0]).toMatchObject({
       name: "BLUE",
       score: 250,
@@ -145,6 +150,12 @@ describe("operationInsight", () => {
       misses: 0,
       missionSuccesses: 1,
     });
+    expect(summary.sides[0]?.kills).toMatchObject({
+      facilities: 1,
+      total: 1,
+    });
+    expect(summary.sides[0]?.losses.total).toBe(0);
+    expect(summary.sides[0]?.attritionBalance).toBe(1);
     expect(summary.sides[1]).toMatchObject({
       name: "RED",
       score: 120,
@@ -154,11 +165,17 @@ describe("operationInsight", () => {
       misses: 0,
       missionSuccesses: 0,
     });
+    expect(summary.sides[1]?.losses).toMatchObject({
+      facilities: 1,
+      total: 1,
+    });
+    expect(summary.report.sideAssessments[0]?.attritionLabel).toBe("소폭 우세");
     expect(summary.fallbackSummary).toContain("BLUE 우세");
     expect(summary.report.headline).toContain("BLUE 우세");
     expect(summary.report.executiveSummary).toContain("BLUE 우세");
     expect(summary.report.decisiveFactors).toContain("임무 'SEAD-1' 달성");
     expect(summary.report.decisiveFactors).toContain("적 지휘소 격파");
+    expect(summary.report.decisiveFactors).toContain("소모전 차 +1");
     expect(summary.report.sideAssessments[0]?.strengths.length).toBeGreaterThan(
       0
     );
@@ -181,6 +198,13 @@ describe("operationInsight", () => {
     ).toBe(true);
     expect(summary.report.operationalRisks.length).toBeGreaterThan(0);
     expect(summary.report.recommendations.length).toBeGreaterThan(0);
+    expect(summary.fallbackSummary).toContain("소모전 차 +1 대 -1");
+    expect(summary.fallbackSummary).toContain(
+      "종료 시점 생존 세력 BLUE · RED 상태였습니다."
+    );
+    expect(summary.report.executiveSummary).toContain(
+      "생존 세력 BLUE · RED를 유지한 채"
+    );
     expect(summary.recentLogs).toHaveLength(4);
   });
 });

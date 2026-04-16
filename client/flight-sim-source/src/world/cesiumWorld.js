@@ -8,6 +8,7 @@ let vworldScriptPromise;
 let vworldInitPromise;
 let koreaBuildingsTileset;
 let koreaBuildingsPromise;
+let renderOptimizedForMenu = false;
 
 const ionToken = (import.meta.env.VITE_CESIUM_ION_TOKEN ?? '').trim();
 const runtimeConfig = window.__FLIGHT_SIM_CONFIG__ ?? {};
@@ -523,11 +524,17 @@ function attachVWorldImagery(targetViewer) {
 	);
 }
 
+function applyRenderOptimization(targetViewer) {
+	if (!targetViewer?.scene) return;
+
+	targetViewer.scene.requestRenderMode = renderOptimizedForMenu;
+	targetViewer.scene.maximumRenderTimeChange = renderOptimizedForMenu ? Infinity : 0;
+}
+
 function configureViewer(targetViewer, { main = false } = {}) {
 	if (!targetViewer) return;
 
-	targetViewer.scene.requestRenderMode = false;
-	targetViewer.scene.maximumRenderTimeChange = 0;
+	applyRenderOptimization(targetViewer);
 	targetViewer.scene.globe.maximumScreenSpaceError = 2;
 	targetViewer.scene.globe.tileCacheSize = 2048;
 	targetViewer.scene.globe.preloadAncestors = true;
@@ -1114,12 +1121,9 @@ export async function initCesium(initialPosition = {}) {
 }
 
 export function setRenderOptimization(isMenu) {
-	if (!viewer || !miniViewer || !pauseMiniViewer) return;
+	renderOptimizedForMenu = Boolean(isMenu);
 
-	[viewer, miniViewer, pauseMiniViewer].forEach(v => {
-		v.scene.requestRenderMode = !isMenu;
-		v.scene.maximumRenderTimeChange = !isMenu ? Infinity : 0;
-	});
+	[viewer, miniViewer, pauseMiniViewer].filter(Boolean).forEach(applyRenderOptimization);
 }
 
 export function setControlsEnabled(enabled) {

@@ -87,7 +87,11 @@ function buildRuntimePayload(
     route.asset,
     model
   );
-  const scenario = createTacticalExperienceScenario(route.asset, route.profile);
+  const scenario = createTacticalExperienceScenario(
+    route.asset,
+    route.profile,
+    route.operationMode
+  );
 
   return {
     profile: route.profile,
@@ -124,7 +128,10 @@ export default function TacticalSimPage({
   onBackToMap,
 }: Readonly<TacticalSimPageProps>) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const demoTimerIdsRef = useRef<number[]>([]);
   const [assetState, setAssetState] = useState<AssetState>("checking");
+  const [demoPlaying, setDemoPlaying] = useState(false);
+  const [activeDemoBeatId, setActiveDemoBeatId] = useState<string | null>(null);
   const runtimePayload = useMemo(
     () => (route ? buildRuntimePayload(route) : null),
     [route]
@@ -187,6 +194,22 @@ export default function TacticalSimPage({
     };
   }, [runtimePayload?.model?.path]);
 
+  useEffect(() => {
+    demoTimerIdsRef.current.forEach((timerId) => window.clearTimeout(timerId));
+    demoTimerIdsRef.current = [];
+    setDemoPlaying(false);
+    setActiveDemoBeatId(null);
+  }, [runtimeKey]);
+
+  useEffect(() => {
+    return () => {
+      demoTimerIdsRef.current.forEach((timerId) =>
+        window.clearTimeout(timerId)
+      );
+      demoTimerIdsRef.current = [];
+    };
+  }, []);
+
   if (!route || !runtimePayload || !runtimeKey) {
     return (
       <Box
@@ -206,7 +229,7 @@ export default function TacticalSimPage({
             전술 시뮬레이션 대상을 찾지 못했습니다.
           </Typography>
           <Typography sx={{ color: "rgba(255, 244, 244, 0.78)" }}>
-            소개 페이지에서 다시 `시뮬레이터 시작`으로 진입해야 합니다.
+            브리프 화면의 시작 버튼으로 다시 진입해야 합니다.
           </Typography>
           <Button
             variant="contained"
@@ -258,6 +281,41 @@ export default function TacticalSimPage({
       },
       window.location.origin
     );
+  };
+
+  const stopDemoPlayback = () => {
+    demoTimerIdsRef.current.forEach((timerId) => window.clearTimeout(timerId));
+    demoTimerIdsRef.current = [];
+    setDemoPlaying(false);
+    setActiveDemoBeatId(null);
+  };
+
+  const playDemoTimeline = () => {
+    if (!canControlRuntime || mission.demoTimeline.length === 0) {
+      return;
+    }
+
+    stopDemoPlayback();
+    setDemoPlaying(true);
+
+    let elapsedMs = 0;
+
+    mission.demoTimeline.forEach((beat) => {
+      const timerId = window.setTimeout(() => {
+        setActiveDemoBeatId(beat.id);
+        sendRuntimeCommand(beat.command);
+      }, elapsedMs);
+
+      demoTimerIdsRef.current.push(timerId);
+      elapsedMs += beat.delayMs ?? 2200;
+    });
+
+    const finalizeId = window.setTimeout(() => {
+      setDemoPlaying(false);
+      setActiveDemoBeatId(null);
+    }, elapsedMs + 240);
+
+    demoTimerIdsRef.current.push(finalizeId);
   };
 
   const quickFacts = [
@@ -364,6 +422,8 @@ export default function TacticalSimPage({
           zIndex: 3,
           width: { xs: "calc(100% - 24px)", sm: 380, md: 420 },
           maxWidth: "calc(100vw - 24px)",
+          maxHeight: "calc(100vh - 24px)",
+          overflowY: "auto",
           p: { xs: 1.6, md: 2 },
           borderRadius: 3,
           backdropFilter: "blur(18px)",
@@ -475,6 +535,9 @@ export default function TacticalSimPage({
           <Typography sx={{ fontSize: 13, color: "rgba(226, 240, 255, 0.68)" }}>
             {primer.threatSummary}
           </Typography>
+          <Typography sx={{ fontSize: 12, color: "rgba(226, 240, 255, 0.62)" }}>
+            {mission.commandersIntent}
+          </Typography>
 
           <Box
             sx={{
@@ -518,6 +581,31 @@ export default function TacticalSimPage({
               sx={{ backgroundColor: theme.accentColor, color: "#07111b" }}
             >
               임무 시작
+            </Button>
+            <Button
+              size="small"
+              variant={demoPlaying ? "contained" : "outlined"}
+              disabled={!canControlRuntime}
+              onClick={() => {
+                if (demoPlaying) {
+                  stopDemoPlayback();
+                  return;
+                }
+                playDemoTimeline();
+              }}
+              sx={
+                demoPlaying
+                  ? {
+                      backgroundColor: "rgba(255, 255, 255, 0.14)",
+                      color: "#eef7ff",
+                    }
+                  : {
+                      borderColor: "rgba(214, 227, 188, 0.24)",
+                      color: "#eef7ff",
+                    }
+              }
+            >
+              {demoPlaying ? "데모 정지" : "데모 재생"}
             </Button>
             <Button
               size="small"
@@ -568,6 +656,90 @@ export default function TacticalSimPage({
               기준 시점
             </Button>
           </Stack>
+
+          <Box
+            sx={{
+              p: 1.2,
+              borderRadius: 2.2,
+              backgroundColor: "rgba(9, 17, 28, 0.56)",
+              border: "1px solid rgba(176, 220, 255, 0.1)",
+            }}
+          >
+            <Typography
+              variant="overline"
+              sx={{ color: theme.accentColor, letterSpacing: "0.14em" }}
+            >
+              TODO
+            </Typography>
+            <Stack spacing={0.8} sx={{ mt: 0.9 }}>
+              {mission.readinessChecklist.map((task) => (
+                <Box key={task.title}>
+                  <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                    {task.title}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      mt: 0.25,
+                      fontSize: 12,
+                      color: "rgba(226, 240, 255, 0.68)",
+                    }}
+                  >
+                    {task.description}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+          </Box>
+
+          <Box
+            sx={{
+              p: 1.2,
+              borderRadius: 2.2,
+              backgroundColor: "rgba(9, 17, 28, 0.56)",
+              border: "1px solid rgba(176, 220, 255, 0.1)",
+            }}
+          >
+            <Typography
+              variant="overline"
+              sx={{ color: theme.accentColor, letterSpacing: "0.14em" }}
+            >
+              Demo Flow
+            </Typography>
+            <Stack spacing={0.75} sx={{ mt: 0.9 }}>
+              {mission.demoTimeline.map((beat, index) => {
+                const active = beat.id === activeDemoBeatId;
+
+                return (
+                  <Box
+                    key={beat.id}
+                    sx={{
+                      p: 1,
+                      borderRadius: 1.8,
+                      backgroundColor: active
+                        ? "rgba(255, 255, 255, 0.1)"
+                        : "rgba(255, 255, 255, 0.03)",
+                      border: active
+                        ? `1px solid ${theme.accentColor}`
+                        : "1px solid rgba(176, 220, 255, 0.08)",
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 12, fontWeight: 800 }}>
+                      {index + 1}. {beat.title}
+                    </Typography>
+                    <Typography
+                      sx={{
+                        mt: 0.25,
+                        fontSize: 12,
+                        color: "rgba(226, 240, 255, 0.68)",
+                      }}
+                    >
+                      {beat.description}
+                    </Typography>
+                  </Box>
+                );
+              })}
+            </Stack>
+          </Box>
 
           <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap">
             <Button

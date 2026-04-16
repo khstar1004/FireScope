@@ -61,11 +61,15 @@ export class HUD {
 			missile: this.weaponElems.missile.querySelector('.weapon-progress'),
 			flare: this.weaponElems.flare.querySelector('.weapon-progress')
 		};
+		this.weaponNameElems = {
+			missile: this.weaponElems.missile.querySelector('.weapon-name')
+		};
 		this.missileSubtitleElem = this.weaponElems.missile.querySelector('.weapon-subtitle');
 		this.cameraModeElem = document.getElementById('camera-mode-indicator');
 		this.missileProfileElem = document.getElementById('missile-profile-indicator');
 
 		this.vignette = document.getElementById('transition-vignette');
+		this.fontFamily = getComputedStyle(document.body).fontFamily || 'sans-serif';
 
 		this.startTime = Date.now();
 
@@ -80,6 +84,13 @@ export class HUD {
 
 		this.minimapRange = 1;
 		this.showHorizonLines = false;
+		this._scratchNpcPos = new Cesium.Cartesian3();
+		this._scratchPlayerPos = new Cesium.Cartesian3();
+		this._scratchDirection = new Cesium.Cartesian3();
+		this._pauseMenuTextSnapshot = null;
+		this._pauseMenuTimeSecond = null;
+		this._pauseMenuTimeText = null;
+		this._pauseMinimapSnapshot = null;
 
 		this.npcMarkers = new Map();
 		this.npcContainer = document.createElement('div');
@@ -388,38 +399,68 @@ export class HUD {
 	}
 
 	updatePauseMenu(state, currentRegionName, npcs = []) {
-		if (this.pauseRegionElem) this.pauseRegionElem.innerText = currentRegionName || "알 수 없는 지역";
+		const regionText = currentRegionName || "알 수 없는 지역";
+		const latDir = state.lat >= 0 ? '북' : '남';
+		const lonDir = state.lon >= 0 ? '동' : '서';
+		const latText = `${Math.abs(state.lat).toFixed(4)}°${latDir}`;
+		const lonText = `${Math.abs(state.lon).toFixed(4)}°${lonDir}`;
+		const altText = `${Math.max(0, Math.round(state.alt * 3.28084)).toLocaleString()} 피트`;
+		const textSnapshot = [regionText, latText, lonText, altText].join('|');
 
-		if (this.pauseLatElem) {
-			const latDir = state.lat >= 0 ? '북' : '남';
-			this.pauseLatElem.innerText = `${Math.abs(state.lat).toFixed(4)}°${latDir}`;
-		}
-		if (this.pauseLonElem) {
-			const lonDir = state.lon >= 0 ? '동' : '서';
-			this.pauseLonElem.innerText = `${Math.abs(state.lon).toFixed(4)}°${lonDir}`;
-		}
-		if (this.pauseAltElem) {
-			const altFeet = Math.max(0, Math.round(state.alt * 3.28084));
-			this.pauseAltElem.innerText = `${altFeet.toLocaleString()} 피트`;
+		if (textSnapshot !== this._pauseMenuTextSnapshot) {
+			this._pauseMenuTextSnapshot = textSnapshot;
+			if (this.pauseRegionElem) this.pauseRegionElem.innerText = regionText;
+			if (this.pauseLatElem) this.pauseLatElem.innerText = latText;
+			if (this.pauseLonElem) this.pauseLonElem.innerText = lonText;
+			if (this.pauseAltElem) this.pauseAltElem.innerText = altText;
 		}
 
 		if (this.pauseTimeElem) {
-			const now = new Date();
-			const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-			const tzOffsetHours = Math.round((state.lon || 0) / 15);
-			const localDate = new Date(utc + (3600000 * tzOffsetHours));
+			const currentSecond = Math.floor(Date.now() / 1000);
+			if (currentSecond !== this._pauseMenuTimeSecond) {
+				const now = new Date(currentSecond * 1000);
+				const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+				const tzOffsetHours = Math.round((state.lon || 0) / 15);
+				const localDate = new Date(utc + (3600000 * tzOffsetHours));
 
-			const yyyy = localDate.getFullYear();
-			const mm = (localDate.getMonth() + 1).toString().padStart(2, '0');
-			const dd = localDate.getDate().toString().padStart(2, '0');
-			const hh = localDate.getHours().toString().padStart(2, '0');
-			const min = localDate.getMinutes().toString().padStart(2, '0');
-			const ss = localDate.getSeconds().toString().padStart(2, '0');
+				const yyyy = localDate.getFullYear();
+				const mm = (localDate.getMonth() + 1).toString().padStart(2, '0');
+				const dd = localDate.getDate().toString().padStart(2, '0');
+				const hh = localDate.getHours().toString().padStart(2, '0');
+				const min = localDate.getMinutes().toString().padStart(2, '0');
+				const ss = localDate.getSeconds().toString().padStart(2, '0');
 
-			this.pauseTimeElem.innerText = `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}Z`;
+				this._pauseMenuTimeSecond = currentSecond;
+				this._pauseMenuTimeText = `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}Z`;
+				this.pauseTimeElem.innerText = this._pauseMenuTimeText;
+			}
 		}
 
 		const zoomAlt = this.minimapRange * 10000;
+		const pauseMinimapWidth = this.pauseMinimapCanvas?.width ?? 0;
+		const pauseMinimapHeight = this.pauseMinimapCanvas?.height ?? 0;
+		const pauseMinimapNeedsRedraw =
+			!this._pauseMinimapSnapshot ||
+			this._pauseMinimapSnapshot.lon !== state.lon ||
+			this._pauseMinimapSnapshot.lat !== state.lat ||
+			this._pauseMinimapSnapshot.zoomAlt !== zoomAlt ||
+			this._pauseMinimapSnapshot.canvasWidth !== pauseMinimapWidth ||
+			this._pauseMinimapSnapshot.canvasHeight !== pauseMinimapHeight ||
+			this._pauseMinimapSnapshot.npcs !== npcs;
+
+		if (!pauseMinimapNeedsRedraw) {
+			return;
+		}
+
+		this._pauseMinimapSnapshot = {
+			lon: state.lon,
+			lat: state.lat,
+			zoomAlt,
+			canvasWidth: pauseMinimapWidth,
+			canvasHeight: pauseMinimapHeight,
+			npcs
+		};
+
 		setPauseMinimapCamera(state.lon, state.lat, zoomAlt, 0);
 
 		if (!this.pauseMiniCtx || !this.pauseMinimapCanvas) return;
@@ -759,7 +800,7 @@ export class HUD {
 		ctx.stroke();
 
 		ctx.fillStyle = HUD_PRIMARY;
-		ctx.font = `bold 16px ${getComputedStyle(document.body).fontFamily}`;
+		ctx.font = `bold 16px ${this.fontFamily}`;
 		ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
 		ctx.shadowBlur = 4;
 		ctx.textAlign = 'center';
@@ -828,13 +869,20 @@ export class HUD {
 			const scene = viewer.scene;
 			const camera = scene.camera;
 			const maxDist = 200000;
+			const scratchPos = this._scratchNpcPos;
+			const scratchPlayerPos = this._scratchPlayerPos;
+			const scratchDirection = this._scratchDirection;
 
-			const scratchPos = new Cesium.Cartesian3();
-			const scratchPlayerPos = new Cesium.Cartesian3();
+			Cesium.Cartesian3.fromDegrees(
+				playerState.lon,
+				playerState.lat,
+				playerState.alt,
+				undefined,
+				scratchPlayerPos
+			);
 
 			npcs.forEach(npc => {
 				Cesium.Cartesian3.fromDegrees(npc.lon, npc.lat, npc.alt, undefined, scratchPos);
-				Cesium.Cartesian3.fromDegrees(playerState.lon, playerState.lat, playerState.alt, undefined, scratchPlayerPos);
 				const dist = Cesium.Cartesian3.distance(scratchPos, scratchPlayerPos);
 
 				if (dist > maxDist) return;
@@ -850,7 +898,11 @@ export class HUD {
 				const transformFunc = Cesium.SceneTransforms.worldToWindowCoordinates || Cesium.SceneTransforms.wgs84ToWindowCoordinates;
 				const windowPos = transformFunc ? transformFunc(scene, scratchPos) : null;
 
-				const direction = Cesium.Cartesian3.subtract(scratchPos, camera.position, new Cesium.Cartesian3());
+				const direction = Cesium.Cartesian3.subtract(
+					scratchPos,
+					camera.position,
+					scratchDirection
+				);
 				const depth = Cesium.Cartesian3.dot(direction, camera.direction);
 
 				const isOffScreen = !windowPos || depth <= 0 ||
@@ -1039,7 +1091,7 @@ export class HUD {
 				}
 
 				if (id === 'missile') {
-					const nameElem = elem.querySelector('.weapon-name');
+					const nameElem = this.weaponNameElems.missile;
 					if (nameElem) nameElem.innerText = displayWeapon?.name || 'AAM 미사일';
 					if (this.missileSubtitleElem) {
 						this.missileSubtitleElem.innerText = missileProfileStatus.shortLabel;

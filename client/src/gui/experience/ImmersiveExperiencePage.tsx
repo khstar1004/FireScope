@@ -116,9 +116,9 @@ function buildFocusList(profile: ImmersiveExperienceProfile) {
       ];
     case "base":
       return [
-        "활주/이동 축 확인",
-        "전투기·헬기·드론 주기 배치 비교",
-        "격납·관제·출격 흐름 확인",
+        "기지 경보 확인",
+        "항공 자산 대기 배치 비교",
+        "격납, 관제, 출격 흐름 확인",
       ];
   }
 }
@@ -128,7 +128,7 @@ function buildModelDeckTitle(profile: ImmersiveExperienceProfile) {
     case "maritime":
       return "함정 모델 선택";
     case "base":
-      return "주둔 자산 선택";
+      return "기지 자산 선택";
     case "ground":
       return "지상 플랫폼 선택";
     case "fires":
@@ -143,7 +143,7 @@ function buildModelDeckDescription(profile: ImmersiveExperienceProfile) {
     case "maritime":
       return "구축함, 항모, 잠수함을 다중 선택해 전투단 구성을 비교합니다.";
     case "base":
-      return "전투기, 헬기, 드론을 다중 선택해 비행단 구성을 비교합니다.";
+      return "전투기, 헬기, 드론을 다중 선택해 기지 편성을 비교합니다.";
     case "ground":
       return "장갑차/지휘차/전차 모델을 고르고 기동 구성을 비교합니다.";
     case "fires":
@@ -191,7 +191,7 @@ function buildViewportControls(hasBundleModel: boolean) {
       "`모델 선택`: 기준 플랫폼 전환",
       "`Mission Mode`: 작전 모드 변경",
       "`비교 토글`: 다중 비교 라인업 구성",
-      "`시뮬레이터 시작`: 실제 3D 지도 페이지 진입",
+      "`브리프 시작 버튼`: 실제 3D 시뮬레이터 페이지 진입",
       "`지도 복귀`: 메인 화면 복귀",
     ];
   }
@@ -294,7 +294,7 @@ export default function ImmersiveExperiencePage({
       >
         <Stack spacing={2} sx={{ maxWidth: 520 }}>
           <Typography variant="h4" sx={{ fontWeight: 900 }}>
-            몰입형 시뮬레이션 대상을 찾지 못했습니다.
+            브리프 대상을 찾지 못했습니다.
           </Typography>
           <Typography sx={{ color: "rgba(255, 244, 244, 0.78)" }}>
             자산 상세 페이지에서 다시 진입해야 합니다.
@@ -464,6 +464,11 @@ export default function ImmersiveExperiencePage({
                 {missionPlan.briefingSummary} 현재 선택은 `
                 {activeModel?.label ?? getDisplayName(resolvedAsset.className)}`
                 기준으로 실전 맵에 연결됩니다.
+              </Typography>
+            )}
+            {showGuide && (
+              <Typography sx={{ color: "rgba(226, 240, 255, 0.68)" }}>
+                지휘 의도: {missionPlan.commandersIntent}
               </Typography>
             )}
           </Stack>
@@ -773,6 +778,49 @@ export default function ImmersiveExperiencePage({
                   variant="overline"
                   sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
                 >
+                  Operation Strategy
+                </Typography>
+                <Typography
+                  sx={{
+                    mt: 0.8,
+                    fontWeight: 800,
+                    color: "rgba(238, 247, 255, 0.92)",
+                  }}
+                >
+                  {missionPlan.operationalContext}
+                </Typography>
+                <Typography
+                  sx={{
+                    mt: 0.7,
+                    fontSize: 13,
+                    color: "rgba(226, 240, 255, 0.74)",
+                  }}
+                >
+                  {missionPlan.commandersIntent}
+                </Typography>
+                <Stack spacing={0.7} sx={{ mt: 1.2 }}>
+                  {missionPlan.riskControls.map((risk) => (
+                    <Typography
+                      key={risk}
+                      sx={{ fontSize: 12, color: "rgba(226, 240, 255, 0.66)" }}
+                    >
+                      {risk}
+                    </Typography>
+                  ))}
+                </Stack>
+              </Box>
+              <Box
+                sx={{
+                  p: 2,
+                  borderRadius: 3,
+                  backgroundColor: "rgba(6, 12, 22, 0.56)",
+                  border: "1px solid rgba(176, 220, 255, 0.12)",
+                }}
+              >
+                <Typography
+                  variant="overline"
+                  sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
+                >
                   Mission Phases
                 </Typography>
                 <Typography
@@ -840,6 +888,57 @@ export default function ImmersiveExperiencePage({
                         }}
                       >
                         {phase.successHint}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+              <Box
+                sx={{
+                  p: 2,
+                  borderRadius: 3,
+                  backgroundColor: "rgba(6, 12, 22, 0.56)",
+                  border: "1px solid rgba(176, 220, 255, 0.12)",
+                }}
+              >
+                <Typography
+                  variant="overline"
+                  sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
+                >
+                  Demo Timeline
+                </Typography>
+                <Typography
+                  sx={{
+                    mt: 0.6,
+                    mb: 1.2,
+                    fontSize: 13,
+                    color: "rgba(226, 240, 255, 0.72)",
+                  }}
+                >
+                  실제 전술 페이지에서 그대로 재현할 수 있는 시연 순서입니다.
+                </Typography>
+                <Stack spacing={1}>
+                  {missionPlan.demoTimeline.map((beat, index) => (
+                    <Box
+                      key={beat.id}
+                      sx={{
+                        p: 1.1,
+                        borderRadius: 2.2,
+                        backgroundColor: "rgba(9, 17, 28, 0.58)",
+                        border: "1px solid rgba(176, 220, 255, 0.12)",
+                      }}
+                    >
+                      <Typography sx={{ fontWeight: 800 }}>
+                        {index + 1}. {beat.title}
+                      </Typography>
+                      <Typography
+                        sx={{
+                          mt: 0.45,
+                          fontSize: 12,
+                          color: "rgba(226, 240, 255, 0.7)",
+                        }}
+                      >
+                        {beat.description}
                       </Typography>
                     </Box>
                   ))}
@@ -976,6 +1075,59 @@ export default function ImmersiveExperiencePage({
                 })}
               </Stack>
             </Box>
+            {showGuide && (
+              <Box
+                sx={{
+                  p: 2,
+                  borderRadius: 3,
+                  backgroundColor: "rgba(6, 12, 22, 0.56)",
+                  border: "1px solid rgba(176, 220, 255, 0.12)",
+                }}
+              >
+                <Typography
+                  variant="overline"
+                  sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
+                >
+                  TODO List
+                </Typography>
+                <Typography
+                  sx={{
+                    mt: 0.6,
+                    mb: 1.1,
+                    fontSize: 13,
+                    color: "rgba(226, 240, 255, 0.72)",
+                  }}
+                >
+                  시연 전에 먼저 맞춰야 할 체크포인트입니다.
+                </Typography>
+                <Stack spacing={0.95}>
+                  {missionPlan.readinessChecklist.map((task) => (
+                    <Box
+                      key={task.title}
+                      sx={{
+                        p: 1,
+                        borderRadius: 2,
+                        backgroundColor: "rgba(9, 17, 28, 0.52)",
+                        border: "1px solid rgba(176, 220, 255, 0.1)",
+                      }}
+                    >
+                      <Typography sx={{ fontWeight: 800 }}>
+                        {task.title}
+                      </Typography>
+                      <Typography
+                        sx={{
+                          mt: 0.35,
+                          fontSize: 12,
+                          color: "rgba(226, 240, 255, 0.68)",
+                        }}
+                      >
+                        {task.description}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            )}
             {showGuide && (
               <Box
                 sx={{

@@ -63,6 +63,10 @@ function getEntityType(
   return "unknown";
 }
 
+function getEntitySideId(entity: LaunchPlatform | Target | null | undefined) {
+  return entity?.sideId;
+}
+
 function resolveLauncher(currentScenario: Scenario, weapon: Weapon) {
   return (
     currentScenario.getAircraft(weapon.launcherId) ??
@@ -83,6 +87,7 @@ function buildWeaponLogMetadata(
   return {
     actorId: launcher?.id ?? weapon.launcherId,
     actorName: launcher?.name ?? weapon.launcherId,
+    actorSideId: getEntitySideId(launcher) ?? weapon.sideId,
     actorType: getEntityType(launcher),
     launcherId: weapon.launcherId,
     launcherName: launcher?.name ?? weapon.launcherId,
@@ -92,6 +97,7 @@ function buildWeaponLogMetadata(
     weaponClassName: weapon.className,
     targetId: target?.id ?? weapon.targetId ?? undefined,
     targetName: target?.name,
+    targetSideId: getEntitySideId(target),
     targetType: getEntityType(target),
     ...metadata,
   };
@@ -107,6 +113,7 @@ function buildLaunchLogMetadata(
   return {
     actorId: origin.id,
     actorName: origin.name,
+    actorSideId: origin.sideId,
     actorType: getEntityType(origin),
     launcherId: origin.id,
     launcherName: origin.name,
@@ -116,6 +123,7 @@ function buildLaunchLogMetadata(
     weaponClassName: launchedWeapon.className,
     targetId: target.id,
     targetName: target.name,
+    targetSideId: getEntitySideId(target),
     targetType: getEntityType(target),
     quantity: launchedWeaponQuantity,
     ...metadata,

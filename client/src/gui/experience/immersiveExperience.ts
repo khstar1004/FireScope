@@ -95,15 +95,15 @@ export function getImmersiveExperienceLabel(
 ) {
   switch (profile) {
     case "ground":
-      return "지상 기동 시뮬레이터";
+      return "지상 기동 브리프";
     case "fires":
-      return "화력 운용 시뮬레이터";
+      return "화력 운용 브리프";
     case "defense":
-      return "방공 시뮬레이터";
+      return "방공 체계 브리프";
     case "maritime":
-      return "해상 전력 시뮬레이터";
+      return "해상 전력 브리프";
     case "base":
-      return "기지 운용 시뮬레이터";
+      return "기지 운용 브리프";
   }
 }
 

@@ -418,6 +418,12 @@ interface TrainingPreset {
   >;
 }
 
+interface ApplyScenarioSetupOptions {
+  scenarioText: string;
+  preset?: TrainingPreset;
+  capabilities?: RlCapabilities | null;
+}
+
 interface RlLabPageProps {
   onBack: () => void;
   initialJobId?: string | null;
@@ -532,6 +538,63 @@ const trainingPresets: TrainingPreset[] = [
     },
   },
 ];
+
+function toRewardConfigForm(
+  rewardConfig?: Record<string, number>
+): RewardConfigForm {
+  const source = rewardConfig ?? fallbackForm.rewardConfig;
+  return {
+    killBase: source.killBase ?? fallbackForm.rewardConfig.killBase,
+    highValueTargetBonus:
+      source.highValueTargetBonus ??
+      fallbackForm.rewardConfig.highValueTargetBonus,
+    totWeight: source.totWeight ?? fallbackForm.rewardConfig.totWeight,
+    totTauSeconds:
+      source.totTauSeconds ?? fallbackForm.rewardConfig.totTauSeconds,
+    etaProgressWeight:
+      source.etaProgressWeight ?? fallbackForm.rewardConfig.etaProgressWeight,
+    readyToFireBonus:
+      source.readyToFireBonus ?? fallbackForm.rewardConfig.readyToFireBonus,
+    stagnationPenaltyPerAssignment:
+      source.stagnationPenaltyPerAssignment ??
+      fallbackForm.rewardConfig.stagnationPenaltyPerAssignment,
+    targetSwitchPenalty:
+      source.targetSwitchPenalty ??
+      fallbackForm.rewardConfig.targetSwitchPenalty,
+    threatStepPenalty:
+      source.threatStepPenalty ?? fallbackForm.rewardConfig.threatStepPenalty,
+    launchCostPerWeapon:
+      source.launchCostPerWeapon ??
+      fallbackForm.rewardConfig.launchCostPerWeapon,
+    timeCostPerStep:
+      source.timeCostPerStep ?? fallbackForm.rewardConfig.timeCostPerStep,
+    lossPenaltyPerAlly:
+      source.lossPenaltyPerAlly ?? fallbackForm.rewardConfig.lossPenaltyPerAlly,
+    successBonus: source.successBonus ?? fallbackForm.rewardConfig.successBonus,
+    failurePenalty:
+      source.failurePenalty ?? fallbackForm.rewardConfig.failurePenalty,
+  };
+}
+
+function applyScenarioSetup(
+  form: TrainingForm,
+  options: ApplyScenarioSetupOptions
+) {
+  const presetValues = options.preset?.values ?? {};
+  const nextForm: TrainingForm = {
+    ...form,
+    algorithms: normalizeAlgorithmIds(
+      options.capabilities?.defaultForm.algorithms,
+      form.algorithms
+    ),
+    ...presetValues,
+    rewardConfig: toRewardConfigForm(
+      options.capabilities?.defaultForm.rewardConfig
+    ),
+    scenarioText: options.scenarioText,
+  };
+  return applyScenarioRecommendations(nextForm, options.scenarioText);
+}
 
 function buildCommandPreview(form: TrainingForm) {
   const allyIds = parseCommaSeparatedIds(form.allyIds).join(" ");
@@ -819,6 +882,14 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
   const [pageError, setPageError] = useState<string | null>(null);
   const [scenarioMessage, setScenarioMessage] = useState<string | null>(null);
   const deferredScenarioText = useDeferredValue(form.scenarioText);
+  const baselinePreset =
+    trainingPresets.find((preset) => preset.key === "standard") ??
+    trainingPresets[0];
+  const importedMapScenario =
+    typeof window === "undefined"
+      ? ""
+      : (window.sessionStorage.getItem(RL_LAB_SCENARIO_KEY) ?? "").trim();
+  const hasImportedMapScenario = importedMapScenario.length > 0;
 
   useEffect(() => {
     let active = true;
@@ -864,29 +935,7 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
           targetIds: payload.defaultForm.targetIds.join(", "),
           highValueTargetIds: payload.defaultForm.highValueTargetIds.join(", "),
           scenarioText,
-          rewardConfig: {
-            killBase: payload.defaultForm.rewardConfig.killBase,
-            highValueTargetBonus:
-              payload.defaultForm.rewardConfig.highValueTargetBonus,
-            totWeight: payload.defaultForm.rewardConfig.totWeight,
-            totTauSeconds: payload.defaultForm.rewardConfig.totTauSeconds,
-            etaProgressWeight:
-              payload.defaultForm.rewardConfig.etaProgressWeight,
-            readyToFireBonus: payload.defaultForm.rewardConfig.readyToFireBonus,
-            stagnationPenaltyPerAssignment:
-              payload.defaultForm.rewardConfig.stagnationPenaltyPerAssignment,
-            targetSwitchPenalty:
-              payload.defaultForm.rewardConfig.targetSwitchPenalty,
-            threatStepPenalty:
-              payload.defaultForm.rewardConfig.threatStepPenalty,
-            launchCostPerWeapon:
-              payload.defaultForm.rewardConfig.launchCostPerWeapon,
-            timeCostPerStep: payload.defaultForm.rewardConfig.timeCostPerStep,
-            lossPenaltyPerAlly:
-              payload.defaultForm.rewardConfig.lossPenaltyPerAlly,
-            successBonus: payload.defaultForm.rewardConfig.successBonus,
-            failurePenalty: payload.defaultForm.rewardConfig.failurePenalty,
-          },
+          rewardConfig: toRewardConfigForm(payload.defaultForm.rewardConfig),
         };
         setForm(applyScenarioRecommendations(baseForm, scenarioText));
       } catch (error) {
@@ -1264,39 +1313,9 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
     startTransition(() => {
       setForm((prev) => ({
         ...prev,
-        rewardConfig: {
-          ...(capabilities
-            ? {
-                killBase: capabilities.defaultForm.rewardConfig.killBase,
-                highValueTargetBonus:
-                  capabilities.defaultForm.rewardConfig.highValueTargetBonus,
-                totWeight: capabilities.defaultForm.rewardConfig.totWeight,
-                totTauSeconds:
-                  capabilities.defaultForm.rewardConfig.totTauSeconds,
-                etaProgressWeight:
-                  capabilities.defaultForm.rewardConfig.etaProgressWeight,
-                readyToFireBonus:
-                  capabilities.defaultForm.rewardConfig.readyToFireBonus,
-                stagnationPenaltyPerAssignment:
-                  capabilities.defaultForm.rewardConfig
-                    .stagnationPenaltyPerAssignment,
-                targetSwitchPenalty:
-                  capabilities.defaultForm.rewardConfig.targetSwitchPenalty,
-                threatStepPenalty:
-                  capabilities.defaultForm.rewardConfig.threatStepPenalty,
-                launchCostPerWeapon:
-                  capabilities.defaultForm.rewardConfig.launchCostPerWeapon,
-                timeCostPerStep:
-                  capabilities.defaultForm.rewardConfig.timeCostPerStep,
-                lossPenaltyPerAlly:
-                  capabilities.defaultForm.rewardConfig.lossPenaltyPerAlly,
-                successBonus:
-                  capabilities.defaultForm.rewardConfig.successBonus,
-                failurePenalty:
-                  capabilities.defaultForm.rewardConfig.failurePenalty,
-              }
-            : fallbackForm.rewardConfig),
-        },
+        rewardConfig: toRewardConfigForm(
+          capabilities?.defaultForm.rewardConfig
+        ),
       }));
     });
     setScenarioMessage("보상 계수를 기본 추천값으로 복원했습니다.");
@@ -1315,6 +1334,46 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
         ? `${message} 추천 세력, 아군, 표적 구성을 함께 반영했습니다.`
         : message
     );
+  };
+
+  const applyBaselineSetup = (scenarioText: string, scenarioLabel: string) => {
+    const analysis = analyzeRlScenario(scenarioText);
+    startTransition(() => {
+      setForm((prev) =>
+        applyScenarioSetup(prev, {
+          scenarioText,
+          preset: baselinePreset,
+          capabilities,
+        })
+      );
+    });
+    setScenarioMessage(
+      analysis.status === "valid"
+        ? `${scenarioLabel} 기준 기본 세팅을 적용했습니다. '${baselinePreset.label}' 프리셋, 보상 기본값, 추천 세력/표적 구성을 함께 반영했습니다.`
+        : `${scenarioLabel} 기준 기본 세팅을 적용했습니다. '${baselinePreset.label}' 프리셋과 보상 기본값을 반영했습니다.`
+    );
+  };
+
+  const handleApplyDefaultBaselineSetup = () => {
+    const defaultScenarioText =
+      capabilities?.defaultScenarioText.trim() || form.scenarioText.trim();
+    if (!defaultScenarioText) {
+      setScenarioMessage(
+        "기본 시나리오가 없어 기본 세팅을 적용하지 못했습니다."
+      );
+      return;
+    }
+    applyBaselineSetup(defaultScenarioText, "기본 시나리오");
+  };
+
+  const handleApplyMapBaselineSetup = () => {
+    if (!hasImportedMapScenario) {
+      setScenarioMessage(
+        "현재 지도 시나리오가 아직 없어 기본 세팅을 적용하지 못했습니다."
+      );
+      return;
+    }
+    applyBaselineSetup(importedMapScenario, "현재 지도 시나리오");
   };
 
   const refreshJob = async () => {
@@ -1704,6 +1763,22 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
               <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
                 <Button
                   variant="contained"
+                  startIcon={<PlayArrowIcon />}
+                  onClick={handleApplyDefaultBaselineSetup}
+                  sx={PRIMARY_BUTTON_SX}
+                >
+                  체험 기본 세팅
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<MapIcon />}
+                  onClick={handleApplyMapBaselineSetup}
+                  disabled={!hasImportedMapScenario}
+                >
+                  지도 시나리오 기본 세팅
+                </Button>
+                <Button
+                  variant="contained"
                   startIcon={<AutoFixHighOutlinedIcon />}
                   onClick={() =>
                     applyRecommendedScenarioSetup(
@@ -1732,6 +1807,10 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
               </Stack>
 
               <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+                <Chip
+                  color="primary"
+                  label={`기본 체험 ${baselinePreset.label} · ${baselinePreset.values.timesteps} step`}
+                />
                 <Chip
                   label={`시나리오 ${
                     scenarioAnalysis.scenarioName ?? "불러오기 대기"

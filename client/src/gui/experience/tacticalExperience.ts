@@ -631,6 +631,685 @@ function createConfig(
   }
 }
 
+function applyGroundOperationMode(
+  config: TacticalExperienceConfig,
+  operationMode?: string
+): TacticalExperienceConfig {
+  switch (operationMode) {
+    case "convoy-guard":
+      return {
+        ...config,
+        modeDescription:
+          "호송 축을 따라 이동하는 차량군을 엄호하며 측방 매복과 차단 세력을 빠르게 정리합니다.",
+        sensorRangeM: Math.max(config.sensorRangeM, 2100),
+        hostileContacts: [
+          {
+            id: "ground-convoy-ifv",
+            label: "Ambush IFV",
+            role: "측방 매복 IFV",
+            domain: "ground",
+            position: { x: 640, y: 740 },
+            waypoints: [
+              { x: 640, y: 740 },
+              { x: 360, y: 520 },
+              { x: 110, y: 630 },
+            ],
+            speedMps: 10,
+            hitRadiusM: 28,
+            health: 96,
+          },
+          {
+            id: "ground-convoy-apc",
+            label: "Raid APC",
+            role: "호송 차단 장갑차",
+            domain: "ground",
+            position: { x: -520, y: 1010 },
+            waypoints: [
+              { x: -520, y: 1010 },
+              { x: -210, y: 760 },
+              { x: 140, y: 820 },
+            ],
+            speedMps: 12,
+            hitRadiusM: 30,
+            health: 104,
+          },
+          {
+            id: "ground-convoy-at",
+            label: "AT Truck",
+            role: "매복 대전차팀",
+            domain: "ground",
+            position: { x: 1380, y: -120 },
+            waypoints: [{ x: 1380, y: -120 }],
+            speedMps: 0,
+            hitRadiusM: 24,
+            health: 76,
+          },
+          {
+            id: "ground-convoy-rear",
+            label: "Blocking Armor",
+            role: "후방 차단 전차",
+            domain: "ground",
+            position: { x: 1780, y: 360 },
+            waypoints: [
+              { x: 1780, y: 360 },
+              { x: 1290, y: 540 },
+            ],
+            speedMps: 8,
+            hitRadiusM: 34,
+            health: 134,
+          },
+        ],
+        sites: [
+          {
+            id: "ground-convoy-staging",
+            label: "Escort Form-Up",
+            kind: "support",
+            position: { x: -220, y: -200 },
+            radiusM: 130,
+          },
+          {
+            id: "ground-convoy-route",
+            label: "Convoy Route",
+            kind: "objective",
+            position: { x: 520, y: 420 },
+            radiusM: 220,
+          },
+          {
+            id: "ground-convoy-checkpoint",
+            label: "Checkpoint Wolf",
+            kind: "support",
+            position: { x: 1120, y: 820 },
+            radiusM: 150,
+          },
+        ],
+      };
+    case "command-post":
+      return {
+        ...config,
+        modeDescription:
+          "전술 지휘소 접근축을 감시하며 정찰 차량과 후방 화력 차량을 우선 제거합니다.",
+        hostileContacts: [
+          {
+            id: "ground-cp-scout",
+            label: "Recon APC",
+            role: "지휘소 탐지 차량",
+            domain: "ground",
+            position: { x: 780, y: 660 },
+            waypoints: [
+              { x: 780, y: 660 },
+              { x: 520, y: 410 },
+              { x: 190, y: 300 },
+            ],
+            speedMps: 11,
+            hitRadiusM: 28,
+            health: 92,
+          },
+          {
+            id: "ground-cp-raid",
+            label: "Strike Truck",
+            role: "지휘소 습격 차량",
+            domain: "ground",
+            position: { x: -260, y: 1160 },
+            waypoints: [
+              { x: -260, y: 1160 },
+              { x: -80, y: 720 },
+              { x: 120, y: 450 },
+            ],
+            speedMps: 13,
+            hitRadiusM: 26,
+            health: 88,
+          },
+          {
+            id: "ground-cp-battery",
+            label: "Fire Support Truck",
+            role: "지휘소 지원 화력",
+            domain: "ground",
+            position: { x: 1540, y: -80 },
+            waypoints: [{ x: 1540, y: -80 }],
+            speedMps: 0,
+            hitRadiusM: 30,
+            health: 84,
+          },
+          {
+            id: "ground-cp-armor",
+            label: "Guard Tank",
+            role: "후속 중장갑",
+            domain: "ground",
+            position: { x: 1820, y: 460 },
+            waypoints: [
+              { x: 1820, y: 460 },
+              { x: 1350, y: 570 },
+            ],
+            speedMps: 7,
+            hitRadiusM: 34,
+            health: 142,
+          },
+        ],
+        sites: [
+          {
+            id: "ground-cp-node",
+            label: "Command Node",
+            kind: "base",
+            position: { x: 120, y: 90 },
+            radiusM: 180,
+          },
+          {
+            id: "ground-cp-ridge",
+            label: "Relay Ridge",
+            kind: "objective",
+            position: { x: 760, y: 580 },
+            radiusM: 170,
+          },
+          {
+            id: "ground-cp-fallback",
+            label: "Fallback Route",
+            kind: "support",
+            position: { x: -260, y: -260 },
+            radiusM: 120,
+          },
+        ],
+      };
+    case "breakthrough":
+      return {
+        ...config,
+        modeDescription:
+          "선도 기갑 전력이 돌파축을 열고 후속 전력을 들이기 위해 전차와 후방 화력 차량을 순차 제거합니다.",
+        hostileContacts: [
+          ...config.hostileContacts,
+          {
+            id: "ground-breakthrough-tank",
+            label: "Reserve Armor",
+            role: "예비 전차",
+            domain: "ground",
+            position: { x: 1160, y: 980 },
+            waypoints: [
+              { x: 1160, y: 980 },
+              { x: 760, y: 760 },
+              { x: 360, y: 520 },
+            ],
+            speedMps: 8,
+            hitRadiusM: 34,
+            health: 132,
+          },
+        ],
+        sites: [
+          ...config.sites,
+          {
+            id: "ground-breakthrough-lane",
+            label: "Breach Lane",
+            kind: "objective",
+            position: { x: 620, y: 480 },
+            radiusM: 200,
+          },
+        ],
+      };
+    default:
+      return config;
+  }
+}
+
+function applyFiresOperationMode(
+  config: TacticalExperienceConfig,
+  operationMode?: string
+): TacticalExperienceConfig {
+  switch (operationMode) {
+    case "counter-battery":
+      return {
+        ...config,
+        modeDescription:
+          "적 포대의 발사 원점을 포착하고 즉시 반격 사격 후 재배치까지 이어가는 대포병 시뮬레이션입니다.",
+        supportWeapon: {
+          ...config.supportWeapon,
+          label: "Counter Battery Salvo",
+          cooldownSeconds: 8.4,
+          salvo: 3,
+          splashRadiusM: 150,
+        },
+        hostileContacts: [
+          {
+            id: "fires-cb-battery",
+            label: "Hostile Gun Line",
+            role: "적 포대",
+            domain: "ground",
+            position: { x: 4300, y: 980 },
+            waypoints: [{ x: 4300, y: 980 }],
+            speedMps: 0,
+            hitRadiusM: 36,
+            health: 132,
+          },
+          {
+            id: "fires-cb-fdc",
+            label: "FDC Vehicle",
+            role: "사격지휘 차량",
+            domain: "ground",
+            position: { x: 3660, y: 1340 },
+            waypoints: [{ x: 3660, y: 1340 }],
+            speedMps: 0,
+            hitRadiusM: 28,
+            health: 84,
+          },
+          {
+            id: "fires-cb-ammo",
+            label: "Ammo Truck",
+            role: "탄약 보급 차량",
+            domain: "ground",
+            position: { x: 4860, y: 620 },
+            waypoints: [
+              { x: 4860, y: 620 },
+              { x: 5280, y: 420 },
+            ],
+            speedMps: 7,
+            hitRadiusM: 28,
+            health: 76,
+          },
+          {
+            id: "fires-cb-displace",
+            label: "Displacing Launcher",
+            role: "기동 발사대",
+            domain: "ground",
+            position: { x: 5220, y: -220 },
+            waypoints: [
+              { x: 5220, y: -220 },
+              { x: 5680, y: -540 },
+            ],
+            speedMps: 9,
+            hitRadiusM: 34,
+            health: 108,
+          },
+        ],
+        sites: [
+          {
+            id: "fires-cb-launch",
+            label: "Counter Fire Position",
+            kind: "support",
+            position: { x: -320, y: -260 },
+            radiusM: 140,
+          },
+          {
+            id: "fires-cb-cue",
+            label: "Radar Cue",
+            kind: "support",
+            position: { x: 2100, y: 420 },
+            radiusM: 180,
+          },
+          {
+            id: "fires-cb-guns",
+            label: "Enemy Gun Line",
+            kind: "objective",
+            position: { x: 4340, y: 940 },
+            radiusM: 260,
+          },
+        ],
+      };
+    case "saturation":
+      return {
+        ...config,
+        modeDescription:
+          "넓은 집결지에 다연장 살보를 쏟아부어 적 기동축 전체를 눌러 두는 시뮬레이션입니다.",
+        supportWeapon: {
+          ...config.supportWeapon,
+          label: "Saturation Barrage",
+          cooldownSeconds: 11.5,
+          salvo: 6,
+          splashRadiusM: 210,
+          damage: 78,
+        },
+        hostileContacts: [
+          {
+            id: "fires-sat-column-1",
+            label: "Armor Column Lead",
+            role: "선도 기갑",
+            domain: "ground",
+            position: { x: 3600, y: 980 },
+            waypoints: [
+              { x: 3600, y: 980 },
+              { x: 4160, y: 840 },
+            ],
+            speedMps: 11,
+            hitRadiusM: 32,
+            health: 118,
+          },
+          {
+            id: "fires-sat-column-2",
+            label: "Armor Column Mid",
+            role: "종심 기갑",
+            domain: "ground",
+            position: { x: 3920, y: 620 },
+            waypoints: [
+              { x: 3920, y: 620 },
+              { x: 4460, y: 520 },
+            ],
+            speedMps: 10,
+            hitRadiusM: 32,
+            health: 114,
+          },
+          {
+            id: "fires-sat-column-3",
+            label: "Support Trucks",
+            role: "지원 차량대",
+            domain: "ground",
+            position: { x: 4340, y: 280 },
+            waypoints: [
+              { x: 4340, y: 280 },
+              { x: 4840, y: 120 },
+            ],
+            speedMps: 9,
+            hitRadiusM: 28,
+            health: 92,
+          },
+          {
+            id: "fires-sat-column-4",
+            label: "Reserve Battery",
+            role: "예비 화력",
+            domain: "ground",
+            position: { x: 4580, y: -120 },
+            waypoints: [{ x: 4580, y: -120 }],
+            speedMps: 0,
+            hitRadiusM: 34,
+            health: 126,
+          },
+          {
+            id: "fires-sat-column-5",
+            label: "Supply Node",
+            role: "집결 보급소",
+            domain: "ground",
+            position: { x: 4940, y: 520 },
+            waypoints: [{ x: 4940, y: 520 }],
+            speedMps: 0,
+            hitRadiusM: 34,
+            health: 108,
+          },
+        ],
+        sites: [
+          {
+            id: "fires-sat-fob",
+            label: "Salvo Position",
+            kind: "support",
+            position: { x: -320, y: -240 },
+            radiusM: 150,
+          },
+          {
+            id: "fires-sat-grid",
+            label: "Saturation Box",
+            kind: "objective",
+            position: { x: 4300, y: 420 },
+            radiusM: 360,
+          },
+        ],
+      };
+    case "deep-strike":
+      return {
+        ...config,
+        hostileContacts: [
+          ...config.hostileContacts,
+          {
+            id: "fires-deep-radar",
+            label: "Air Defense Radar",
+            role: "표적 지역 방공 레이더",
+            domain: "ground",
+            position: { x: 5080, y: 940 },
+            waypoints: [{ x: 5080, y: 940 }],
+            speedMps: 0,
+            hitRadiusM: 30,
+            health: 92,
+          },
+        ],
+        sites: [
+          ...config.sites,
+          {
+            id: "fires-deep-relay",
+            label: "Target Relay",
+            kind: "support",
+            position: { x: 2380, y: 560 },
+            radiusM: 180,
+          },
+        ],
+      };
+    default:
+      return config;
+  }
+}
+
+function applyDefenseOperationMode(
+  config: TacticalExperienceConfig,
+  operationMode?: string
+): TacticalExperienceConfig {
+  switch (operationMode) {
+    case "point-defense":
+      return {
+        ...config,
+        modeDescription:
+          "핵심 거점에 근접 침투하는 드론, 헬기, 순항 위협을 즉응 요격으로 끊어 내는 근접 방어 시뮬레이션입니다.",
+        sensorRangeM: 4600,
+        primaryWeapon: {
+          ...config.primaryWeapon,
+          cooldownSeconds: 1.2,
+          maxRangeM: 3600,
+          splashRadiusM: 72,
+        },
+        supportWeapon: {
+          ...config.supportWeapon,
+          cooldownSeconds: 5.2,
+          maxRangeM: 6200,
+          salvo: 1,
+        },
+        hostileContacts: [
+          {
+            id: "defense-pd-drone-1",
+            label: "Attack Drone 1",
+            role: "근접 침투 드론",
+            domain: "air",
+            position: { x: 1100, y: 1400 },
+            waypoints: [
+              { x: 1100, y: 1400 },
+              { x: 420, y: 420 },
+              { x: 80, y: 120 },
+            ],
+            speedMps: 78,
+            hitRadiusM: 28,
+            health: 66,
+          },
+          {
+            id: "defense-pd-drone-2",
+            label: "Attack Drone 2",
+            role: "후속 드론",
+            domain: "air",
+            position: { x: -1380, y: 980 },
+            waypoints: [
+              { x: -1380, y: 980 },
+              { x: -520, y: 360 },
+              { x: -60, y: 40 },
+            ],
+            speedMps: 74,
+            hitRadiusM: 28,
+            health: 64,
+          },
+          {
+            id: "defense-pd-helo",
+            label: "Raid Helo",
+            role: "근접 침투 헬기",
+            domain: "air",
+            position: { x: 1860, y: -620 },
+            waypoints: [
+              { x: 1860, y: -620 },
+              { x: 760, y: -240 },
+              { x: 220, y: 40 },
+            ],
+            speedMps: 96,
+            hitRadiusM: 38,
+            health: 94,
+          },
+          {
+            id: "defense-pd-missile",
+            label: "Sea-Skimming Missile",
+            role: "근접 순항 위협",
+            domain: "air",
+            position: { x: -2100, y: -1180 },
+            waypoints: [
+              { x: -2100, y: -1180 },
+              { x: -700, y: -220 },
+              { x: 120, y: 0 },
+            ],
+            speedMps: 245,
+            hitRadiusM: 28,
+            health: 88,
+          },
+        ],
+        sites: [
+          {
+            id: "defense-pd-grid",
+            label: "Protected Site",
+            kind: "base",
+            position: { x: 0, y: 0 },
+            radiusM: 220,
+          },
+        ],
+      };
+    case "radar-picket":
+      return {
+        ...config,
+        modeDescription:
+          "전방 레이더 노드가 조기 탐지 정보를 넘기고 후방 요격 결심을 지원하는 감시 중심 시뮬레이션입니다.",
+        sensorRangeM: 10800,
+        supportWeapon: {
+          ...config.supportWeapon,
+          label: "Long Range Interceptor",
+          maxRangeM: 9800,
+          cooldownSeconds: 7.6,
+        },
+        hostileContacts: [
+          {
+            id: "defense-rp-striker",
+            label: "Strike Package",
+            role: "저고도 침투기 편대",
+            domain: "air",
+            position: { x: -7600, y: 2200 },
+            waypoints: [
+              { x: -7600, y: 2200 },
+              { x: -2200, y: 620 },
+              { x: 2200, y: 120 },
+            ],
+            speedMps: 236,
+            hitRadiusM: 48,
+            health: 112,
+          },
+          {
+            id: "defense-rp-missile",
+            label: "Cruise Wave",
+            role: "종심 순항미사일",
+            domain: "air",
+            position: { x: -6900, y: -2600 },
+            waypoints: [
+              { x: -6900, y: -2600 },
+              { x: -1400, y: -820 },
+              { x: 2400, y: -140 },
+            ],
+            speedMps: 252,
+            hitRadiusM: 30,
+            health: 92,
+          },
+          {
+            id: "defense-rp-drone",
+            label: "Recon Drone",
+            role: "전방 정찰 드론",
+            domain: "air",
+            position: { x: 3600, y: 4200 },
+            waypoints: [
+              { x: 3600, y: 4200 },
+              { x: 1400, y: 2400 },
+              { x: 4200, y: 1500 },
+            ],
+            speedMps: 80,
+            hitRadiusM: 30,
+            health: 70,
+          },
+          {
+            id: "defense-rp-decoy",
+            label: "Decoy Flight",
+            role: "기만 침투기",
+            domain: "air",
+            position: { x: 5200, y: -3400 },
+            waypoints: [
+              { x: 5200, y: -3400 },
+              { x: 1200, y: -1800 },
+              { x: -1200, y: -200 },
+            ],
+            speedMps: 214,
+            hitRadiusM: 42,
+            health: 98,
+          },
+        ],
+        sites: [
+          {
+            id: "defense-rp-grid",
+            label: "Rear Defense Grid",
+            kind: "base",
+            position: { x: 0, y: 0 },
+            radiusM: 240,
+          },
+          {
+            id: "defense-rp-radar",
+            label: "Forward Radar Picket",
+            kind: "support",
+            position: { x: -2800, y: 1600 },
+            radiusM: 220,
+          },
+        ],
+      };
+    case "layered-shield":
+      return {
+        ...config,
+        hostileContacts: [
+          ...config.hostileContacts,
+          {
+            id: "defense-layered-decoy",
+            label: "Decoy UAV",
+            role: "기만 드론",
+            domain: "air",
+            position: { x: 3200, y: -3400 },
+            waypoints: [
+              { x: 3200, y: -3400 },
+              { x: 900, y: -1400 },
+              { x: 2200, y: -320 },
+            ],
+            speedMps: 68,
+            hitRadiusM: 26,
+            health: 62,
+          },
+        ],
+        sites: [
+          ...config.sites,
+          {
+            id: "defense-layered-radar",
+            label: "Forward Sensor Ring",
+            kind: "support",
+            position: { x: -1200, y: 1180 },
+            radiusM: 180,
+          },
+        ],
+      };
+    default:
+      return config;
+  }
+}
+
+function applyOperationModeScenario(
+  config: TacticalExperienceConfig,
+  profile: ImmersiveExperienceProfile,
+  operationMode?: string
+): TacticalExperienceConfig {
+  switch (profile) {
+    case "ground":
+      return applyGroundOperationMode(config, operationMode);
+    case "fires":
+      return applyFiresOperationMode(config, operationMode);
+    case "defense":
+      return applyDefenseOperationMode(config, operationMode);
+    default:
+      return config;
+  }
+}
+
 export function normalizeHeading(heading: number) {
   return ((heading % 360) + 360) % 360;
 }
@@ -667,9 +1346,14 @@ export function lonLatToLocalPoint(
 
 export function createTacticalExperienceScenario(
   asset: AssetExperienceSummary,
-  profile: ImmersiveExperienceProfile
+  profile: ImmersiveExperienceProfile,
+  operationMode?: string
 ): TacticalScenarioSeed {
-  const config = createConfig(asset, profile);
+  const config = applyOperationModeScenario(
+    createConfig(asset, profile),
+    profile,
+    operationMode
+  );
 
   return {
     origin: {

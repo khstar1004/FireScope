@@ -167,6 +167,18 @@ function createGameWithBattleSpectatorState(): Game {
   } as unknown as Game;
 }
 
+function cloneBattleSpectatorState(
+  state: FlightSimBattleSpectatorState = createBattleSpectatorState()
+): FlightSimBattleSpectatorState {
+  return {
+    ...state,
+    units: state.units.map((unit) => ({ ...unit })),
+    weapons: state.weapons.map((weapon) => ({ ...weapon })),
+    recentEvents: state.recentEvents.map((event) => ({ ...event })),
+    stats: { ...state.stats },
+  };
+}
+
 async function flushEffects() {
   await act(async () => {
     await Promise.resolve();
@@ -390,7 +402,7 @@ describe("FlightSimPage", () => {
     });
   });
 
-  test("filters recent battle events with the selected side", async () => {
+  test("keeps hostile incoming events visible when they involve the filtered side", async () => {
     render(
       <FlightSimPage
         onBack={vi.fn()}
@@ -415,8 +427,191 @@ describe("FlightSimPage", () => {
         screen.getByText("KF-21 #201이(가) 적 표적을 향해 AIM-120을 발사했습니다.")
       ).toBeInTheDocument();
       expect(
-        screen.queryByText("적 포대가 대응 사격을 시작했습니다.")
-      ).not.toBeInTheDocument();
+        screen.getByText("적 포대가 대응 사격을 시작했습니다.")
+      ).toBeInTheDocument();
     });
+  });
+
+  test("shows tactical spectator panels and lets recent events drive tracking", async () => {
+    const postMessageSpy = vi.fn();
+    const { container } = render(
+      <FlightSimPage
+        onBack={vi.fn()}
+        initialCraft="drone"
+        initialLocation={{ lon: 126.978, lat: 37.5665 }}
+        game={createGameWithBattleSpectatorState()}
+        continueSimulation
+        battleSpectator={createBattleSpectatorState()}
+      />
+    );
+    await flushEffects();
+
+    expect(screen.getByText("선택 유닛 분석")).toBeInTheDocument();
+    expect(screen.getByText("위협 상위 유닛")).toBeInTheDocument();
+    expect(screen.getByText("전투 확인")).toBeInTheDocument();
+    expect(screen.getByText("실시간 탄체 추적 가능")).toBeInTheDocument();
+    expect(screen.getByText("교전 밀집구역")).toBeInTheDocument();
+    expect(screen.getByText("유닛별 교전 템포")).toBeInTheDocument();
+    expect(
+      screen.getAllByText((content) => content.includes("현재 표적")).length
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("button", { name: "관련 탄체 추적" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "핫스팟 점프" }).length
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("button", { name: "템포 추적" }).length
+    ).toBeGreaterThan(0);
+
+    const iframeElement = container.querySelector("iframe") as HTMLIFrameElement;
+    Object.defineProperty(iframeElement, "contentWindow", {
+      configurable: true,
+      value: {
+        postMessage: postMessageSpy,
+      },
+    });
+
+    fireEvent.load(iframeElement);
+    await flushEffects();
+
+    fireEvent.click(screen.getByRole("button", { name: "관련 탄체 추적" }));
+
+    await waitFor(() => {
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "firescope-battle-spectator-update",
+          payload: expect.objectContaining({
+            view: expect.objectContaining({
+              followTargetId: "weapon:weapon-1",
+            }),
+          }),
+        }),
+        window.location.origin
+      );
+    });
+
+    await waitFor(() => {
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "firescope-battle-spectator-command",
+          payload: expect.objectContaining({
+            command: "jump-to-point",
+            longitude: 127.01,
+            latitude: 37.58,
+          }),
+        }),
+        window.location.origin
+      );
+    });
+  });
+
+  test("can auto-capture the latest projectile when the operator enables it", async () => {
+    const postMessageSpy = vi.fn();
+    const { container } = render(
+      <FlightSimPage
+        onBack={vi.fn()}
+        initialCraft="drone"
+        initialLocation={{ lon: 126.978, lat: 37.5665 }}
+        game={createGameWithBattleSpectatorState()}
+        continueSimulation
+        battleSpectator={createBattleSpectatorState()}
+      />
+    );
+    await flushEffects();
+
+    const iframeElement = container.querySelector("iframe") as HTMLIFrameElement;
+    Object.defineProperty(iframeElement, "contentWindow", {
+      configurable: true,
+      value: {
+        postMessage: postMessageSpy,
+      },
+    });
+
+    fireEvent.load(iframeElement);
+    await flushEffects();
+
+    fireEvent.click(screen.getByRole("button", { name: "자동 포착" }));
+
+    await waitFor(() => {
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "firescope-battle-spectator-update",
+          payload: expect.objectContaining({
+            view: expect.objectContaining({
+              followTargetId: "weapon:weapon-1",
+            }),
+          }),
+        }),
+        window.location.origin
+      );
+    });
+
+    await waitFor(() => {
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "firescope-battle-spectator-command",
+          payload: expect.objectContaining({
+            command: "jump-to-point",
+            longitude: 127.01,
+            latitude: 37.58,
+          }),
+        }),
+        window.location.origin
+      );
+    });
+  });
+
+  test("renders side strength trends and skips duplicate runtime sync for identical snapshots", async () => {
+    const postMessageSpy = vi.fn();
+    const battleSpectator = createBattleSpectatorState();
+    const { container, rerender } = render(
+      <FlightSimPage
+        onBack={vi.fn()}
+        initialCraft="drone"
+        initialLocation={{ lon: 126.978, lat: 37.5665 }}
+        battleSpectator={battleSpectator}
+      />
+    );
+    await flushEffects();
+
+    expect(screen.getByText("세력별 전력 추이")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "청군만 보기" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "적군만 보기" })).toBeInTheDocument();
+
+    const iframeElement = container.querySelector("iframe") as HTMLIFrameElement;
+    Object.defineProperty(iframeElement, "contentWindow", {
+      configurable: true,
+      value: {
+        postMessage: postMessageSpy,
+      },
+    });
+
+    fireEvent.load(iframeElement);
+    await flushEffects();
+
+    await waitFor(() => {
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "firescope-battle-spectator-update",
+        }),
+        window.location.origin
+      );
+    });
+
+    postMessageSpy.mockClear();
+
+    rerender(
+      <FlightSimPage
+        onBack={vi.fn()}
+        initialCraft="drone"
+        initialLocation={{ lon: 126.978, lat: 37.5665 }}
+        battleSpectator={cloneBattleSpectatorState(battleSpectator)}
+      />
+    );
+    await flushEffects();
+
+    expect(postMessageSpy).not.toHaveBeenCalled();
   });
 });

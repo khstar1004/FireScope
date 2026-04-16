@@ -471,7 +471,7 @@ export default function ShipCard(props: Readonly<ShipCardProps>) {
                     </IconButton>
                   </Tooltip>
                   <ExperienceLaunchButton
-                    tooltip={`${props.ship.name} 3D 시뮬레이터`}
+                    tooltip={`${props.ship.name} 3D 쇼룸`}
                     onClick={_handleOpenAssetExperience}
                   />
                   <Tooltip title={`추가 작업`}>

@@ -295,7 +295,7 @@ export default function AirbaseCard(props: Readonly<AirbaseCardProps>) {
                     </IconButton>
                   </Tooltip>
                   <ExperienceLaunchButton
-                    tooltip={`${props.airbase.name} 3D 시뮬레이터`}
+                    tooltip={`${props.airbase.name} 3D 쇼룸`}
                     onClick={_handleOpenAssetExperience}
                   />
                   <Tooltip title={`추가 작업`}>

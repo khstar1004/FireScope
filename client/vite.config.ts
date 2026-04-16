@@ -8,7 +8,7 @@ import { createRlDevServerPlugin } from "./scripts/createRlDevServerPlugin";
 
 // https://vite.dev/config/
 export default defineConfig({
-  envPrefix: ["VITE_", "MAPTILER_", "LLM_"],
+  envPrefix: ["VITE_", "MAPTILER_", "LLM_", "OPENROUTER_", "HF_", "MISTRAL_"],
   plugins: [react(), svgr(), tsconfigPaths(), createRlDevServerPlugin()],
   test: {
     globals: true,

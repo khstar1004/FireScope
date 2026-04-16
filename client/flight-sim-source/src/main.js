@@ -329,12 +329,18 @@ let lastFpsUpdate = 0;
 let basePlanePos = createBasePlanePos(activeCraft);
 let visualOffset = new THREE.Vector3().copy(basePlanePos);
 let visualRotation = new THREE.Euler(0, 0, 0);
+const orbitCameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+const orbitCameraQuaternion = new THREE.Quaternion();
+const flightLagEuler = new THREE.Euler(0, 0, 0);
+const flightLagQuaternion = new THREE.Quaternion();
+const combinedPlaneQuaternion = new THREE.Quaternion();
 let boostRoll = 0;
 let currentBoostZOffset = 0;
 let boostRollDirection = 1;
 let lastIsBoosting = false;
 let initialCameraView = null;
 let lastThrottleLevel = 0;
+let lastFocusFireMainControlSnapshot = null;
 let cameraDirector = {
 	mode: CAMERA_MODES.CHASE,
 	killCam: null
@@ -700,16 +706,33 @@ function updateFocusFireMainControl() {
 		(currentState === States.FLYING || currentState === States.PAUSED);
 
 	if (!shouldShowFocusFireControl || !focusFireRuntimeState) {
-		focusFireMainControl.classList.add('hidden');
+		if (lastFocusFireMainControlSnapshot !== 'hidden') {
+			focusFireMainControl.classList.add('hidden');
+			lastFocusFireMainControlSnapshot = 'hidden';
+		}
 		return;
 	}
 
+	const metricsText =
+		`탄체 ${focusFireRuntimeState.weaponsInFlight} · 점령 ${Math.round(focusFireRuntimeState.captureProgress)}% · 포대 ${focusFireRuntimeState.artilleryCount} / 기갑 ${focusFireRuntimeState.armorCount} / 항공 ${focusFireRuntimeState.aircraftCount}`;
+	const shouldDisableStart = currentState !== States.FLYING;
+	const snapshot = [
+		focusFireRuntimeState.statusLabel,
+		focusFireRuntimeState.objectiveName,
+		metricsText,
+		shouldDisableStart ? 'disabled' : 'enabled'
+	].join('|');
+
+	if (snapshot === lastFocusFireMainControlSnapshot) {
+		return;
+	}
+
+	lastFocusFireMainControlSnapshot = snapshot;
 	focusFireMainControl.classList.remove('hidden');
 	focusFireMainStatus.textContent = focusFireRuntimeState.statusLabel;
 	focusFireMainObjective.textContent = focusFireRuntimeState.objectiveName;
-	focusFireMainMetrics.textContent =
-		`탄체 ${focusFireRuntimeState.weaponsInFlight} · 점령 ${Math.round(focusFireRuntimeState.captureProgress)}% · 포대 ${focusFireRuntimeState.artilleryCount} / 기갑 ${focusFireRuntimeState.armorCount} / 항공 ${focusFireRuntimeState.aircraftCount}`;
-	focusFireMainStartBtn.disabled = !focusFireRuntimeState || currentState !== States.FLYING;
+	focusFireMainMetrics.textContent = metricsText;
+	focusFireMainStartBtn.disabled = shouldDisableStart;
 }
 
 function applyFocusFireRuntime(payload) {
@@ -1675,23 +1698,27 @@ function update(dt) {
 		visualRotation.x += (targetRotX - visualRotation.x) * lerpFactor;
 		visualRotation.y += (targetRotY - visualRotation.y) * lerpFactor;
 
-		const orbitQ = new THREE.Quaternion().setFromEuler(
-			new THREE.Euler(
-				THREE.MathUtils.degToRad(-input.cameraPitch),
-				THREE.MathUtils.degToRad(-input.cameraYaw),
-				0,
-				'YXZ'
-			)
+		orbitCameraEuler.set(
+			THREE.MathUtils.degToRad(-input.cameraPitch),
+			THREE.MathUtils.degToRad(-input.cameraYaw),
+			0,
+			'YXZ'
 		);
+		orbitCameraQuaternion.setFromEuler(orbitCameraEuler);
 
 		planeModel.position.copy(visualOffset);
 
-		const flightLagQ = new THREE.Quaternion().setFromEuler(
-			new THREE.Euler(visualRotation.x, visualRotation.y, visualRotation.z + boostRoll)
+		flightLagEuler.set(
+			visualRotation.x,
+			visualRotation.y,
+			visualRotation.z + boostRoll
 		);
-
-		const combinedQ = orbitQ.clone().invert().multiply(flightLagQ);
-		planeModel.quaternion.copy(combinedQ);
+		flightLagQuaternion.setFromEuler(flightLagEuler);
+		combinedPlaneQuaternion
+			.copy(orbitCameraQuaternion)
+			.invert()
+			.multiply(flightLagQuaternion);
+		planeModel.quaternion.copy(combinedPlaneQuaternion);
 
 		if (activeCraft.enableJetFlames && jetFlames.length > 0) {
 			jetFlames.forEach(flame => {
@@ -1856,7 +1883,9 @@ function animate() {
 		}
 
 	} else {
-		threeContainer.classList.add('hidden');
+		if (!threeContainer.classList.contains('hidden')) {
+			threeContainer.classList.add('hidden');
+		}
 	}
 }
 
@@ -2595,9 +2624,11 @@ async function bootstrap() {
 	animate();
 
 	window.addEventListener('resize', () => {
-		camera.aspect = window.innerWidth / window.innerHeight;
-		camera.updateProjectionMatrix();
-		renderer.setSize(window.innerWidth, window.innerHeight);
+		if (camera && renderer) {
+			camera.aspect = window.innerWidth / window.innerHeight;
+			camera.updateProjectionMatrix();
+			renderer.setSize(window.innerWidth, window.innerHeight);
+		}
 
 		const activeViewer = getViewer();
 		if (activeViewer?.resize) {

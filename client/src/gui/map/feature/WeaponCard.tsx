@@ -167,7 +167,7 @@ export default function WeaponCard(props: Readonly<WeaponCardProps>) {
                 </IconButton>
               </Tooltip>
               <ExperienceLaunchButton
-                tooltip={`${props.weapon.name} 3D 시뮬레이터`}
+                tooltip={`${props.weapon.name} 3D 쇼룸`}
                 onClick={_handleOpenAssetExperience}
               />
               <Tooltip title={`추가 작업`}>
