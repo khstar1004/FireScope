@@ -9,7 +9,9 @@ import type { AssetExperienceKind } from "@/gui/experience/assetExperience";
 import type { ImmersiveExperienceProfile } from "@/gui/experience/immersiveExperience";
 import { preloadBundleViewer } from "@/gui/experience/modelPreload";
 
-const BUNDLE_VIEWER_REVISION = "20260406-kf21-boramae-facing-fix";
+const BUNDLE_VIEWER_REVISION = "20260415-immersive-runtime-sync";
+
+export type BundleViewerChrome = "default" | "minimal";
 
 export interface BundleModelViewportSimulation {
   profile: ImmersiveExperienceProfile;
@@ -32,6 +34,7 @@ interface BundleModelViewportProps {
   glowColor: string;
   mode?: "detail" | "immersive";
   simulation?: BundleModelViewportSimulation | null;
+  viewerChrome?: BundleViewerChrome;
   sx?: SxProps<Theme>;
   showBadge?: boolean;
   loading?: "eager" | "lazy";
@@ -55,7 +58,8 @@ export function buildViewerSrc(
   accentColor: string,
   glowColor: string,
   mode: "detail" | "immersive",
-  simulation?: BundleModelViewportSimulation | null
+  simulation?: BundleModelViewportSimulation | null,
+  viewerChrome: BundleViewerChrome = "default"
 ) {
   const params = new URLSearchParams();
   params.set("model", selection.path);
@@ -68,6 +72,9 @@ export function buildViewerSrc(
   params.set("mode", mode);
   params.set("rev", BUNDLE_VIEWER_REVISION);
   params.set("modelId", simulation?.modelId ?? selection.id);
+  if (viewerChrome === "minimal") {
+    params.set("chrome", viewerChrome);
+  }
 
   if (mode === "immersive" && simulation) {
     params.set("profile", simulation.profile);
@@ -92,6 +99,7 @@ export default function BundleModelViewport({
   glowColor,
   mode = "detail",
   simulation,
+  viewerChrome = "default",
   sx,
   showBadge = true,
   loading = "eager",
@@ -102,7 +110,8 @@ export default function BundleModelViewport({
     accentColor,
     glowColor,
     mode,
-    simulation
+    simulation,
+    viewerChrome
   );
 
   useEffect(() => {

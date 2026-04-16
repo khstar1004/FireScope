@@ -1,10 +1,10 @@
 import { asArray } from "ol/color";
 
 export enum COLOR_PALETTE {
-  LIGHT_GRAY = "#E4E8D8",
-  DARK_GRAY = "#7F876C",
-  BLACK = "#1C2318",
-  WHITE = "#F7F3EA",
+  LIGHT_GRAY = "#07171D",
+  DARK_GRAY = "#10434C",
+  BLACK = "#D8FAF6",
+  WHITE = "#0D2129",
 }
 export enum SIDE_COLOR {
   BLACK = "black",
@@ -291,4 +291,4 @@ export const getColorFilter = (color?: string): string => {
 };
 
 export const SELECTED_ICON_COLOR_FILTER = getColorFilter(SIDE_COLOR.GREEN);
-export const DEFAULT_ICON_COLOR_FILTER = getColorFilter(SIDE_COLOR.BLACK);
+export const DEFAULT_ICON_COLOR_FILTER = getColorFilter(SIDE_COLOR.WHITE);

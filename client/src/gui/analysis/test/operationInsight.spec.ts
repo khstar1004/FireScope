@@ -68,9 +68,21 @@ function createOutcomeTestGame() {
 
   game.simulationLogs.addLog(
     blue.id,
-    "KF-16이 목표를 명중시켰습니다.",
+    "KF-16이 적 지휘소를 명중시켜 파괴했습니다.",
     3590,
-    SimulationLogType.WEAPON_HIT
+    SimulationLogType.WEAPON_HIT,
+    {
+      actorId: "blue-jet",
+      actorName: "KF-16",
+      actorType: "aircraft",
+      targetId: "red-command",
+      targetName: "적 지휘소",
+      targetType: "facility",
+      resultTag: "kill",
+      actorScoreDelta: 50,
+      targetScoreDelta: -70,
+      scoreNetDelta: -20,
+    }
   );
   game.simulationLogs.addLog(
     blue.id,
@@ -83,6 +95,19 @@ function createOutcomeTestGame() {
     "적 방공망이 요격을 시도했습니다.",
     3580,
     SimulationLogType.WEAPON_LAUNCHED
+  );
+  game.simulationLogs.addLog(
+    blue.id,
+    "타격 임무 'SEAD-1' 완료: 지정 표적이 모두 무력화되었습니다.",
+    3595,
+    SimulationLogType.STRIKE_MISSION_SUCCESS,
+    {
+      missionId: "mission-sead-1",
+      missionName: "SEAD-1",
+      resultTag: "mission_success",
+      actorScoreDelta: 200,
+      scoreNetDelta: 200,
+    }
   );
 
   return game;
@@ -117,6 +142,8 @@ describe("operationInsight", () => {
       remainingCombatUnits: 3,
       confirmedHits: 1,
       launches: 1,
+      misses: 0,
+      missionSuccesses: 1,
     });
     expect(summary.sides[1]).toMatchObject({
       name: "RED",
@@ -124,8 +151,36 @@ describe("operationInsight", () => {
       remainingCombatUnits: 2,
       confirmedHits: 0,
       launches: 1,
+      misses: 0,
+      missionSuccesses: 0,
     });
     expect(summary.fallbackSummary).toContain("BLUE 우세");
-    expect(summary.recentLogs).toHaveLength(3);
+    expect(summary.report.headline).toContain("BLUE 우세");
+    expect(summary.report.executiveSummary).toContain("BLUE 우세");
+    expect(summary.report.decisiveFactors).toContain("임무 'SEAD-1' 달성");
+    expect(summary.report.decisiveFactors).toContain("적 지휘소 격파");
+    expect(summary.report.sideAssessments[0]?.strengths.length).toBeGreaterThan(
+      0
+    );
+    expect(
+      summary.report.turningPoints.some(
+        (turningPoint) =>
+          turningPoint.headline ===
+            "타격 임무 'SEAD-1' 완료: 지정 표적이 모두 무력화되었습니다." &&
+          turningPoint.detail.includes("SEAD-1")
+      )
+    ).toBe(true);
+    expect(
+      summary.report.turningPoints.some(
+        (turningPoint) =>
+          turningPoint.headline ===
+            "KF-16이 적 지휘소를 명중시켜 파괴했습니다." &&
+          turningPoint.detail.includes("적 지휘소") &&
+          turningPoint.detail.includes("점수 +50")
+      )
+    ).toBe(true);
+    expect(summary.report.operationalRisks.length).toBeGreaterThan(0);
+    expect(summary.report.recommendations.length).toBeGreaterThan(0);
+    expect(summary.recentLogs).toHaveLength(4);
   });
 });

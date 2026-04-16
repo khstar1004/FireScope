@@ -143,7 +143,7 @@ async function requestSingleModelCompletion(
         status: response.status,
         errorMessage: buildOpenRouterErrorMessage(
           payload.error?.message ??
-            "작전 도우미 호출에 실패했습니다. 모델 이름과 API 설정을 확인해 주세요.",
+            "AI지휘결심지원(ArmyGPT) 호출에 실패했습니다. 모델 이름과 API 설정을 확인해 주세요.",
           model
         ),
       };
@@ -178,8 +178,8 @@ async function requestSingleModelCompletion(
       ok: false,
       errorMessage:
         error instanceof Error
-          ? `작전 도우미 응답 생성에 실패했습니다: ${error.message}`
-          : "작전 도우미 응답 생성에 실패했습니다.",
+          ? `AI지휘결심지원(ArmyGPT) 응답 생성에 실패했습니다: ${error.message}`
+          : "AI지휘결심지원(ArmyGPT) 응답 생성에 실패했습니다.",
     };
   } finally {
     globalThis.clearTimeout(timeoutId);
@@ -223,7 +223,7 @@ export async function requestAssistantCompletionResult(
     return {
       ok: false,
       errorMessage:
-        "도우미 API 키를 찾지 못했습니다. `client/.env`에 `LLM_API_KEY`를 설정하고 개발 서버를 다시 시작해 주세요.",
+        "AI지휘결심지원(ArmyGPT) API 키를 찾지 못했습니다. `client/.env`에 `LLM_API_KEY`를 설정하고 개발 서버를 다시 시작해 주세요.",
     };
   }
   const attemptedModels = [model, ...fallbackModels];
@@ -257,14 +257,15 @@ export async function requestAssistantCompletionResult(
       return {
         ok: false,
         errorMessage:
-          result.errorMessage ?? "작전 도우미 응답 생성에 실패했습니다.",
+          result.errorMessage ??
+            "AI지휘결심지원(ArmyGPT) 응답 생성에 실패했습니다.",
       };
     }
   }
 
   return {
     ok: false,
-    errorMessage: `작전 도우미 응답 생성에 실패했습니다.\n${failureMessages.join("\n")}`,
+    errorMessage: `AI지휘결심지원(ArmyGPT) 응답 생성에 실패했습니다.\n${failureMessages.join("\n")}`,
   };
 }
 
@@ -275,5 +276,8 @@ export async function requestAssistantCompletion(
   if (result.ok && result.text) {
     return result.text;
   }
-  return result.errorMessage ?? "작전 도우미 응답 생성에 실패했습니다.";
+  return (
+    result.errorMessage ??
+    "AI지휘결심지원(ArmyGPT) 응답 생성에 실패했습니다."
+  );
 }

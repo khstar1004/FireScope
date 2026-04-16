@@ -15,7 +15,7 @@ describe("preset scenarios", () => {
 
     game.loadScenario(JSON.stringify(focusedTrainingDemoJson));
 
-    expect(game.currentScenario.name).toBe("집중 영향권 데모");
+    expect(game.currentScenario.name).toBe("가용화력자산");
     expect(game.currentSideId).toBe("focus-force");
     expect(game.currentScenario.sides).toHaveLength(2);
     expect(game.currentScenario.aircraft).toHaveLength(5);
@@ -41,6 +41,10 @@ describe("preset scenarios", () => {
         ?.weapons.find((weapon) => weapon.id === "tactical-charlie-missile")
         ?.speed
     ).toBe(500);
+    expect(game.currentScenario.getFacility("chunmoo-alpha")?.heading).toBe(350);
+    expect(game.currentScenario.getFacility("chunmoo-alpha")?.detectionArcDegrees).toBe(170);
+    expect(game.currentScenario.getFacility("tactical-charlie")?.heading).toBe(22);
+    expect(game.currentScenario.getFacility("tactical-charlie")?.detectionArcDegrees).toBe(140);
     expect(game.currentScenario.relationships.hostiles["focus-force"]).toEqual(
       []
     );

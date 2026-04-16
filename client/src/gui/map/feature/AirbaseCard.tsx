@@ -28,8 +28,8 @@ import {
   ListItemButton,
 } from "@mui/material";
 import { Menu } from "@/gui/shared/ui/MuiComponents";
-import { colorPalette } from "@/utils/constants";
 import Aircraft from "@/game/units/Aircraft";
+import CombatStatusBar from "@/gui/map/feature/shared/CombatStatusBar";
 import AircraftTable from "@/gui/map/feature/shared/AircraftTable";
 import { getDisplayName } from "@/utils/koreanCatalog";
 import ExperienceLaunchButton from "@/gui/experience/ExperienceLaunchButton";
@@ -295,7 +295,7 @@ export default function AirbaseCard(props: Readonly<AirbaseCardProps>) {
                     </IconButton>
                   </Tooltip>
                   <ExperienceLaunchButton
-                    tooltip={`${props.airbase.name} 3D 체험`}
+                    tooltip={`${props.airbase.name} 3D 시뮬레이터`}
                     onClick={_handleOpenAssetExperience}
                   />
                   <Tooltip title={`추가 작업`}>
@@ -341,7 +341,7 @@ export default function AirbaseCard(props: Readonly<AirbaseCardProps>) {
             <Stack
               direction={"column"}
               spacing={0}
-              sx={{ color: colorPalette.lightGray }}
+              sx={{ color: "rgba(221, 255, 250, 0.74)" }}
             >
               <Typography variant="caption">
                 유형: {getDisplayName(props.airbase.className)}
@@ -354,6 +354,11 @@ export default function AirbaseCard(props: Readonly<AirbaseCardProps>) {
               </Typography>
             </Stack>
           }
+        />
+        <CombatStatusBar
+          currentHp={props.airbase.currentHp}
+          maxHp={props.airbase.maxHp}
+          defense={props.airbase.defense}
         />
         <Divider
           orientation="horizontal"

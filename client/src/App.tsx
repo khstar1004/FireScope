@@ -14,6 +14,11 @@ import { useMediaQuery } from "@mui/material";
 import WelcomePopover from "@/WelcomePopover";
 import { useAuth0 } from "@auth0/auth0-react";
 import FlightSimPage from "@/gui/flightSim/FlightSimPage";
+import {
+  FLIGHT_SIM_BATTLE_SPECTATOR_STORAGE_KEY,
+  parseFlightSimBattleSpectatorState,
+  type FlightSimBattleSpectatorState,
+} from "@/gui/flightSim/battleSpectatorState";
 import AssetExperiencePage from "@/gui/experience/AssetExperiencePage";
 import ImmersiveExperiencePage from "@/gui/experience/ImmersiveExperiencePage";
 import TacticalSimPage from "@/gui/experience/TacticalSimPage";
@@ -134,7 +139,8 @@ export default function App() {
       launchPlatforms?: FocusFireLaunchPlatform[];
       weaponTracks?: FocusFireWeaponTrack[];
       continueSimulation?: boolean;
-    }
+    },
+    battleSpectator?: FlightSimBattleSpectatorState
   ) => {
     const params = new URLSearchParams();
     const [lon, lat] = center ?? [];
@@ -146,6 +152,16 @@ export default function App() {
     params.set("lat", normalizedStart.lat.toFixed(6));
     if (craft) {
       params.set("craft", craft);
+    }
+    if (battleSpectator) {
+      window.sessionStorage.setItem(
+        FLIGHT_SIM_BATTLE_SPECTATOR_STORAGE_KEY,
+        JSON.stringify(battleSpectator)
+      );
+      params.set("battleSpectator", "1");
+      if (battleSpectator.continueSimulation) {
+        params.set("continueSimulation", "1");
+      }
     }
     if (
       typeof focusFireAirwatch?.objectiveLon === "number" &&
@@ -248,8 +264,17 @@ export default function App() {
     const flightSimLon = flightSimQueryParams.get("lon");
     const flightSimLat = flightSimQueryParams.get("lat");
     const focusFireEnabled = flightSimQueryParams.get("focusFire") === "1";
+    const battleSpectatorEnabled =
+      flightSimQueryParams.get("battleSpectator") === "1";
     const focusFireObjectiveLon = flightSimQueryParams.get("objectiveLon");
     const focusFireObjectiveLat = flightSimQueryParams.get("objectiveLat");
+    const battleSpectatorState = battleSpectatorEnabled
+      ? parseFlightSimBattleSpectatorState(
+          window.sessionStorage.getItem(
+            FLIGHT_SIM_BATTLE_SPECTATOR_STORAGE_KEY
+          )
+        )
+      : undefined;
 
     return (
       <FlightSimPage
@@ -263,6 +288,7 @@ export default function App() {
         continueSimulation={
           flightSimQueryParams.get("continueSimulation") === "1"
         }
+        battleSpectator={battleSpectatorState}
         focusFireAirwatch={
           focusFireEnabled
             ? {

@@ -213,7 +213,7 @@ function AircraftTableToolbar(props: AircraftTableToolbarProps) {
         <>
           <Tooltip title={`출격`}>
             <IconButton onClick={props.handleLaunchAircraft}>
-              <Flight sx={{ color: "black" }} />
+              <Flight sx={{ color: "var(--fs-text)" }} />
             </IconButton>
           </Tooltip>
           <Tooltip title={`삭제`}>
@@ -228,7 +228,7 @@ function AircraftTableToolbar(props: AircraftTableToolbarProps) {
             id={"add-aircraft-button"}
             onClick={handleClickAddAircraftButton}
           >
-            <Add sx={{ color: "black" }} />
+            <Add sx={{ color: "var(--fs-text)" }} />
           </IconButton>
         </Tooltip>
       )}

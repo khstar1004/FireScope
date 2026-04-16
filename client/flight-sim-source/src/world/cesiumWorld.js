@@ -14,6 +14,9 @@ const runtimeConfig = window.__FLIGHT_SIM_CONFIG__ ?? {};
 const vworldApiKey = (runtimeConfig.vworldApiKey ?? '').trim();
 const configuredVworldDomain = (runtimeConfig.vworldDomain ?? '').trim();
 const mapTilerApiKey = (runtimeConfig.mapTilerApiKey ?? '').trim();
+const mapTilerTerrainUrl = mapTilerApiKey
+	? `https://api.maptiler.com/tiles/terrain-quantized-mesh-v2/tiles.json?key=${mapTilerApiKey}`
+	: null;
 const koreaRectangle = Cesium.Rectangle.fromDegrees(124.5, 33.0, 132.5, 39.5);
 const runtimeState = {
 	mapProvider: 'initializing',
@@ -70,10 +73,14 @@ function updateRuntimeState(patch = {}) {
 
 function shouldUseVWorldWebGL(initialPosition = {}) {
 	const { lon, lat } = normalizeInitialPosition(initialPosition);
-	return Boolean(vworldApiKey) && isInsideKorea(lon, lat);
+	return Boolean(vworldApiKey) && !mapTilerTerrainUrl && isInsideKorea(lon, lat);
 }
 
 function getVWorldUnavailableReason(initialPosition = {}) {
+	if (mapTilerTerrainUrl) {
+		return 'maptiler-terrain-preferred';
+	}
+
 	if (!vworldApiKey) {
 		return 'vworld-api-key-missing';
 	}
@@ -434,7 +441,25 @@ function createEllipsoidTerrainProvider() {
 	return new Cesium.EllipsoidTerrainProvider();
 }
 
+function createMapTilerTerrain() {
+	if (!mapTilerTerrainUrl) {
+		return null;
+	}
+
+	return new Cesium.Terrain(
+		Cesium.CesiumTerrainProvider.fromUrl(mapTilerTerrainUrl, {
+			requestVertexNormals: true
+		})
+	);
+}
+
 function createTerrainOptions() {
+	if (mapTilerTerrainUrl) {
+		return {
+			terrain: createMapTilerTerrain()
+		};
+	}
+
 	if (ionToken) {
 		return {
 			terrain: Cesium.Terrain.fromWorldTerrain()
@@ -488,7 +513,7 @@ function createVWorldProvider(layer, fileExtension) {
 }
 
 function attachVWorldImagery(targetViewer) {
-	if (!vworldApiKey || !targetViewer?.scene?.imageryLayers) return;
+	if (mapTilerApiKey || !vworldApiKey || !targetViewer?.scene?.imageryLayers) return;
 
 	targetViewer.scene.imageryLayers.addImageryProvider(
 		createVWorldProvider('Satellite', 'jpeg')
@@ -582,6 +607,20 @@ function createMiniViewer(containerId) {
 	configureViewer(createdViewer, { main: false });
 	attachVWorldImagery(createdViewer);
 	return createdViewer;
+}
+
+function ensureMiniViewer(kind = 'main') {
+	if (kind === 'pause') {
+		if (!pauseMiniViewer) {
+			pauseMiniViewer = createMiniViewer('pauseMinimapCesium');
+		}
+		return pauseMiniViewer;
+	}
+
+	if (!miniViewer) {
+		miniViewer = createMiniViewer('minimapCesium');
+	}
+	return miniViewer;
 }
 
 function createFallbackMainViewer() {
@@ -1070,9 +1109,6 @@ export async function initCesium(initialPosition = {}) {
 		}
 	});
 
-	miniViewer = createMiniViewer('minimapCesium');
-	pauseMiniViewer = createMiniViewer('pauseMinimapCesium');
-
 	setControlsEnabled(false);
 	return viewer;
 }
@@ -1115,13 +1151,14 @@ export function setCameraToPlane(lon, lat, alt, heading, pitch, roll) {
 }
 
 export function setMinimapCamera(lon, lat, altitude, heading) {
-	if (!miniViewer) return;
+	const activeMiniViewer = miniViewer ?? ensureMiniViewer('main');
+	if (!activeMiniViewer) return;
 
-	if (miniViewer.canvas.width === 0 || miniViewer.canvas.height === 0) {
+	if (activeMiniViewer.canvas.width === 0 || activeMiniViewer.canvas.height === 0) {
 		return;
 	}
 
-	miniViewer.camera.setView({
+	activeMiniViewer.camera.setView({
 		destination: Cesium.Cartesian3.fromDegrees(lon, lat, altitude),
 		orientation: {
 			heading: Cesium.Math.toRadians(heading),
@@ -1130,17 +1167,21 @@ export function setMinimapCamera(lon, lat, altitude, heading) {
 		}
 	});
 
-	miniViewer.scene.requestRender();
+	activeMiniViewer.scene.requestRender();
 }
 
 export function setPauseMinimapCamera(lon, lat, altitude, heading) {
-	if (!pauseMiniViewer) return;
+	const activePauseMiniViewer = pauseMiniViewer ?? ensureMiniViewer('pause');
+	if (!activePauseMiniViewer) return;
 
-	if (pauseMiniViewer.canvas.width === 0 || pauseMiniViewer.canvas.height === 0) {
+	if (
+		activePauseMiniViewer.canvas.width === 0 ||
+		activePauseMiniViewer.canvas.height === 0
+	) {
 		return;
 	}
 
-	pauseMiniViewer.camera.setView({
+	activePauseMiniViewer.camera.setView({
 		destination: Cesium.Cartesian3.fromDegrees(lon, lat, altitude),
 		orientation: {
 			heading: Cesium.Math.toRadians(heading),
@@ -1149,7 +1190,7 @@ export function setPauseMinimapCamera(lon, lat, altitude, heading) {
 		}
 	});
 
-	pauseMiniViewer.scene.requestRender();
+	activePauseMiniViewer.scene.requestRender();
 }
 
 export function getViewer() {

@@ -3,6 +3,13 @@ from typing import List, Optional
 from blade.units.Aircraft import Aircraft
 from blade.units.Weapon import Weapon
 from blade.utils.colors import convert_color_name_to_side_color, SIDE_COLOR
+from blade.units.combat_stats import (
+    apply_damage,
+    get_health_fraction,
+    resolve_current_hp,
+    resolve_defense,
+    resolve_max_hp,
+)
 
 
 class Ship:
@@ -30,6 +37,9 @@ class Ship:
         weapons: Optional[List[Weapon]] = None,
         aircraft: Optional[List[Aircraft]] = None,
         desired_route: Optional[List[List[float]]] = None,
+        max_hp: float | None = None,
+        current_hp: float | None = None,
+        defense: float | None = None,
     ):
         self.id = id
         self.name = name
@@ -50,6 +60,9 @@ class Ship:
         self.weapons = weapons if weapons is not None else []
         self.aircraft = aircraft if aircraft is not None else []
         self.desired_route = desired_route if desired_route is not None else []
+        self.max_hp = resolve_max_hp("ship", max_hp)
+        self.current_hp = resolve_current_hp(current_hp, self.max_hp)
+        self.defense = resolve_defense("ship", defense)
 
     def get_total_weapon_quantity(self) -> int:
         return sum([weapon.current_quantity for weapon in self.weapons])
@@ -67,6 +80,15 @@ class Ship:
             if weapon.id == weapon_id:
                 return weapon
         return None
+
+    def get_health_fraction(self) -> float:
+        return get_health_fraction(self.current_hp, self.max_hp)
+
+    def apply_damage(self, raw_attack: float) -> float:
+        return apply_damage(self, raw_attack)
+
+    def is_destroyed(self) -> bool:
+        return self.current_hp <= 0
 
     def to_dict(self):
         return {
@@ -92,4 +114,7 @@ class Ship:
             ),
             "weapons": [weapon.to_dict() for weapon in self.weapons],
             "aircraft": [ac.to_dict() for ac in self.aircraft],
+            "max_hp": self.max_hp,
+            "current_hp": self.current_hp,
+            "defense": self.defense,
         }

@@ -76,6 +76,7 @@ RETAINED_METRICS = (
 )
 REQUIRED_REWARD_KEYS = {
     "kill_reward",
+    "damage_progress_reward",
     "tot_bonus",
     "eta_progress_bonus",
     "ready_to_fire_bonus",
@@ -240,6 +241,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--kill-base", type=float, default=100.0)
     parser.add_argument("--high-value-target-bonus", type=float, default=50.0)
+    parser.add_argument("--damage-progress-weight", type=float, default=30.0)
     parser.add_argument("--tot-weight", type=float, default=40.0)
     parser.add_argument("--tot-tau-seconds", type=float, default=8.0)
     parser.add_argument("--eta-progress-weight", type=float, default=6.0)
@@ -392,6 +394,7 @@ def build_reward_config(args: argparse.Namespace) -> FixedTargetStrikeRewardConf
     return FixedTargetStrikeRewardConfig(
         kill_base=args.kill_base,
         high_value_target_bonus=args.high_value_target_bonus,
+        damage_progress_weight=args.damage_progress_weight,
         tot_weight=args.tot_weight,
         tot_tau_seconds=args.tot_tau_seconds,
         eta_progress_weight=args.eta_progress_weight,
@@ -1254,6 +1257,28 @@ def _metric_sort_key(
     )
 
 
+def build_evaluation_snapshot(evaluation: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "benchmark_seed_count": int(evaluation.get("benchmark_seed_count", 0) or 0),
+        "success_rate": _normalize_metric_value(evaluation.get("success_rate"), 0.0),
+        "mean_reward": _normalize_metric_value(evaluation.get("mean_reward"), 0.0),
+        "mean_episode_steps": _normalize_metric_value(
+            evaluation.get("mean_episode_steps"), 0.0
+        ),
+        "survivability": _normalize_metric_value(evaluation.get("survivability"), 0.0),
+        "weapon_efficiency": _normalize_metric_value(
+            evaluation.get("weapon_efficiency"), 0.0
+        ),
+        "time_to_ready": _normalize_metric_value(evaluation.get("time_to_ready"), 0.0),
+        "tot_quality": _normalize_metric_value(evaluation.get("tot_quality"), 0.0),
+        "seed_variability_warning": bool(
+            evaluation.get("seed_variability_warning", False)
+        ),
+        "done_reason": evaluation.get("done_reason"),
+        "done_reason_detail": evaluation.get("done_reason_detail"),
+    }
+
+
 def build_leaderboard(run_summaries: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     ordered_runs = sorted(
         run_summaries,
@@ -1281,7 +1306,7 @@ def build_leaderboard(run_summaries: Sequence[dict[str, Any]]) -> list[dict[str,
                         evaluation.get("mean_episode_steps"), 0.0
                     ),
                 },
-                "evaluation": evaluation,
+                "evaluation_summary": build_evaluation_snapshot(evaluation),
             }
         )
     return leaderboard
@@ -1323,7 +1348,7 @@ def build_metric_leaders(
                 if metric_key is None
                 else _normalize_metric_value(winner_evaluation.get(metric_key), 0.0)
             ),
-            "evaluation": winner_evaluation,
+            "evaluation_summary": build_evaluation_snapshot(winner_evaluation),
         }
     return metric_leaders
 
@@ -1384,7 +1409,7 @@ def build_retained_model_archive(
                 "source_model_metadata_path": run_summary.get("model_metadata_path"),
                 "source_export_path": run_summary.get("export_path"),
                 "source_eval_recording_path": run_summary.get("eval_recording_path"),
-                "evaluation": run_summary["evaluation"],
+                "evaluation_summary": build_evaluation_snapshot(run_summary["evaluation"]),
             }
             archive_entries_by_algorithm[algorithm] = archive_entry
         if metric_name not in archive_entry["metrics"]:
@@ -1440,6 +1465,15 @@ def build_run_paths(base_model_path: Path, algorithm: str) -> dict[str, Path]:
         "selected_model_path": run_dir / f"{model_stem}_{algorithm}",
         "export_path": run_dir / "eval_scenario.json",
         "recording_path": run_dir / "eval_recording.jsonl",
+    }
+
+
+def build_checkpoint_artifact_paths(run_dir: Path, timesteps: int) -> dict[str, Path]:
+    checkpoint_dir = run_dir / "checkpoints" / f"{timesteps:07d}"
+    return {
+        "checkpoint_dir": checkpoint_dir,
+        "export_path": checkpoint_dir / "eval_scenario.json",
+        "recording_path": checkpoint_dir / "eval_recording.jsonl",
     }
 
 
@@ -1658,7 +1692,11 @@ class ProgressCallback(BaseCallback):
         self._sync_progress_state()
         write_json(self.progress_path, self.progress_state)
 
-    def _append_checkpoint(self, evaluation: dict[str, Any]) -> None:
+    def _append_checkpoint(
+        self,
+        evaluation: dict[str, Any],
+        checkpoint_artifacts: dict[str, Path] | None = None,
+    ) -> None:
         checkpoint = {
             "algorithm": self.algorithm_name,
             "timesteps": self.num_timesteps,
@@ -1686,6 +1724,20 @@ class ProgressCallback(BaseCallback):
                 if self.current_curriculum_stage is not None
                 else None
             ),
+            "export_path": (
+                str(checkpoint_artifacts["export_path"])
+                if checkpoint_artifacts is not None
+                else None
+            ),
+            "recording_path": (
+                str(checkpoint_artifacts["recording_path"])
+                if checkpoint_artifacts is not None
+                else None
+            ),
+            "replay_available": bool(
+                checkpoint_artifacts is not None
+                and checkpoint_artifacts["recording_path"].exists()
+            ),
         }
         self.run_state["checkpoints"].append(checkpoint)
         if is_better_evaluation(evaluation, self.best_checkpoint_evaluation):
@@ -1705,18 +1757,23 @@ class ProgressCallback(BaseCallback):
                 **checkpoint,
                 "model_path": str(model_zip_path(self.best_model_path)),
             }
-        self._write_progress()
+            self._write_progress()
 
     def _run_checkpoint(self) -> None:
+        checkpoint_artifacts = build_checkpoint_artifact_paths(
+            self.best_model_path.parent, self.num_timesteps
+        )
         evaluation = run_policy_evaluation(
             self.model,
             self.args,
             episodes=self.args.progress_eval_episodes,
             seed=self.args.seed + (self.eval_counter * 97),
+            export_path=checkpoint_artifacts["export_path"],
+            recording_path=checkpoint_artifacts["recording_path"],
             curriculum_stage=self.current_curriculum_stage,
         )
         self.eval_counter += 1
-        self._append_checkpoint(evaluation)
+        self._append_checkpoint(evaluation, checkpoint_artifacts)
 
     def _on_training_start(self) -> None:
         self.run_state["status"] = "running"
@@ -2097,6 +2154,7 @@ def train_model(args: argparse.Namespace) -> dict[str, Any]:
         "reward_config": {
             "kill_base": args.kill_base,
             "high_value_target_bonus": args.high_value_target_bonus,
+            "damage_progress_weight": args.damage_progress_weight,
             "tot_weight": args.tot_weight,
             "tot_tau_seconds": args.tot_tau_seconds,
             "eta_progress_weight": args.eta_progress_weight,

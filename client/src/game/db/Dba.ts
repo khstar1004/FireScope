@@ -11,6 +11,19 @@ import { IFacilityModel } from "@/game/db/models/Facility";
 import { IShipModel } from "@/game/db/models/Ship";
 import { IWeaponModel } from "@/game/db/models/Weapon";
 import { sortByKoreanPriority } from "@/utils/koreanCatalog";
+import {
+  buildUnitDbDiagnostics,
+  UnitDbDiagnosticsReport,
+} from "@/game/db/unitDbDiagnostics";
+import {
+  buildPythonUnitDbParityReport,
+  UnitDbParityReport,
+} from "@/game/db/unitDbParity";
+import {
+  buildPythonUnitDbSyncPlan,
+  UnitDbSyncPlan,
+} from "@/game/db/unitDbSyncPlan";
+import { UnitDbSnapshot } from "@/game/db/unitDbSnapshot";
 
 export default class Dba {
   airbaseDb: IAirbaseModel[];
@@ -19,7 +32,7 @@ export default class Dba {
   shipDb: IShipModel[];
   weaponDb: IWeaponModel[];
 
-  constructor() {
+  constructor(snapshot?: Partial<UnitDbSnapshot>) {
     this.airbaseDb = sortByKoreanPriority(AirbaseDb, (airbase) => airbase.name);
     this.aircraftDb = sortByKoreanPriority(
       AircraftDb,
@@ -34,6 +47,8 @@ export default class Dba {
       WeaponDb,
       (weapon) => weapon.className
     );
+
+    this.applySnapshot(snapshot);
   }
 
   getAircraftDb() {
@@ -57,222 +72,255 @@ export default class Dba {
   }
 
   exportToJson() {
-    return JSON.stringify({
+    return JSON.stringify(this.toSnapshot(), null, 2);
+  }
+
+  toSnapshot(): UnitDbSnapshot {
+    return {
       airbaseDb: this.airbaseDb,
       aircraftDb: this.aircraftDb,
       facilityDb: this.facilityDb,
       shipDb: this.shipDb,
       weaponDb: this.weaponDb,
-    });
+    };
+  }
+
+  clone() {
+    return new Dba(this.toSnapshot());
+  }
+
+  buildDiagnosticsReport(): UnitDbDiagnosticsReport {
+    return buildUnitDbDiagnostics(this.toSnapshot());
+  }
+
+  buildPythonParityReport(): UnitDbParityReport {
+    return buildPythonUnitDbParityReport(this.toSnapshot());
+  }
+
+  buildPythonSyncPlan(): UnitDbSyncPlan {
+    return buildPythonUnitDbSyncPlan(this.toSnapshot());
+  }
+
+  static fromJson(json: string) {
+    return new Dba(JSON.parse(json) as Partial<UnitDbSnapshot>);
   }
 
   importFromJson(json: string) {
-    const data = JSON.parse(json);
-
-    const importAirbaseDb = data.airbaseDb as any[];
-    if (Array.isArray(importAirbaseDb) && importAirbaseDb.length > 0) {
-      const finalImportedAirbaseDb: IAirbaseModel[] = [];
-      importAirbaseDb.forEach(({ name, latitude, longitude, country }) => {
-        if (!(name && latitude != null && longitude != null && country)) return;
-        finalImportedAirbaseDb.push({ name, latitude, longitude, country });
-      });
-      this.airbaseDb = sortByKoreanPriority(
-        finalImportedAirbaseDb.filter(
-          (unit, idx, all) => all.findIndex((u) => u.name === unit.name) === idx
-        ),
-        (airbase) => airbase.name
-      );
-    }
-
-    const importAircraftDb = data.aircraftDb as any[];
-    if (Array.isArray(importAircraftDb) && importAircraftDb.length > 0) {
-      const finalImportedAircraftDb: IAircraftModel[] = [];
-      importAircraftDb.forEach((aircraft) => {
-        const {
-          className,
-          speed,
-          maxFuel,
-          fuelRate,
-          range,
-          dataSource,
-          units,
-        } = aircraft;
-        if (
-          !(
-            className &&
-            speed != null &&
-            maxFuel != null &&
-            fuelRate != null &&
-            range != null
-          )
-        )
-          return;
-
-        finalImportedAircraftDb.push({
-          className,
-          speed,
-          maxFuel,
-          fuelRate,
-          range,
-          dataSource: {
-            speedSrc: dataSource?.speedSrc ?? "",
-            maxFuelSrc: dataSource?.maxFuelSrc ?? "",
-            fuelRateSrc: dataSource?.fuelRateSrc ?? "",
-            rangeSrc: dataSource?.rangeSrc ?? "",
-          },
-          units: {
-            speedUnit: units?.speedUnit ?? "",
-            maxFuelUnit: units?.maxFuelUnit ?? "",
-            fuelRateUnit: units?.fuelRateUnit ?? "",
-            rangeUnit: units?.rangeUnit ?? "",
-          },
-        });
-      });
-      this.aircraftDb = sortByKoreanPriority(
-        finalImportedAircraftDb.filter(
-          (unit, idx, all) =>
-            all.findIndex((u) => u.className === unit.className) === idx
-        ),
-        (aircraft) => aircraft.className
-      );
-    }
-
-    const importFacilityDb = data.facilityDb as any[];
-    if (Array.isArray(importFacilityDb) && importFacilityDb.length > 0) {
-      const finalImportedFacilityDb: IFacilityModel[] = [];
-      importFacilityDb.forEach(
-        ({
-          className,
-          range,
-          detectionArcDegrees,
-          sourceUrl,
-          sourceNote,
-        }) => {
-        if (!(className && range != null)) return;
-          finalImportedFacilityDb.push({
-            className,
-            range,
-            detectionArcDegrees:
-              typeof detectionArcDegrees === "number"
-                ? detectionArcDegrees
-                : undefined,
-            sourceUrl: typeof sourceUrl === "string" ? sourceUrl : undefined,
-            sourceNote:
-              typeof sourceNote === "string" ? sourceNote : undefined,
-          });
-        }
-      );
-      this.facilityDb = sortByKoreanPriority(
-        finalImportedFacilityDb.filter(
-          (unit, idx, all) =>
-            all.findIndex((u) => u.className === unit.className) === idx
-        ),
-        (facility) => facility.className
-      );
-    }
-
-    const importShipDb = data.shipDb as any[];
-    if (Array.isArray(importShipDb) && importShipDb.length > 0) {
-      const finalImportedShipDb: IShipModel[] = [];
-      importShipDb.forEach((ship) => {
-        const {
-          className,
-          speed,
-          maxFuel,
-          fuelRate,
-          range,
-          dataSource,
-          units,
-        } = ship;
-        if (
-          !(
-            className &&
-            speed != null &&
-            maxFuel != null &&
-            fuelRate != null &&
-            range != null
-          )
-        )
-          return;
-
-        const model: IShipModel = {
-          className,
-          speed,
-          maxFuel,
-          fuelRate,
-          range,
-        };
-
-        if (
-          dataSource &&
-          typeof dataSource.speedSrc === "string" &&
-          typeof dataSource.maxFuelSrc === "string"
-        ) {
-          model.dataSource = {
-            speedSrc: dataSource.speedSrc,
-            maxFuelSrc: dataSource.maxFuelSrc,
-            fuelRateSrc: dataSource.fuelRateSrc,
-            rangeSrc: dataSource.rangeSrc,
-          };
-        }
-
-        if (
-          units &&
-          typeof units.speedUnit === "string" &&
-          typeof units.maxFuelUnit === "string"
-        ) {
-          model.units = {
-            speedUnit: units.speedUnit,
-            maxFuelUnit: units.maxFuelUnit,
-            fuelRateUnit: units.fuelRateUnit,
-            rangeUnit: units.rangeUnit,
-          };
-        }
-
-        finalImportedShipDb.push(model);
-      });
-      this.shipDb = sortByKoreanPriority(
-        finalImportedShipDb.filter(
-          (unit, idx, all) =>
-            all.findIndex((u) => u.className === unit.className) === idx
-        ),
-        (ship) => ship.className
-      );
-    }
-
-    const importWeaponDb = data.weaponDb as any[];
-    if (Array.isArray(importWeaponDb) && importWeaponDb.length > 0) {
-      const finalImportedWeaponDb: IWeaponModel[] = [];
-      importWeaponDb.forEach((weapon) => {
-        const { className, speed, maxFuel, fuelRate, lethality } = weapon;
-        if (
-          !(
-            className &&
-            speed != null &&
-            maxFuel != null &&
-            fuelRate != null &&
-            lethality != null
-          )
-        )
-          return;
-
-        finalImportedWeaponDb.push({
-          className,
-          speed,
-          maxFuel,
-          fuelRate,
-          lethality,
-        });
-      });
-      this.weaponDb = sortByKoreanPriority(
-        finalImportedWeaponDb.filter(
-          (unit, idx, all) =>
-            all.findIndex((u) => u.className === unit.className) === idx
-        ),
-        (weapon) => weapon.className
-      );
-    }
+    this.applySnapshot(Dba.fromJson(json).toSnapshot());
   }
 
   importFromCsv(csv: string) {}
+
+  private applySnapshot(snapshot?: Partial<UnitDbSnapshot>) {
+    if (!snapshot) {
+      return;
+    }
+
+    const importAirbaseDb = snapshot.airbaseDb as unknown[];
+    if (Array.isArray(importAirbaseDb) && importAirbaseDb.length > 0) {
+      this.airbaseDb = Dba.normalizeAirbaseDb(importAirbaseDb);
+    }
+
+    const importAircraftDb = snapshot.aircraftDb as unknown[];
+    if (Array.isArray(importAircraftDb) && importAircraftDb.length > 0) {
+      this.aircraftDb = Dba.normalizeAircraftDb(importAircraftDb);
+    }
+
+    const importFacilityDb = snapshot.facilityDb as unknown[];
+    if (Array.isArray(importFacilityDb) && importFacilityDb.length > 0) {
+      this.facilityDb = Dba.normalizeFacilityDb(importFacilityDb);
+    }
+
+    const importShipDb = snapshot.shipDb as unknown[];
+    if (Array.isArray(importShipDb) && importShipDb.length > 0) {
+      this.shipDb = Dba.normalizeShipDb(importShipDb);
+    }
+
+    const importWeaponDb = snapshot.weaponDb as unknown[];
+    if (Array.isArray(importWeaponDb) && importWeaponDb.length > 0) {
+      this.weaponDb = Dba.normalizeWeaponDb(importWeaponDb);
+    }
+  }
+
+  private static normalizeAirbaseDb(importAirbaseDb: unknown[]) {
+    const finalImportedAirbaseDb: IAirbaseModel[] = [];
+    importAirbaseDb.forEach((candidate) => {
+      const { name, latitude, longitude, country } = candidate as Record<
+        string,
+        unknown
+      >;
+      if (!(name && latitude != null && longitude != null && country)) return;
+      finalImportedAirbaseDb.push({
+        name: `${name}`,
+        latitude: Number(latitude),
+        longitude: Number(longitude),
+        country: `${country}`,
+      });
+    });
+    return sortByKoreanPriority(
+      finalImportedAirbaseDb.filter(
+        (unit, idx, all) => all.findIndex((u) => u.name === unit.name) === idx
+      ),
+      (airbase) => airbase.name
+    );
+  }
+
+  private static normalizeAircraftDb(importAircraftDb: unknown[]) {
+    const finalImportedAircraftDb: IAircraftModel[] = [];
+    importAircraftDb.forEach((candidate) => {
+      const { className, speed, maxFuel, fuelRate, range, dataSource, units } =
+        candidate as Record<string, any>;
+      if (
+        !(
+          className &&
+          speed != null &&
+          maxFuel != null &&
+          fuelRate != null &&
+          range != null
+        )
+      ) {
+        return;
+      }
+
+      finalImportedAircraftDb.push({
+        className,
+        speed,
+        maxFuel,
+        fuelRate,
+        range,
+        dataSource: {
+          speedSrc: dataSource?.speedSrc ?? "",
+          maxFuelSrc: dataSource?.maxFuelSrc ?? "",
+          fuelRateSrc: dataSource?.fuelRateSrc ?? "",
+          rangeSrc: dataSource?.rangeSrc ?? "",
+        },
+        units: {
+          speedUnit: units?.speedUnit ?? "",
+          maxFuelUnit: units?.maxFuelUnit ?? "",
+          fuelRateUnit: units?.fuelRateUnit ?? "",
+          rangeUnit: units?.rangeUnit ?? "",
+        },
+      });
+    });
+    return sortByKoreanPriority(
+      finalImportedAircraftDb.filter(
+        (unit, idx, all) =>
+          all.findIndex((u) => u.className === unit.className) === idx
+      ),
+      (aircraft) => aircraft.className
+    );
+  }
+
+  private static normalizeFacilityDb(importFacilityDb: unknown[]) {
+    const finalImportedFacilityDb: IFacilityModel[] = [];
+    importFacilityDb.forEach((candidate) => {
+      const { className, range, detectionArcDegrees, sourceUrl, sourceNote } =
+        candidate as Record<string, unknown>;
+      if (!(className && range != null)) return;
+      finalImportedFacilityDb.push({
+        className: `${className}`,
+        range: Number(range),
+        detectionArcDegrees:
+          typeof detectionArcDegrees === "number"
+            ? detectionArcDegrees
+            : undefined,
+        sourceUrl: typeof sourceUrl === "string" ? sourceUrl : undefined,
+        sourceNote: typeof sourceNote === "string" ? sourceNote : undefined,
+      });
+    });
+    return sortByKoreanPriority(
+      finalImportedFacilityDb.filter(
+        (unit, idx, all) =>
+          all.findIndex((u) => u.className === unit.className) === idx
+      ),
+      (facility) => facility.className
+    );
+  }
+
+  private static normalizeShipDb(importShipDb: unknown[]) {
+    const finalImportedShipDb: IShipModel[] = [];
+    importShipDb.forEach((candidate) => {
+      const { className, speed, maxFuel, fuelRate, range, dataSource, units } =
+        candidate as Record<string, any>;
+      if (
+        !(
+          className &&
+          speed != null &&
+          maxFuel != null &&
+          fuelRate != null &&
+          range != null
+        )
+      ) {
+        return;
+      }
+
+      const model: IShipModel = {
+        className,
+        speed,
+        maxFuel,
+        fuelRate,
+        range,
+      };
+
+      if (dataSource && typeof dataSource === "object") {
+        model.dataSource = {
+          speedSrc: dataSource.speedSrc ?? "",
+          maxFuelSrc: dataSource.maxFuelSrc ?? "",
+          fuelRateSrc: dataSource.fuelRateSrc ?? "",
+          rangeSrc: dataSource.rangeSrc ?? "",
+        };
+      }
+      if (units && typeof units === "object") {
+        model.units = {
+          speedUnit: units.speedUnit ?? "",
+          maxFuelUnit: units.maxFuelUnit ?? "",
+          fuelRateUnit: units.fuelRateUnit ?? "",
+          rangeUnit: units.rangeUnit ?? "",
+        };
+      }
+
+      finalImportedShipDb.push(model);
+    });
+    return sortByKoreanPriority(
+      finalImportedShipDb.filter(
+        (unit, idx, all) =>
+          all.findIndex((u) => u.className === unit.className) === idx
+      ),
+      (ship) => ship.className
+    );
+  }
+
+  private static normalizeWeaponDb(importWeaponDb: unknown[]) {
+    const finalImportedWeaponDb: IWeaponModel[] = [];
+    importWeaponDb.forEach((candidate) => {
+      const { className, speed, maxFuel, fuelRate, lethality } =
+        candidate as Record<string, unknown>;
+      if (
+        !(
+          className &&
+          speed != null &&
+          maxFuel != null &&
+          fuelRate != null &&
+          lethality != null
+        )
+      ) {
+        return;
+      }
+
+      finalImportedWeaponDb.push({
+        className: `${className}`,
+        speed: Number(speed),
+        maxFuel: Number(maxFuel),
+        fuelRate: Number(fuelRate),
+        lethality: Number(lethality),
+      });
+    });
+    return sortByKoreanPriority(
+      finalImportedWeaponDb.filter(
+        (unit, idx, all) =>
+          all.findIndex((u) => u.className === unit.className) === idx
+      ),
+      (weapon) => weapon.className
+    );
+  }
 }

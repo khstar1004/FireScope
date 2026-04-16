@@ -191,7 +191,7 @@ function buildViewportControls(hasBundleModel: boolean) {
       "`모델 선택`: 기준 플랫폼 전환",
       "`Mission Mode`: 작전 모드 변경",
       "`비교 토글`: 다중 비교 라인업 구성",
-      "`체험 시작`: 실제 3D 지도 페이지 진입",
+      "`시뮬레이터 시작`: 실제 3D 지도 페이지 진입",
       "`지도 복귀`: 메인 화면 복귀",
     ];
   }
@@ -294,7 +294,7 @@ export default function ImmersiveExperiencePage({
       >
         <Stack spacing={2} sx={{ maxWidth: 520 }}>
           <Typography variant="h4" sx={{ fontWeight: 900 }}>
-            몰입형 체험 대상을 찾지 못했습니다.
+            몰입형 시뮬레이션 대상을 찾지 못했습니다.
           </Typography>
           <Typography sx={{ color: "rgba(255, 244, 244, 0.78)" }}>
             자산 상세 페이지에서 다시 진입해야 합니다.
@@ -391,6 +391,7 @@ export default function ImmersiveExperiencePage({
           accentColor={theme.accentColor}
           glowColor={theme.glowColor}
           mode="immersive"
+          viewerChrome="minimal"
           showBadge={false}
           sx={{ position: "absolute", inset: 0 }}
         />
@@ -532,7 +533,7 @@ export default function ImmersiveExperiencePage({
                   )
                 }
               >
-                비행 체험 열기
+                항공 시뮬레이터 열기
               </Button>
             )}
           </Stack>
@@ -782,7 +783,7 @@ export default function ImmersiveExperiencePage({
                     color: "rgba(226, 240, 255, 0.72)",
                   }}
                 >
-                  페이지마다 같은 HUD를 쓰지 않도록, 시작부터 자유 체험
+                  페이지마다 같은 HUD를 쓰지 않도록, 시작부터 자유 시뮬레이션
                   전환까지의 흐름을 단계별로 고정합니다.
                 </Typography>
                 <Stack spacing={1.1}>
@@ -1027,7 +1028,7 @@ export default function ImmersiveExperiencePage({
                     }}
                   >
                     <Typography sx={{ fontWeight: 700 }}>
-                      자유 체험 전환
+                      자유 시뮬레이션 전환
                     </Typography>
                     <Typography
                       sx={{

@@ -10,7 +10,8 @@ const scenarioTimeDisplayStyle = {
   border: `1px solid ${colorPalette.darkGray}`,
   fontSize: "12px",
   fontStyle: "normal",
-  fontWeight: 400,
+  fontWeight: 500,
+  boxShadow: "0 14px 30px rgba(0, 0, 0, 0.22)",
 };
 
 export default function ScenarioTimeDisplay() {

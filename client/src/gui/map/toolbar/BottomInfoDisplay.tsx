@@ -2,11 +2,15 @@ import { Stack } from "@mui/material";
 import MouseMapCoordinatesDisplay from "@/gui/map/toolbar/MouseMapCoordinatesDisplay";
 import ScenarioTimeDisplay from "@/gui/map/toolbar/ScenarioTimeDisplay";
 import FixedTargetStrikeReplayPanel from "@/gui/map/toolbar/FixedTargetStrikeReplayPanel";
+import SelectedUnitStatusCard, {
+  type SelectedCombatantSummary,
+} from "@/gui/map/toolbar/SelectedUnitStatusCard";
 import { FixedTargetStrikeReplayMetric } from "@/scenarios/fixedTargetStrikeRlDemo";
 
 interface IBottomInfoDisplay {
   mobileView: boolean;
   replayMetric?: FixedTargetStrikeReplayMetric | null;
+  selectedCombatant?: SelectedCombatantSummary | null;
 }
 
 export default function BottomInfoDisplay(props: Readonly<IBottomInfoDisplay>) {
@@ -20,6 +24,12 @@ export default function BottomInfoDisplay(props: Readonly<IBottomInfoDisplay>) {
       }}
     >
       <Stack spacing={1.5} sx={{ alignItems: "flex-end" }}>
+        {props.selectedCombatant && (
+          <SelectedUnitStatusCard
+            combatant={props.selectedCombatant}
+            mobileView={props.mobileView}
+          />
+        )}
         {props.replayMetric && (
           <FixedTargetStrikeReplayPanel metric={props.replayMetric} />
         )}

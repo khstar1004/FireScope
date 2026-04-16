@@ -80,6 +80,19 @@ describe("immersiveExperience", () => {
 
     expect(
       inferImmersiveExperienceProfile({
+        kind: "facility",
+        id: "facility-tank-1",
+        name: "K2 Black Panther Platoon",
+        className: "K2 MBT",
+        sideName: "BLUE",
+        latitude: 0,
+        longitude: 0,
+        altitude: 0,
+      })
+    ).toBe("ground");
+
+    expect(
+      inferImmersiveExperienceProfile({
         kind: "airbase",
         id: "base-1",
         name: "Suwon",

@@ -26,7 +26,7 @@ describe("tacticalExperience", () => {
     const scenario = createTacticalExperienceScenario(asset, "ground");
 
     expect(scenario.player.headingDeg).toBe(45);
-    expect(scenario.config.modeTitle).toContain("실전체험");
+    expect(scenario.config.modeTitle).toContain("시뮬레이터");
     expect(scenario.config.hostileContacts.length).toBeGreaterThanOrEqual(3);
     expect(scenario.config.controls).toContain("`F`: 전차포 발사");
     expect(scenario.config.primaryWeapon.kind).toBe("shell");

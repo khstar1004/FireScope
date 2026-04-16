@@ -14,9 +14,10 @@ export const RECORDING_INTERVALS_SECONDS: number[] = [
   1, 10, 30, 60, 300, 600, 3600,
 ];
 export const APP_DRAWER_WIDTH = 400;
+export const APP_DISPLAY_NAME = "전장상황가시화 플랫폼";
 export const colorPalette = {
-  lightGray: "#E4E8D8",
-  darkGray: "#7F876C",
-  black: "#1C2318",
-  white: "#F7F3EA",
+  lightGray: "#07171D",
+  darkGray: "#10434C",
+  black: "#D8FAF6",
+  white: "#0D2129",
 };

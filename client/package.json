@@ -13,6 +13,7 @@
     "dev": "vite --open --port 49153 --mode development",
     "build": "npm run flight-sim:sync && tsc -b && vite build --mode production",
     "flight-sim:sync": "node ./scripts/syncFlightSim.mjs",
+    "unitdb:sync-python": "python ./scripts/syncPythonUnitDbSnapshot.py",
     "flight-sim:bundle": "npm --prefix ./flight-sim-source run build -- --base=/flight-sim/ && npm run flight-sim:sync",
     "lint": "eslint .",
     "format": "prettier --write .",

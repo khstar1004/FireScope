@@ -22,8 +22,8 @@ import {
   Button,
 } from "@mui/material";
 import { Menu } from "@/gui/shared/ui/MuiComponents";
-import { colorPalette } from "@/utils/constants";
 import Weapon from "@/game/units/Weapon";
+import CombatStatusBar from "@/gui/map/feature/shared/CombatStatusBar";
 import { getDisplayName } from "@/utils/koreanCatalog";
 import ExperienceLaunchButton from "@/gui/experience/ExperienceLaunchButton";
 
@@ -167,7 +167,7 @@ export default function WeaponCard(props: Readonly<WeaponCardProps>) {
                 </IconButton>
               </Tooltip>
               <ExperienceLaunchButton
-                tooltip={`${props.weapon.name} 3D 체험`}
+                tooltip={`${props.weapon.name} 3D 시뮬레이터`}
                 onClick={_handleOpenAssetExperience}
               />
               <Tooltip title={`추가 작업`}>
@@ -211,7 +211,7 @@ export default function WeaponCard(props: Readonly<WeaponCardProps>) {
             <Stack
               direction={"column"}
               spacing={0}
-              sx={{ color: colorPalette.lightGray }}
+              sx={{ color: "rgba(221, 255, 250, 0.74)" }}
             >
               <Typography variant="caption">
                 유형: {getDisplayName(props.weapon.className)}
@@ -224,6 +224,12 @@ export default function WeaponCard(props: Readonly<WeaponCardProps>) {
               </Typography>
             </Stack>
           }
+        />
+        <CombatStatusBar
+          currentHp={props.weapon.currentHp}
+          maxHp={props.weapon.maxHp}
+          defense={props.weapon.defense}
+          attackPower={props.weapon.attackPower}
         />
         <Divider
           orientation="horizontal"

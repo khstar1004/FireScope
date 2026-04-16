@@ -4103,7 +4103,13 @@ function buildKoreaVsNorthKoreaWestSeaScenario() {
       heading: 335,
     }
   );
-  [
+  const rokReserveFacilities: Array<{
+    name: string;
+    className: string;
+    latitude: number;
+    longitude: number;
+    options: FacilityOptions;
+  }> = [
     {
       name: "Capital L-SAM Reserve",
       className: "L-SAM",
@@ -4163,7 +4169,9 @@ function buildKoreaVsNorthKoreaWestSeaScenario() {
       longitude: 126.98,
       options: { heading: 338 },
     },
-  ].forEach(({ name, className, latitude, longitude, options }) =>
+  ];
+
+  rokReserveFacilities.forEach(({ name, className, latitude, longitude, options }) =>
     addFacility(context, context.usSideId, name, className, latitude, longitude, options)
   );
 

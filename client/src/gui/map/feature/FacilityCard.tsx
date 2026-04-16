@@ -27,9 +27,9 @@ import {
   Tooltip,
 } from "@mui/material";
 import { Menu } from "@/gui/shared/ui/MuiComponents";
-import { colorPalette } from "@/utils/constants";
 import { RocketLaunch } from "@mui/icons-material";
 import Weapon from "@/game/units/Weapon";
+import CombatStatusBar from "@/gui/map/feature/shared/CombatStatusBar";
 import WeaponTable from "@/gui/map/feature/shared/WeaponTable";
 import { getDisplayName } from "@/utils/koreanCatalog";
 import ExperienceLaunchButton from "@/gui/experience/ExperienceLaunchButton";
@@ -351,7 +351,7 @@ export default function FacilityCard(props: Readonly<FacilityCardProps>) {
                     </IconButton>
                   </Tooltip>
                   <ExperienceLaunchButton
-                    tooltip={`${props.facility.name} 3D 체험`}
+                    tooltip={`${props.facility.name} 3D 시뮬레이터`}
                     onClick={_handleOpenAssetExperience}
                   />
                   <Tooltip title={`추가 작업`}>
@@ -397,7 +397,7 @@ export default function FacilityCard(props: Readonly<FacilityCardProps>) {
             <Stack
               direction={"column"}
               spacing={0}
-              sx={{ color: colorPalette.lightGray }}
+              sx={{ color: "rgba(221, 255, 250, 0.74)" }}
             >
               <Typography variant="caption">
                 체계: {getDisplayName(props.facility.className)}
@@ -410,6 +410,11 @@ export default function FacilityCard(props: Readonly<FacilityCardProps>) {
               </Typography>
             </Stack>
           }
+        />
+        <CombatStatusBar
+          currentHp={props.facility.currentHp}
+          maxHp={props.facility.maxHp}
+          defense={props.facility.defense}
         />
         <Divider
           orientation="horizontal"

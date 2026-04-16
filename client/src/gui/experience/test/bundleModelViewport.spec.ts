@@ -77,4 +77,20 @@ describe("BundleModelViewport", () => {
     expect(url.searchParams.get("weaponCount")).toBe("4");
     expect(url.searchParams.get("compareCount")).toBe("5");
   });
+
+  test("can request a minimal chrome viewer shell", () => {
+    const src = buildViewerSrc(
+      selection,
+      "K9 Showroom",
+      "#72f0d0",
+      "#8dd9ff",
+      "immersive",
+      null,
+      "minimal"
+    );
+    const url = new URL(src, "https://firescope.local");
+
+    expect(url.searchParams.get("chrome")).toBe("minimal");
+    expect(url.searchParams.get("profile")).toBeNull();
+  });
 });

@@ -493,7 +493,7 @@ export default function ArmyCard(props: Readonly<ArmyCardProps>) {
             <Stack
               direction={"column"}
               spacing={0}
-              sx={{ color: colorPalette.lightGray }}
+              sx={{ color: "rgba(221, 255, 250, 0.74)" }}
             >
               <Typography variant="caption">
                 유형: {getDisplayName(props.army.className)}

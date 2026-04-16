@@ -66,6 +66,7 @@ export function inferImmersiveExperienceProfile(
   if (asset.kind === "facility") {
     if (matchesDefense) return "defense";
     if (matchesFires) return "fires";
+    if (matchesGround) return "ground";
     return "base";
   }
 
@@ -94,15 +95,15 @@ export function getImmersiveExperienceLabel(
 ) {
   switch (profile) {
     case "ground":
-      return "지상 기동 체험";
+      return "지상 기동 시뮬레이터";
     case "fires":
-      return "화력 운용 체험";
+      return "화력 운용 시뮬레이터";
     case "defense":
-      return "방공 체험";
+      return "방공 시뮬레이터";
     case "maritime":
-      return "해상 전력 체험";
+      return "해상 전력 시뮬레이터";
     case "base":
-      return "기지 운용 체험";
+      return "기지 운용 시뮬레이터";
   }
 }
 

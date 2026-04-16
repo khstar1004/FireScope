@@ -16,6 +16,7 @@ panopticon documentation
    :caption: Getting Started
 
    Getting_Started/quick_start
+   Getting_Started/firescope_product_plan_ko
    Getting_Started/firescope_user_manual_ko
    Getting_Started/rl_lab_guide
    Getting_Started/project_structure
@@ -34,3 +35,4 @@ panopticon documentation
    Gameplay/gameplay
    Gameplay/iran_vs_us_scenarios_ko
    Gameplay/scenario_rl_playbook_ko
+   Gameplay/commander_resource_deployment_optimization_ko

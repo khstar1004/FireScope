@@ -67,7 +67,7 @@ const bottomButtonsStackStyle = {
 };
 
 const editorButtonStyle = {
-  color: colorPalette.white,
+  color: "#031114",
 };
 
 const SideEditor = (props: SideEditorProps) => {

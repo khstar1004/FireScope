@@ -21,9 +21,9 @@ function formatReward(value: number) {
 }
 
 function rewardTone(value: number) {
-  if (value > 0) return "#24613b";
-  if (value < 0) return "#7b2c2c";
-  return "#4d5a48";
+  if (value > 0) return "#63efb4";
+  if (value < 0) return "#ff948b";
+  return "#9abcbc";
 }
 
 function getRewardChips(
@@ -54,10 +54,10 @@ export default function FixedTargetStrikeReplayPanel(
         maxWidth: 360,
         px: 1.5,
         py: 1.25,
-        border: "1px solid rgba(64, 79, 56, 0.24)",
+        border: "1px solid rgba(45, 214, 196, 0.22)",
         background:
-          "linear-gradient(180deg, rgba(247,243,234,0.98) 0%, rgba(231,236,223,0.97) 100%)",
-        boxShadow: "0 12px 24px rgba(34, 47, 28, 0.12)",
+          "linear-gradient(180deg, rgba(9, 24, 31, 0.96) 0%, rgba(5, 14, 18, 0.98) 100%)",
+        boxShadow: "0 18px 34px rgba(0, 0, 0, 0.28)",
       }}
     >
       <Stack spacing={1}>
@@ -74,13 +74,13 @@ export default function FixedTargetStrikeReplayPanel(
             label={phaseLabelMap[metric.phase]}
             sx={{
               fontWeight: 700,
-              backgroundColor: "rgba(46, 92, 62, 0.12)",
-              color: "#20432d",
+              backgroundColor: "rgba(45, 214, 196, 0.14)",
+              color: "#8efff1",
             }}
           />
         </Stack>
 
-        <Typography variant="body2" sx={{ color: "#3b4936" }}>
+        <Typography variant="body2" sx={{ color: "text.secondary" }}>
           step {metric.stepIndex} · 표적{" "}
           {metric.selectedTargetId ?? "대기"} · 발사 {metric.launchCount}회 ·
           비행 중 {metric.weaponsInFlight}기
@@ -93,7 +93,7 @@ export default function FixedTargetStrikeReplayPanel(
               size="small"
               label={label}
               sx={{
-                backgroundColor: "rgba(255,255,255,0.72)",
+                backgroundColor: "rgba(255,255,255,0.05)",
                 color:
                   label.startsWith("총 보상")
                     ? rewardTone(metric.rewardBreakdown.totalReward)
@@ -105,11 +105,10 @@ export default function FixedTargetStrikeReplayPanel(
           ))}
         </Stack>
 
-        <Typography variant="caption" sx={{ color: "#4d5a48" }}>
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
           상태: {missionState}
         </Typography>
       </Stack>
     </Paper>
   );
 }
-

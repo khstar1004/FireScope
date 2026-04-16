@@ -18,14 +18,14 @@ export interface IEntityIconProps {
   type: ToolbarEntityType | string;
   width?: number;
   height?: number;
-  color?: SIDE_COLOR;
+  color?: SIDE_COLOR | string;
 }
 
 export default function EntityIcon({
   type,
   width = 24,
   height = 24,
-  color = SIDE_COLOR.BLACK,
+  color = "var(--fs-text)",
 }: Readonly<IEntityIconProps>) {
   const customIconSx = {
     width: width * 0.88,

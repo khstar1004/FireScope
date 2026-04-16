@@ -77,6 +77,10 @@ The training script can optionally enable a curriculum schedule that starts from
 
 Observation and reward contracts are versioned. Current checkpoints store observation and reward version metadata, and version-mismatched models are blocked from loading by the training script.
 
+For experiment automation, `gym/scripts/fixed_target_strike/compare_algorithms.py` wraps the same training path with standardized outputs: `comparison_summary.json`, `leaderboard.csv`, and `retained_models/retained_models.json`. The underlying training summary also includes a leaderboard, metric leaders, and retained-model manifest so the reinforcement-learning design UI and batch scripts can reuse the same comparison contract.
+
+For regression testing, `gym/scripts/fixed_target_strike/benchmark_suite.py` can benchmark raw models or the outputs of those comparison artifacts across preset suites (`smoke`, `quick`, `standard`, `extended`). It records per-case evaluation summaries and can fail the run when metric thresholds or baseline-regression limits are violated.
+
 The reference reward implementation intentionally does not use HP-style partial damage rewards.
 
 Episode metadata is returned through `info["done_reason"]` and `info["done_reason_detail"]`. `done_reason` is the coarse category (`success`, `failure`, `truncated`, or `in_progress`) and `done_reason_detail` preserves the more specific cause such as `all_targets_destroyed`, `no_attack_capability`, or `max_episode_steps`.

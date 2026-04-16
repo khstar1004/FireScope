@@ -21,11 +21,13 @@ const note = params.get("note") ?? "";
 const accent = params.get("accent") ?? "#9ccf7a";
 const glow = params.get("glow") ?? "#dcedb4";
 const mode = params.get("mode") ?? "detail";
+const viewerChrome = params.get("chrome") ?? "default";
 const profile = params.get("profile") ?? "";
 const operation = params.get("operation") ?? "";
 const modelId = params.get("modelId") ?? "";
 const className = params.get("className") ?? "";
 const assetKind = params.get("assetKind") ?? "";
+const minimalChrome = viewerChrome === "minimal";
 
 function parseNumberParam(name) {
   const value = params.get(name);
@@ -46,6 +48,7 @@ document.body.style.background = battlePalette.background;
 
 const viewport = document.getElementById("viewport");
 const status = document.getElementById("status");
+const titleBlock = document.getElementById("title-block");
 const assetNameBlock = document.getElementById("asset-name");
 const modelNameBlock = document.getElementById("model-name");
 const hint = document.getElementById("hint");
@@ -56,7 +59,10 @@ const actionCountBlock = document.getElementById("action-counts");
 
 assetNameBlock.textContent = assetName;
 modelNameBlock.textContent = label;
-actionPanel.hidden = profile.length === 0;
+status.hidden = minimalChrome;
+titleBlock.hidden = minimalChrome;
+hint.hidden = minimalChrome;
+actionPanel.hidden = minimalChrome || profile.length === 0;
 
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
@@ -65,6 +71,8 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const baseToneMappingExposure = mode === "immersive" ? 1.1 : 1.02;
 renderer.toneMappingExposure = baseToneMappingExposure;
 viewport.appendChild(renderer.domElement);
@@ -95,6 +103,16 @@ scene.add(ambientLight);
 
 const keyLight = new THREE.DirectionalLight(0xfff2d6, 2.2);
 keyLight.position.set(4.8, 7.2, 6.4);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(1024, 1024);
+keyLight.shadow.bias = -0.00018;
+keyLight.shadow.normalBias = 0.012;
+keyLight.shadow.camera.near = 1;
+keyLight.shadow.camera.far = 28;
+keyLight.shadow.camera.left = -9;
+keyLight.shadow.camera.right = 9;
+keyLight.shadow.camera.top = 9;
+keyLight.shadow.camera.bottom = -9;
 const baseKeyLightIntensity = keyLight.intensity;
 scene.add(keyLight);
 
@@ -115,7 +133,20 @@ const ground = new THREE.Mesh(
 );
 ground.rotation.x = -Math.PI / 2;
 ground.position.y = -1.35;
+ground.receiveShadow = true;
 scene.add(ground);
+
+const shadowCatcher = new THREE.Mesh(
+  new THREE.CircleGeometry(6.4, 72),
+  new THREE.ShadowMaterial({
+    transparent: true,
+    opacity: profile.length > 0 ? 0.22 : 0.18,
+  })
+);
+shadowCatcher.rotation.x = -Math.PI / 2;
+shadowCatcher.position.y = -1.33;
+shadowCatcher.receiveShadow = true;
+scene.add(shadowCatcher);
 
 const grid = new THREE.GridHelper(
   14,
@@ -159,6 +190,7 @@ const battleRuntime = createBattleRuntime({
     speed: parseNumberParam("speed"),
     weaponCount: parseNumberParam("weaponCount"),
     aircraftCount: parseNumberParam("aircraftCount"),
+    compareCount: parseNumberParam("compareCount"),
   },
   actionElements: {
     mode: actionModeBlock,
@@ -194,7 +226,24 @@ const scratchBakeMatrix = new THREE.Matrix4();
 const scratchEuler = new THREE.Euler();
 
 function setStatus(message) {
+  if (minimalChrome) {
+    status.hidden = true;
+    return;
+  }
+
+  status.hidden = false;
   status.textContent = message;
+}
+
+function applyShadowSettings(object) {
+  object.traverse((child) => {
+    if (!child.isMesh) {
+      return;
+    }
+
+    child.castShadow = true;
+    child.receiveShadow = true;
+  });
 }
 
 function resize() {
@@ -373,6 +422,7 @@ function createFallbackObject() {
       fallback.add(rotor);
     });
 
+    applyShadowSettings(fallback);
     return fallback;
   }
 
@@ -390,6 +440,7 @@ function createFallbackObject() {
     cannon.rotation.z = Math.PI / 2;
     cannon.position.set(0, 1.1, 2.25);
     fallback.add(base, turret, cannon);
+    applyShadowSettings(fallback);
     return fallback;
   }
 
@@ -405,6 +456,7 @@ function createFallbackObject() {
     tubeA.position.set(-0.5, 1.45, -0.4);
     tubeB.position.set(0.5, 1.45, -0.4);
     fallback.add(truck, launcher, tubeA, tubeB);
+    applyShadowSettings(fallback);
     return fallback;
   }
 
@@ -416,6 +468,7 @@ function createFallbackObject() {
     const bridge = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.1, 2.2), dark);
     bridge.position.set(0, 1, -1.2);
     fallback.add(hull, deck, bridge);
+    applyShadowSettings(fallback);
     return fallback;
   }
 
@@ -428,6 +481,7 @@ function createFallbackObject() {
   const tail = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 0.9), dark);
   tail.position.set(0, 0.18, -2.2);
   fallback.add(fuselage, wing, tail);
+  applyShadowSettings(fallback);
   return fallback;
 }
 
@@ -582,6 +636,7 @@ if (!modelPath) {
         modelId,
       });
       prepareObjectForViewing(currentObject, framingPreset, gltf.animations);
+      applyShadowSettings(currentObject);
       scene.add(currentObject);
       frameObject(currentObject);
       battleRuntime.attach(currentObject);

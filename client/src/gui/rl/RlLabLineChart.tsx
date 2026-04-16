@@ -1,4 +1,5 @@
 import { Box, Stack, Typography } from "@mui/material";
+import { RL_LAB_PALETTE } from "@/gui/rl/rlLabPalette";
 
 interface RlLabLineChartPoint {
   x: number;
@@ -26,20 +27,27 @@ export default function RlLabLineChart(props: Readonly<RlLabLineChartProps>) {
     return (
       <Box
         sx={{
-          border: "1px solid rgba(120, 133, 103, 0.28)",
+          border: `1px solid ${RL_LAB_PALETTE.surfaceStrongBorder}`,
           borderRadius: 3,
           p: 2,
-          background:
-            "linear-gradient(180deg, rgba(247,243,234,0.95) 0%, rgba(228,232,216,0.92) 100%)",
+          background: RL_LAB_PALETTE.surfaceBackground,
+          color: RL_LAB_PALETTE.text,
+          boxShadow: RL_LAB_PALETTE.shadow,
         }}
       >
         <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
           {props.title}
         </Typography>
-        <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
+        <Typography
+          variant="body2"
+          sx={{ color: RL_LAB_PALETTE.mutedText, mt: 0.5 }}
+        >
           {props.subtitle}
         </Typography>
-        <Typography variant="body2" sx={{ color: "text.secondary", mt: 3 }}>
+        <Typography
+          variant="body2"
+          sx={{ color: RL_LAB_PALETTE.subtleText, mt: 3 }}
+        >
           {props.emptyLabel}
         </Typography>
       </Box>
@@ -57,12 +65,9 @@ export default function RlLabLineChart(props: Readonly<RlLabLineChartProps>) {
 
   const pathData = props.points
     .map((point, index) => {
-      const x =
-        padding + ((point.x - minX) / xSpan) * (width - (padding * 2));
+      const x = padding + ((point.x - minX) / xSpan) * (width - padding * 2);
       const y =
-        height -
-        padding -
-        ((point.y - minY) / ySpan) * (height - (padding * 2));
+        height - padding - ((point.y - minY) / ySpan) * (height - padding * 2);
       return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
     })
     .join(" ");
@@ -72,26 +77,34 @@ export default function RlLabLineChart(props: Readonly<RlLabLineChartProps>) {
   return (
     <Box
       sx={{
-        border: "1px solid rgba(120, 133, 103, 0.28)",
+        border: `1px solid ${RL_LAB_PALETTE.surfaceStrongBorder}`,
         borderRadius: 3,
         p: 2,
-        background:
-          "linear-gradient(180deg, rgba(247,243,234,0.95) 0%, rgba(228,232,216,0.92) 100%)",
+        background: RL_LAB_PALETTE.surfaceBackground,
+        color: RL_LAB_PALETTE.text,
+        boxShadow: RL_LAB_PALETTE.shadow,
       }}
     >
       <Stack
-        direction="row"
-        sx={{ justifyContent: "space-between", alignItems: "baseline" }}
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1}
+        sx={{
+          justifyContent: "space-between",
+          alignItems: { xs: "flex-start", sm: "baseline" },
+        }}
       >
         <Box>
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
             {props.title}
           </Typography>
-          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+          <Typography variant="body2" sx={{ color: RL_LAB_PALETTE.mutedText }}>
             {props.subtitle}
           </Typography>
         </Box>
-        <Typography variant="body2" sx={{ color: props.color, fontWeight: 700 }}>
+        <Typography
+          variant="body2"
+          sx={{ color: props.color, fontWeight: 700 }}
+        >
           최신 {formatValue(latest?.y ?? 0)}
         </Typography>
       </Stack>
@@ -123,11 +136,11 @@ export default function RlLabLineChart(props: Readonly<RlLabLineChartProps>) {
         />
         {props.points.map((point, index) => {
           const x =
-            padding + ((point.x - minX) / xSpan) * (width - (padding * 2));
+            padding + ((point.x - minX) / xSpan) * (width - padding * 2);
           const y =
             height -
             padding -
-            ((point.y - minY) / ySpan) * (height - (padding * 2));
+            ((point.y - minY) / ySpan) * (height - padding * 2);
           return (
             <circle
               key={`${point.x}-${point.y}-${index}`}
@@ -141,8 +154,13 @@ export default function RlLabLineChart(props: Readonly<RlLabLineChartProps>) {
       </svg>
 
       <Stack
-        direction="row"
-        sx={{ justifyContent: "space-between", mt: 1, color: "text.secondary" }}
+        direction={{ xs: "column", sm: "row" }}
+        sx={{
+          justifyContent: "space-between",
+          mt: 1,
+          gap: 0.5,
+          color: RL_LAB_PALETTE.mutedText,
+        }}
       >
         <Typography variant="caption">min {formatValue(minY)}</Typography>
         <Typography variant="caption">max {formatValue(maxY)}</Typography>
@@ -150,4 +168,3 @@ export default function RlLabLineChart(props: Readonly<RlLabLineChartProps>) {
     </Box>
   );
 }
-

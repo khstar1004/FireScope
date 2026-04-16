@@ -31,8 +31,8 @@ import {
 import { Menu } from "@/gui/shared/ui/MuiComponents";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { colorPalette } from "@/utils/constants";
 import Weapon from "@/game/units/Weapon";
+import CombatStatusBar from "@/gui/map/feature/shared/CombatStatusBar";
 import WeaponTable from "@/gui/map/feature/shared/WeaponTable";
 import { Radar } from "@mui/icons-material";
 import { getDisplayName } from "@/utils/koreanCatalog";
@@ -556,7 +556,7 @@ export default function AircraftCard(props: Readonly<AircraftCardProps>) {
                     </IconButton>
                   </Tooltip>
                   <ExperienceLaunchButton
-                    tooltip={`${props.aircraft.name} 3D 체험`}
+                    tooltip={`${props.aircraft.name} 3D 시뮬레이터`}
                     onClick={_handleOpenAssetExperience}
                   />
                   <Tooltip title={`추가 작업`}>
@@ -602,7 +602,7 @@ export default function AircraftCard(props: Readonly<AircraftCardProps>) {
             <Stack
               direction={"column"}
               spacing={0}
-              sx={{ color: colorPalette.lightGray }}
+              sx={{ color: "rgba(221, 255, 250, 0.74)" }}
             >
               <Typography variant="caption">
                 기종: {getDisplayName(props.aircraft.className)}
@@ -615,6 +615,11 @@ export default function AircraftCard(props: Readonly<AircraftCardProps>) {
               </Typography>
             </Stack>
           }
+        />
+        <CombatStatusBar
+          currentHp={props.aircraft.currentHp}
+          maxHp={props.aircraft.maxHp}
+          defense={props.aircraft.defense}
         />
         <Divider
           orientation="horizontal"

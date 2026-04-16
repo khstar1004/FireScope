@@ -2,6 +2,13 @@ import json
 from typing import List, Optional
 from blade.units.Aircraft import Aircraft
 from blade.utils.colors import convert_color_name_to_side_color, SIDE_COLOR
+from blade.units.combat_stats import (
+    apply_damage,
+    get_health_fraction,
+    resolve_current_hp,
+    resolve_defense,
+    resolve_max_hp,
+)
 
 
 class Airbase:
@@ -17,6 +24,9 @@ class Airbase:
         altitude: float,
         side_color: str | SIDE_COLOR | None = None,
         aircraft: Optional[List[Aircraft]] = None,
+        max_hp: float | None = None,
+        current_hp: float | None = None,
+        defense: float | None = None,
     ):
         self.id = id
         self.name = name
@@ -27,6 +37,18 @@ class Airbase:
         self.altitude = altitude  # FT ASL -- currently default
         self.side_color = convert_color_name_to_side_color(side_color)
         self.aircraft = aircraft if aircraft is not None else []
+        self.max_hp = resolve_max_hp("airbase", max_hp)
+        self.current_hp = resolve_current_hp(current_hp, self.max_hp)
+        self.defense = resolve_defense("airbase", defense)
+
+    def get_health_fraction(self) -> float:
+        return get_health_fraction(self.current_hp, self.max_hp)
+
+    def apply_damage(self, raw_attack: float) -> float:
+        return apply_damage(self, raw_attack)
+
+    def is_destroyed(self) -> bool:
+        return self.current_hp <= 0
 
     def to_dict(self):
         return {
@@ -43,4 +65,7 @@ class Airbase:
                 else self.side_color
             ),
             "aircraft": [ac.to_dict() for ac in self.aircraft],
+            "max_hp": self.max_hp,
+            "current_hp": self.current_hp,
+            "defense": self.defense,
         }

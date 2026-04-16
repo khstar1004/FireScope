@@ -1,14 +1,16 @@
 :root {
-  --fs-bg: #d7ddc8;
-  --fs-surface: #e4e8d8;
-  --fs-surface-strong: #d2d9c0;
-  --fs-card: #f7f3ea;
-  --fs-border: #7f876c;
-  --fs-text: #1c2318;
-  --fs-text-soft: #4d5643;
-  --fs-accent: #5f7041;
-  --fs-accent-strong: #46552f;
-  --fs-sand: #ad9669;
+  --fs-bg: #02090d;
+  --fs-surface: #06161d;
+  --fs-surface-strong: #0b2128;
+  --fs-card: #102731;
+  --fs-border: #13454f;
+  --fs-border-strong: #2dd6c4;
+  --fs-text: #ddfffa;
+  --fs-text-soft: #84aca9;
+  --fs-accent: #35d9c6;
+  --fs-accent-strong: #1fb7a7;
+  --fs-accent-soft: #86fff2;
+  --fs-sand: #f0bb6d;
 }
 
 @font-face {

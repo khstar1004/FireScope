@@ -1,0 +1,67 @@
+{
+  "commander_progress_schema_version": 1,
+  "generated_at_utc": "2026-04-13T04:24:43.851440+00:00",
+  "run_label": "commander-ui-dryrun",
+  "run_dir": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\commander_runs\\commander-ui-dryrun",
+  "status": "completed",
+  "dry_run": true,
+  "candidate_count": 6,
+  "finished_candidate_count": 6,
+  "completed_candidate_count": 0,
+  "planned_candidate_count": 6,
+  "failed_candidate_count": 0,
+  "current_candidate_id": null,
+  "current_candidate_label": null,
+  "top_candidate": null,
+  "leaderboard": [],
+  "candidates": [
+    {
+      "candidate_id": "candidate-001",
+      "label": "blue-striker-1-blue-striker-2__d1.00_b+0_s0.0__hvt-red-airbase",
+      "status": "planned",
+      "selected_algorithm": null,
+      "evaluation_summary": null,
+      "error": null
+    },
+    {
+      "candidate_id": "candidate-002",
+      "label": "blue-striker-1-blue-striker-2__d1.00_b+30_s0.0__hvt-red-airbase",
+      "status": "planned",
+      "selected_algorithm": null,
+      "evaluation_summary": null,
+      "error": null
+    },
+    {
+      "candidate_id": "candidate-003",
+      "label": "blue-striker-1-blue-striker-2__d1.00_b-30_s0.0__hvt-red-airbase",
+      "status": "planned",
+      "selected_algorithm": null,
+      "evaluation_summary": null,
+      "error": null
+    },
+    {
+      "candidate_id": "candidate-004",
+      "label": "blue-striker-1-blue-striker-2__d0.70_b+0_s0.0__hvt-red-airbase",
+      "status": "planned",
+      "selected_algorithm": null,
+      "evaluation_summary": null,
+      "error": null
+    },
+    {
+      "candidate_id": "candidate-005",
+      "label": "blue-striker-1-blue-striker-2__d0.70_b+30_s0.0__hvt-red-airbase",
+      "status": "planned",
+      "selected_algorithm": null,
+      "evaluation_summary": null,
+      "error": null
+    },
+    {
+      "candidate_id": "candidate-006",
+      "label": "blue-striker-1-blue-striker-2__d0.70_b-30_s0.0__hvt-red-airbase",
+      "status": "planned",
+      "selected_algorithm": null,
+      "evaluation_summary": null,
+      "error": null
+    }
+  ]
+}

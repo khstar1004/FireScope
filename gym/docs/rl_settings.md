@@ -83,7 +83,7 @@
 `gym/scripts/fixed_target_strike/train.py`와 Vite dev server plugin의 기본값은 거의 동일합니다.
 
 - 지원 알고리즘: `ppo`, `a2c`, `sac`, `ddpg`, `td3`
-- RL Lab 프리셋: `smoke`, `quick`, `standard`, `extended`, `curriculum`
+- 강화학습 설계 프리셋: `smoke`, `quick`, `standard`, `extended`, `curriculum`
 
 - 알고리즘: `ppo`
 - `timesteps`: `4096`
@@ -122,9 +122,19 @@
 - `time_to_ready`
 - `tot_quality`
 
-seed별 편차가 크면 요약 JSON과 RL Lab UI에 경고가 표시됩니다.
+seed별 편차가 크면 요약 JSON과 강화학습 설계 UI에 경고가 표시됩니다.
 
 체크포인트는 observation/reward version 메타데이터를 함께 저장합니다. 현재 로드 정책은 `version mismatch면 차단`, `metadata가 없는 legacy 모델은 경고`입니다.
+
+다중 알고리즘 비교를 돌리면 학습 summary에 아래 자동화 산출물이 추가됩니다.
+
+- `leaderboard`: 선택 기준 순으로 정렬된 알고리즘 순위
+- `metric_leaders`: `overall`, `success_rate`, `mean_reward`, `survivability`, `weapon_efficiency`, `tot_quality`, `time_to_ready`별 선두 모델
+- `retained_models`: retained model manifest와 보관된 모델/리플레이 경로
+
+현재 summary schema version은 `3`이고, 비교 wrapper summary schema version은 `1`입니다.
+
+학습 결과 회귀 테스트용 benchmark suite는 [`gym/scripts/fixed_target_strike/benchmark_suite.py`](../scripts/fixed_target_strike/benchmark_suite.py)에서 제공합니다. 이 wrapper는 raw model path, `train_summary.json`, `comparison_summary.json`, `retained_models.json`을 모두 입력으로 받을 수 있고, preset별 suite case와 regression baseline 비교를 같은 포맷으로 저장합니다.
 
 ## 7. 실행 경로
 
@@ -150,7 +160,74 @@ python scripts/fixed_target_strike/train.py --curriculum-enabled --algorithms pp
 - `SAC`: 안정적인 연속행동 기준선
 - `TD3 / DDPG`: deterministic actor 비교 실험
 
-클라이언트의 RL Lab은 [`client/scripts/createRlDevServerPlugin.ts`](../../client/scripts/createRlDevServerPlugin.ts)에서 같은 train script를 호출합니다.
+클라이언트의 강화학습 설계는 [`client/scripts/createRlDevServerPlugin.ts`](../../client/scripts/createRlDevServerPlugin.ts)에서 같은 train script를 호출합니다.
+
+배치 비교와 표준 리포트가 필요하면 [`gym/scripts/fixed_target_strike/compare_algorithms.py`](../scripts/fixed_target_strike/compare_algorithms.py)를 사용합니다.
+
+예시:
+
+```bash
+cd gym
+python scripts/fixed_target_strike/compare_algorithms.py --preset full
+```
+
+커리큘럼 비교 예시:
+
+```bash
+cd gym
+python scripts/fixed_target_strike/compare_algorithms.py --preset curriculum --timesteps 8192
+```
+
+비교 wrapper는 기본적으로 아래 파일을 함께 남깁니다.
+
+- `comparison_summary.json`: 표준 비교 report
+- `leaderboard.csv`: 알고리즘별 핵심 지표 요약
+- `retained_models/retained_models.json`: 최고 성능 모델 보관 manifest
+
+benchmark suite 예시:
+
+```bash
+cd gym
+python scripts/fixed_target_strike/benchmark_suite.py \
+  --preset standard \
+  --source-path scripts/fixed_target_strike/comparisons/full-20260413T000000Z/comparison_summary.json
+```
+
+회귀 비교 예시:
+
+```bash
+cd gym
+python scripts/fixed_target_strike/benchmark_suite.py \
+  --preset standard \
+  --source-path scripts/fixed_target_strike/comparisons/full-20260413T000000Z/comparison_summary.json \
+  --baseline-benchmark-path scripts/fixed_target_strike/benchmarks/standard-prev/benchmark_suite.json \
+  --max-success-rate-drop 0.05 \
+  --max-mean-reward-drop 10 \
+  --max-time-to-ready-increase 5 \
+  --fail-on-regression
+```
+
+benchmark suite는 기본적으로 아래를 남깁니다.
+
+- `benchmark_suite.json`: candidate별 case 결과와 pass/fail
+- `*/full_evaluation.json`: case별 상세 multi-seed 평가 결과
+- `leaderboard`: full case 우선 순위 기반 candidate 정렬
+
+지휘관 레벨 자원·배치 탐색이 필요하면 [`gym/scripts/fixed_target_strike/commander_optimize.py`](../scripts/fixed_target_strike/commander_optimize.py)를 사용합니다.
+
+예시:
+
+```bash
+cd gym
+pip install -e .[gym]
+python scripts/fixed_target_strike/commander_optimize.py --preset quick
+```
+
+이 스크립트는 내부적으로 기존 `train.py`를 평가기로 사용해
+아군 자산 조합, 초기 접근 거리, 접근 축선, 편대 간격, 고가치 표적 우선순위를 바꿔가며
+승률이 높은 후보안을 찾습니다.
+의존성이 없으면 `--dry-run`으로 후보안 생성만 먼저 검증할 수 있습니다.
+로컬 UI에서는 강화학습 설계 안의 `지휘관 자원·배치 최적화` 패널에서도 같은 기능을 실행할 수 있습니다.
 
 ## 8. 핵심 파일
 
@@ -158,4 +235,5 @@ python scripts/fixed_target_strike/train.py --curriculum-enabled --algorithms pp
 - [`gym/blade/envs/fixed_target_strike_types.py`](../blade/envs/fixed_target_strike_types.py)
 - [`gym/blade/envs/fixed_target_strike_reward.py`](../blade/envs/fixed_target_strike_reward.py)
 - [`gym/scripts/fixed_target_strike/train.py`](../scripts/fixed_target_strike/train.py)
+- [`gym/scripts/fixed_target_strike/commander_optimize.py`](../scripts/fixed_target_strike/commander_optimize.py)
 - [`client/scripts/createRlDevServerPlugin.ts`](../../client/scripts/createRlDevServerPlugin.ts)

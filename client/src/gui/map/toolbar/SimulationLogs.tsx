@@ -53,7 +53,7 @@ const closeButtonStyle = {
 
 const cardHeaderStyle = {
   backgroundColor: colorPalette.white,
-  color: "black",
+  color: "var(--fs-text)",
 };
 
 const logsContainerStyle = {
@@ -293,7 +293,7 @@ export default function SimulationLogs(props: SimulationLogsProps) {
         [
         <Typography
           component="span"
-          sx={{ color: "black", fontSize: "inherit" }}
+          sx={{ color: "var(--fs-text)", fontSize: "inherit" }}
         >
           {unixToLocalTime(log.timestamp)}
         </Typography>

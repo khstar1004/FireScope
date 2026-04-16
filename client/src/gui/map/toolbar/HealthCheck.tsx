@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import CircularProgress from "@mui/material/CircularProgress";
 
@@ -38,27 +39,48 @@ export default function HealthCheck() {
     };
   }, [apiUrl]);
 
+  const statusTone =
+    !env || env === "standalone"
+      ? { label: "로컬 실행 중", color: "#86fff2" }
+      : status === "checking"
+        ? { label: "서버 확인 중", color: "#f0bb6d" }
+        : status === "connected"
+          ? { label: "서버 연결 완료", color: "#63efb4" }
+          : { label: "서버 연결 안 됨", color: "#ff948b" };
+
   let content;
   if (!env || env === "standalone") {
-    content = <Typography>로컬 실행 중</Typography>;
+    content = (
+      <Typography variant="caption" sx={{ fontWeight: 700 }}>
+        {statusTone.label}
+      </Typography>
+    );
   } else if (status === "checking") {
     content = (
-      <Box display="flex" alignItems="center" gap={1}>
-        <CircularProgress size={24} />
-        <Typography>서버 확인 중</Typography>
-      </Box>
+      <Stack direction="row" alignItems="center" gap={1}>
+        <CircularProgress size={15} />
+        <Typography variant="caption" sx={{ fontWeight: 700 }}>
+          {statusTone.label}
+        </Typography>
+      </Stack>
     );
-  } else if (status === "connected") {
-    content = <Typography>서버 연결 완료</Typography>;
   } else {
-    content = <Typography>서버 연결 안 됨</Typography>;
+    content = (
+      <Typography variant="caption" sx={{ fontWeight: 700 }}>
+        {statusTone.label}
+      </Typography>
+    );
   }
 
   return (
     <Box
       sx={{
-        color: "#1C2318",
-        padding: "0 1em",
+        px: 1.1,
+        py: 0.7,
+        borderRadius: 999,
+        border: "1px solid rgba(45, 214, 196, 0.18)",
+        backgroundColor: "rgba(255,255,255,0.04)",
+        color: statusTone.color,
       }}
     >
       {content}

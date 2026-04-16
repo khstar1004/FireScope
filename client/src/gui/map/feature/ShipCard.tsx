@@ -30,8 +30,8 @@ import {
   Typography,
 } from "@mui/material";
 import { Menu } from "@/gui/shared/ui/MuiComponents";
-import { colorPalette } from "@/utils/constants";
 import Weapon from "@/game/units/Weapon";
+import CombatStatusBar from "@/gui/map/feature/shared/CombatStatusBar";
 import WeaponTable from "@/gui/map/feature/shared/WeaponTable";
 import Aircraft from "@/game/units/Aircraft";
 import AircraftTable from "@/gui/map/feature/shared/AircraftTable";
@@ -471,7 +471,7 @@ export default function ShipCard(props: Readonly<ShipCardProps>) {
                     </IconButton>
                   </Tooltip>
                   <ExperienceLaunchButton
-                    tooltip={`${props.ship.name} 3D 체험`}
+                    tooltip={`${props.ship.name} 3D 시뮬레이터`}
                     onClick={_handleOpenAssetExperience}
                   />
                   <Tooltip title={`추가 작업`}>
@@ -517,7 +517,7 @@ export default function ShipCard(props: Readonly<ShipCardProps>) {
             <Stack
               direction={"column"}
               spacing={0}
-              sx={{ color: colorPalette.lightGray }}
+              sx={{ color: "rgba(221, 255, 250, 0.74)" }}
             >
               <Typography variant="caption">
                 함종: {getDisplayName(props.ship.className)}
@@ -530,6 +530,11 @@ export default function ShipCard(props: Readonly<ShipCardProps>) {
               </Typography>
             </Stack>
           }
+        />
+        <CombatStatusBar
+          currentHp={props.ship.currentHp}
+          maxHp={props.ship.maxHp}
+          defense={props.ship.defense}
         />
         <Divider
           orientation="horizontal"

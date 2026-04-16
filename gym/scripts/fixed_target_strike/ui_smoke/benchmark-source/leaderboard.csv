@@ -1,0 +1,3 @@
+rank,algorithm,selected,success_rate,mean_reward,mean_episode_steps,survivability,weapon_efficiency,time_to_ready,tot_quality,model_path
+1,td3,True,0.0,-3.8433345847847047,80.0,1.0,0.0,80.0,0.0,gym\scripts\fixed_target_strike\ui_smoke\benchmark-source\runs\td3\selected_model_td3.zip
+2,ppo,False,0.0,-28.00000000000004,80.0,1.0,0.0,80.0,0.0,gym\scripts\fixed_target_strike\ui_smoke\benchmark-source\runs\ppo\selected_model_ppo.zip

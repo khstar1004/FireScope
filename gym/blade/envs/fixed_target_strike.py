@@ -30,8 +30,8 @@ from blade.utils.utils import (
 
 FixedTarget = Facility | Airbase | Ship
 
-ALLY_FEATURE_COUNT = 10
-TARGET_FEATURE_COUNT = 8
+ALLY_FEATURE_COUNT = 11
+TARGET_FEATURE_COUNT = 10
 GLOBAL_FEATURE_COUNT = 8
 ALLY_ACTION_CONTROL_COUNT = 3
 MODE_HOLD_THRESHOLD = 1.0 / 3.0
@@ -195,6 +195,9 @@ class FixedTargetStrikeEnv(gym.Env):
         scenario = self.game.current_scenario
         pre_alive_ally_ids = self._get_alive_ally_ids()
         pre_alive_target_ids = self._get_alive_target_ids()
+        pre_target_health_fractions = self._get_target_health_fraction_snapshot(
+            pre_alive_target_ids
+        )
 
         launch_events, ally_target_selections = self._apply_actions(action_array)
 
@@ -202,12 +205,28 @@ class FixedTargetStrikeEnv(gym.Env):
 
         post_alive_ally_ids = self._get_alive_ally_ids()
         post_alive_target_ids = self._get_alive_target_ids()
+        post_target_health_fractions = self._get_target_health_fraction_snapshot(
+            post_alive_target_ids
+        )
 
         destroyed_target_ids = [
             target_id
             for target_id in pre_alive_target_ids
             if target_id not in post_alive_target_ids
         ]
+        target_damage_fractions = {
+            target_id: max(
+                pre_target_health_fractions.get(target_id, 0.0)
+                - post_target_health_fractions.get(target_id, 0.0),
+                0.0,
+            )
+            for target_id in pre_alive_target_ids
+        }
+        target_damage_fractions = {
+            target_id: damage_fraction
+            for target_id, damage_fraction in target_damage_fractions.items()
+            if damage_fraction > 0.0
+        }
         lost_ally_ids = [
             ally_id for ally_id in pre_alive_ally_ids if ally_id not in post_alive_ally_ids
         ]
@@ -275,6 +294,8 @@ class FixedTargetStrikeEnv(gym.Env):
             target_switch_count=target_switch_count,
             stagnation_count=selected_assignment_metrics["stagnation_count"],
             launch_events=launch_events,
+            target_damage_fractions=target_damage_fractions,
+            total_damage_fraction=float(sum(target_damage_fractions.values())),
             destroyed_target_ids=destroyed_target_ids,
             lost_ally_ids=lost_ally_ids,
             remaining_target_ids=post_alive_target_ids,
@@ -453,6 +474,7 @@ class FixedTargetStrikeEnv(gym.Env):
                     self._normalize_longitude(ally.longitude),
                     self._normalize_heading(ally.heading),
                     self._normalize_fraction(ally.current_fuel, ally.max_fuel),
+                    ally.get_health_fraction(),
                     self._normalize_fraction(
                         ally.get_total_weapon_quantity(), initial_weapon_total
                     ),
@@ -501,6 +523,8 @@ class FixedTargetStrikeEnv(gym.Env):
                     self._normalize_longitude(target.longitude),
                     self._normalize_target_type(target),
                     self._normalize_distance_nm(self._get_target_threat_radius_nm(target)),
+                    target.get_health_fraction(),
+                    self._normalize_defense(target.defense),
                     self._normalize_distance_nm(closest_ally_distance_nm),
                     self._normalize_eta_seconds(closest_launch_eta_seconds),
                     self._normalize_heading(bearing_from_ally_centroid),
@@ -1088,6 +1112,17 @@ class FixedTargetStrikeEnv(gym.Env):
             return "max_episode_steps"
         return "in_progress"
 
+    def _get_target_health_fraction_snapshot(
+        self, target_ids: list[str] | None = None
+    ) -> dict[str, float]:
+        snapshot: dict[str, float] = {}
+        candidate_ids = target_ids if target_ids is not None else self._target_catalog
+        for target_id in candidate_ids:
+            target = self.game.current_scenario.get_target(target_id)
+            if isinstance(target, (Facility, Airbase, Ship)):
+                snapshot[target_id] = float(target.get_health_fraction())
+        return snapshot
+
     def _get_alive_allies(self) -> list[Aircraft]:
         allies: list[Aircraft] = []
         for ally_id in self._ally_catalog:
@@ -1181,6 +1216,9 @@ class FixedTargetStrikeEnv(gym.Env):
         if denominator <= 0:
             return 0.0
         return float(np.clip(numerator / denominator, 0.0, 1.0))
+
+    def _normalize_defense(self, defense: float) -> float:
+        return float(np.clip(defense / 100.0, 0.0, 1.0))
 
     def _normalize_distance_nm(self, distance_nm: float) -> float:
         return float(

@@ -5,8 +5,8 @@ from typing import Any
 
 from blade.Scenario import Scenario
 
-OBSERVATION_VERSION = 3
-REWARD_VERSION = 3
+OBSERVATION_VERSION = 4
+REWARD_VERSION = 4
 
 
 @dataclass(slots=True)
@@ -88,6 +88,8 @@ class StepContext:
     target_switch_count: int = 0
     stagnation_count: int = 0
     launch_events: list[LaunchEvent] = field(default_factory=list)
+    target_damage_fractions: dict[str, float] = field(default_factory=dict)
+    total_damage_fraction: float = 0.0
     destroyed_target_ids: list[str] = field(default_factory=list)
     lost_ally_ids: list[str] = field(default_factory=list)
     remaining_target_ids: list[str] = field(default_factory=list)

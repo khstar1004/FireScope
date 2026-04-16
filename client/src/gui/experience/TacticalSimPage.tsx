@@ -206,7 +206,7 @@ export default function TacticalSimPage({
             전술 시뮬레이션 대상을 찾지 못했습니다.
           </Typography>
           <Typography sx={{ color: "rgba(255, 244, 244, 0.78)" }}>
-            소개 페이지에서 다시 `체험 시작`으로 진입해야 합니다.
+            소개 페이지에서 다시 `시뮬레이터 시작`으로 진입해야 합니다.
           </Typography>
           <Button
             variant="contained"

@@ -12,7 +12,7 @@ import {
   CardContent,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import { colorPalette } from "@/utils/constants";
+import { APP_DISPLAY_NAME, colorPalette } from "@/utils/constants";
 import LoginButton from "@/gui/map/toolbar/Login";
 
 interface WelcomePopoverProps {
@@ -30,7 +30,7 @@ const cardStyle = {
 
 const cardHeaderStyle = {
   backgroundColor: colorPalette.white,
-  color: "black",
+  color: "var(--fs-text)",
   height: "24px",
 };
 
@@ -80,15 +80,15 @@ const WelcomePopover: React.FC<WelcomePopoverProps> = ({ open, onClose }) => {
             }}
           >
             <Typography variant="h5" gutterBottom>
-              FireScope 시작
+              {APP_DISPLAY_NAME} 시작
             </Typography>
             <Typography gutterBottom>
               바로 시작을 누르거나 이 창을 닫으면 바로 편집할 수 있습니다.
               로그인하면 저장과 추가 지도 기능을 함께 쓸 수 있습니다.
             </Typography>
             <Typography gutterBottom>
-              FireScope는 ArmyAicenter가 만든 도구입니다. 민감한 정보나 기밀은
-              입력하지 마세요.
+              {APP_DISPLAY_NAME}는 ArmyAicenter가 만든 도구입니다. 민감한 정보나
+              기밀은 입력하지 마세요.
             </Typography>
           </Box>
 

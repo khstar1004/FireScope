@@ -1,0 +1,318 @@
+{
+  "commander_summary_schema_version": 1,
+  "generated_at_utc": "2026-04-13T02:31:35.586691+00:00",
+  "feature_catalog": [
+    {
+      "key": "tactical_execution_policy_learning",
+      "name": "\uc804\uc220 \uc2e4\ud589 \uc815\ucc45 \ud559\uc2b5",
+      "description": "\uc8fc\uc5b4\uc9c4 \uc790\uc0b0\uacfc \ucd08\uae30 \ubc30\uce58\uc5d0\uc11c \ud45c\uc801 \ud560\ub2f9, \uc811\uadfc, \ubc1c\uc0ac \ud0c0\uc774\ubc0d\uc744 \ud559\uc2b5\ud558\ub294 \uc804\uc220 \ub808\ubca8 RL."
+    },
+    {
+      "key": "commander_resource_deployment_optimization",
+      "name": "\uc9c0\ud718\uad00 \uc790\uc6d0\u00b7\ubc30\uce58 \ucd5c\uc801\ud654 \uc2dc\ubbac\ub808\uc774\uc158",
+      "description": "\uc8fc\uc5b4\uc9c4 \uc790\uc6d0 \uc81c\uc57d \uc548\uc5d0\uc11c \uc790\uc0b0 \uc120\ud0dd\uacfc \ucd08\uae30 \ubc30\uce58\ub97c \ubc14\uafd4\uac00\uba70 \uc2b9\ub960\uc774 \ub192\uc740 COA\ub97c \ucc3e\ub294 \uc791\uc804 \ub808\ubca8 \ud0d0\uc0c9\uae30."
+    }
+  ],
+  "run_label": "commander-smoke-dryrun",
+  "run_dir": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\commander_runs\\commander-smoke-dryrun",
+  "dry_run": true,
+  "implemented_scope": {
+    "resource_search": true,
+    "deployment_search": true,
+    "commander_priority_search": true,
+    "environment_search": false,
+    "notes": "\ud604\uc7ac\ub294 \uc790\uc0b0 \uc870\ud569, \ucd08\uae30 \ubc30\uce58, \uace0\uac00\uce58 \ud45c\uc801 \uc6b0\uc120\uc21c\uc704\ub97c \ubc14\uafb8\uba70 \ud0d0\uc0c9\ud569\ub2c8\ub2e4. \ub0a0\uc528\u00b7\uc13c\uc11c\u00b7\uc804\uc790\uc804 \ubcc0\ub3d9 \ud0d0\uc0c9\uc740 \uc544\uc9c1 \ud3ec\ud568\ub418\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4."
+  },
+  "selection_metric": "success_rate_then_survivability_then_faster_time_to_ready_then_weapon_efficiency_then_mean_reward_then_shorter_mean_episode_steps",
+  "base_training_request": {
+    "scenario_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\scen.json",
+    "algorithms": [
+      "ppo"
+    ],
+    "timesteps": 128,
+    "eval_episodes": 1,
+    "eval_seed_count": 1,
+    "curriculum_enabled": false,
+    "controllable_side_name": "BLUE",
+    "target_side_name": "RED",
+    "target_ids": [
+      "red-airbase",
+      "red-sam-site"
+    ],
+    "high_value_target_ids": [
+      "red-airbase"
+    ]
+  },
+  "search_space": {
+    "candidate_ally_pool": [
+      {
+        "id": "blue-striker-1",
+        "name": "Blue Striker 1",
+        "class_name": "F-15E Strike Eagle",
+        "weapon_count": 2
+      },
+      {
+        "id": "blue-striker-2",
+        "name": "Blue Striker 2",
+        "class_name": "F-15E Strike Eagle",
+        "weapon_count": 2
+      }
+    ],
+    "candidate_count": 6,
+    "high_value_target_search_mode": "fixed",
+    "distance_scales": [
+      0.7,
+      1.0
+    ],
+    "bearing_offsets_deg": [
+      -30.0,
+      0.0,
+      30.0
+    ],
+    "formation_spreads_nm": [
+      0.0
+    ]
+  },
+  "selected_candidate_id": null,
+  "selected_candidate_label": null,
+  "selected_candidate_artifacts": {
+    "scenario_path": null,
+    "model_path": null,
+    "model_metadata_path": null,
+    "eval_scenario_path": null,
+    "eval_recording_path": null
+  },
+  "top_candidates": [],
+  "leaderboard": [],
+  "metric_leaders": {
+    "overall": null,
+    "success_rate": null,
+    "survivability": null,
+    "weapon_efficiency": null,
+    "time_to_ready": null
+  },
+  "candidates": [
+    {
+      "candidate_id": "candidate-001",
+      "label": "blue-striker-1-blue-striker-2__d1.00_b+0_s0.0__hvt-red-airbase",
+      "status": "planned",
+      "decision": {
+        "ally_ids": [
+          "blue-striker-1",
+          "blue-striker-2"
+        ],
+        "target_ids": [
+          "red-airbase",
+          "red-sam-site"
+        ],
+        "high_value_target_ids": [
+          "red-airbase"
+        ],
+        "deployment": {
+          "distance_scale": 1.0,
+          "bearing_offset_deg": 0.0,
+          "formation_spread_nm": 0.0,
+          "key": "d1.00_b+0_s0.0"
+        }
+      },
+      "resource_summary": {
+        "ally_count": 2,
+        "ally_names": [
+          "Blue Striker 1",
+          "Blue Striker 2"
+        ],
+        "total_weapon_count": 4,
+        "candidate_pool_size": 2
+      },
+      "artifacts": {
+        "candidate_dir": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\commander_runs\\commander-smoke-dryrun\\candidate-001",
+        "scenario_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\commander_runs\\commander-smoke-dryrun\\candidate-001\\scenario.json"
+      }
+    },
+    {
+      "candidate_id": "candidate-002",
+      "label": "blue-striker-1-blue-striker-2__d1.00_b+30_s0.0__hvt-red-airbase",
+      "status": "planned",
+      "decision": {
+        "ally_ids": [
+          "blue-striker-1",
+          "blue-striker-2"
+        ],
+        "target_ids": [
+          "red-airbase",
+          "red-sam-site"
+        ],
+        "high_value_target_ids": [
+          "red-airbase"
+        ],
+        "deployment": {
+          "distance_scale": 1.0,
+          "bearing_offset_deg": 30.0,
+          "formation_spread_nm": 0.0,
+          "key": "d1.00_b+30_s0.0"
+        }
+      },
+      "resource_summary": {
+        "ally_count": 2,
+        "ally_names": [
+          "Blue Striker 1",
+          "Blue Striker 2"
+        ],
+        "total_weapon_count": 4,
+        "candidate_pool_size": 2
+      },
+      "artifacts": {
+        "candidate_dir": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\commander_runs\\commander-smoke-dryrun\\candidate-002",
+        "scenario_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\commander_runs\\commander-smoke-dryrun\\candidate-002\\scenario.json"
+      }
+    },
+    {
+      "candidate_id": "candidate-003",
+      "label": "blue-striker-1-blue-striker-2__d1.00_b-30_s0.0__hvt-red-airbase",
+      "status": "planned",
+      "decision": {
+        "ally_ids": [
+          "blue-striker-1",
+          "blue-striker-2"
+        ],
+        "target_ids": [
+          "red-airbase",
+          "red-sam-site"
+        ],
+        "high_value_target_ids": [
+          "red-airbase"
+        ],
+        "deployment": {
+          "distance_scale": 1.0,
+          "bearing_offset_deg": -30.0,
+          "formation_spread_nm": 0.0,
+          "key": "d1.00_b-30_s0.0"
+        }
+      },
+      "resource_summary": {
+        "ally_count": 2,
+        "ally_names": [
+          "Blue Striker 1",
+          "Blue Striker 2"
+        ],
+        "total_weapon_count": 4,
+        "candidate_pool_size": 2
+      },
+      "artifacts": {
+        "candidate_dir": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\commander_runs\\commander-smoke-dryrun\\candidate-003",
+        "scenario_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\commander_runs\\commander-smoke-dryrun\\candidate-003\\scenario.json"
+      }
+    },
+    {
+      "candidate_id": "candidate-004",
+      "label": "blue-striker-1-blue-striker-2__d0.70_b+0_s0.0__hvt-red-airbase",
+      "status": "planned",
+      "decision": {
+        "ally_ids": [
+          "blue-striker-1",
+          "blue-striker-2"
+        ],
+        "target_ids": [
+          "red-airbase",
+          "red-sam-site"
+        ],
+        "high_value_target_ids": [
+          "red-airbase"
+        ],
+        "deployment": {
+          "distance_scale": 0.7,
+          "bearing_offset_deg": 0.0,
+          "formation_spread_nm": 0.0,
+          "key": "d0.70_b+0_s0.0"
+        }
+      },
+      "resource_summary": {
+        "ally_count": 2,
+        "ally_names": [
+          "Blue Striker 1",
+          "Blue Striker 2"
+        ],
+        "total_weapon_count": 4,
+        "candidate_pool_size": 2
+      },
+      "artifacts": {
+        "candidate_dir": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\commander_runs\\commander-smoke-dryrun\\candidate-004",
+        "scenario_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\commander_runs\\commander-smoke-dryrun\\candidate-004\\scenario.json"
+      }
+    },
+    {
+      "candidate_id": "candidate-005",
+      "label": "blue-striker-1-blue-striker-2__d0.70_b+30_s0.0__hvt-red-airbase",
+      "status": "planned",
+      "decision": {
+        "ally_ids": [
+          "blue-striker-1",
+          "blue-striker-2"
+        ],
+        "target_ids": [
+          "red-airbase",
+          "red-sam-site"
+        ],
+        "high_value_target_ids": [
+          "red-airbase"
+        ],
+        "deployment": {
+          "distance_scale": 0.7,
+          "bearing_offset_deg": 30.0,
+          "formation_spread_nm": 0.0,
+          "key": "d0.70_b+30_s0.0"
+        }
+      },
+      "resource_summary": {
+        "ally_count": 2,
+        "ally_names": [
+          "Blue Striker 1",
+          "Blue Striker 2"
+        ],
+        "total_weapon_count": 4,
+        "candidate_pool_size": 2
+      },
+      "artifacts": {
+        "candidate_dir": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\commander_runs\\commander-smoke-dryrun\\candidate-005",
+        "scenario_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\commander_runs\\commander-smoke-dryrun\\candidate-005\\scenario.json"
+      }
+    },
+    {
+      "candidate_id": "candidate-006",
+      "label": "blue-striker-1-blue-striker-2__d0.70_b-30_s0.0__hvt-red-airbase",
+      "status": "planned",
+      "decision": {
+        "ally_ids": [
+          "blue-striker-1",
+          "blue-striker-2"
+        ],
+        "target_ids": [
+          "red-airbase",
+          "red-sam-site"
+        ],
+        "high_value_target_ids": [
+          "red-airbase"
+        ],
+        "deployment": {
+          "distance_scale": 0.7,
+          "bearing_offset_deg": -30.0,
+          "formation_spread_nm": 0.0,
+          "key": "d0.70_b-30_s0.0"
+        }
+      },
+      "resource_summary": {
+        "ally_count": 2,
+        "ally_names": [
+          "Blue Striker 1",
+          "Blue Striker 2"
+        ],
+        "total_weapon_count": 4,
+        "candidate_pool_size": 2
+      },
+      "artifacts": {
+        "candidate_dir": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\commander_runs\\commander-smoke-dryrun\\candidate-006",
+        "scenario_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\commander_runs\\commander-smoke-dryrun\\candidate-006\\scenario.json"
+      }
+    }
+  ]
+}

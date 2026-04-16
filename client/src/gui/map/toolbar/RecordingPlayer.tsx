@@ -59,12 +59,22 @@ export default function RecordingPlayer(props: Readonly<RecordingPlayerProps>) {
   };
 
   return (
-    <>
+    <Stack
+      spacing={1}
+      sx={{
+        mt: 0.75,
+        px: 1,
+        py: 1.15,
+        borderRadius: 2,
+        backgroundColor: "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(45, 214, 196, 0.14)",
+      }}
+    >
       <Stack
         direction="row"
         spacing={1}
         sx={{
-          padding: "0 2em",
+          padding: "0 1em",
         }}
       >
         <Slider
@@ -108,6 +118,6 @@ export default function RecordingPlayer(props: Readonly<RecordingPlayerProps>) {
           </IconButton>
         </Tooltip>
       </Stack>
-    </>
+    </Stack>
   );
 }

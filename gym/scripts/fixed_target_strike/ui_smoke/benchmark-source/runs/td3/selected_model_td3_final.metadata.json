@@ -1,0 +1,10 @@
+{
+  "metadata_version": 1,
+  "algorithm": "td3",
+  "model_path": "gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-source\\runs\\td3\\selected_model_td3_final.zip",
+  "scenario_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\scen.json",
+  "training_mode": "standard",
+  "observation_version": 3,
+  "reward_version": 3,
+  "curriculum_stage": null
+}

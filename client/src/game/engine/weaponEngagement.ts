@@ -9,13 +9,16 @@ import {
   getDistanceBetweenTwoPoints,
   getNextCoordinates,
   getTerminalCoordinatesFromDistanceAndBearing,
-  randomFloat,
   randomInt,
 } from "@/utils/mapFunctions";
 import { isTargetInsideSector } from "@/utils/threatCoverage";
 import Airbase from "@/game/units/Airbase";
 import Ship from "@/game/units/Ship";
-import SimulationLogs, { SimulationLogType } from "@/game/log/SimulationLogs";
+import SimulationLogs, {
+  SimulationLogType,
+  type SimulationLogEntityType,
+  type SimulationLogMetadata,
+} from "@/game/log/SimulationLogs";
 import {
   processKill,
   processWeaponIneffective,
@@ -30,10 +33,94 @@ export type Target =
   | Ship
   | ReferencePoint;
 type Detector = Facility | Ship | Aircraft;
+type LaunchPlatform = Aircraft | Facility | Ship;
 type LocatableTarget = {
   latitude: number;
   longitude: number;
 };
+
+function getEntityType(
+  entity: LaunchPlatform | Target | null | undefined
+): SimulationLogEntityType {
+  if (entity instanceof Aircraft) {
+    return "aircraft";
+  }
+  if (entity instanceof Facility) {
+    return "facility";
+  }
+  if (entity instanceof Ship) {
+    return "ship";
+  }
+  if (entity instanceof Airbase) {
+    return "airbase";
+  }
+  if (entity instanceof Weapon) {
+    return "weapon";
+  }
+  if (entity instanceof ReferencePoint) {
+    return "referencePoint";
+  }
+  return "unknown";
+}
+
+function resolveLauncher(currentScenario: Scenario, weapon: Weapon) {
+  return (
+    currentScenario.getAircraft(weapon.launcherId) ??
+    currentScenario.getFacility(weapon.launcherId) ??
+    currentScenario.getShip(weapon.launcherId) ??
+    null
+  );
+}
+
+function buildWeaponLogMetadata(
+  currentScenario: Scenario,
+  weapon: Weapon,
+  target: Target | null,
+  metadata: Partial<SimulationLogMetadata> = {}
+): SimulationLogMetadata {
+  const launcher = resolveLauncher(currentScenario, weapon);
+
+  return {
+    actorId: launcher?.id ?? weapon.launcherId,
+    actorName: launcher?.name ?? weapon.launcherId,
+    actorType: getEntityType(launcher),
+    launcherId: weapon.launcherId,
+    launcherName: launcher?.name ?? weapon.launcherId,
+    launcherType: getEntityType(launcher),
+    weaponId: weapon.id,
+    weaponName: weapon.name,
+    weaponClassName: weapon.className,
+    targetId: target?.id ?? weapon.targetId ?? undefined,
+    targetName: target?.name,
+    targetType: getEntityType(target),
+    ...metadata,
+  };
+}
+
+function buildLaunchLogMetadata(
+  origin: LaunchPlatform,
+  target: Target,
+  launchedWeapon: Weapon,
+  launchedWeaponQuantity: number,
+  metadata: Partial<SimulationLogMetadata> = {}
+): SimulationLogMetadata {
+  return {
+    actorId: origin.id,
+    actorName: origin.name,
+    actorType: getEntityType(origin),
+    launcherId: origin.id,
+    launcherName: origin.name,
+    launcherType: getEntityType(origin),
+    weaponId: launchedWeapon.id,
+    weaponName: launchedWeapon.name,
+    weaponClassName: launchedWeapon.className,
+    targetId: target.id,
+    targetName: target.name,
+    targetType: getEntityType(target),
+    quantity: launchedWeaponQuantity,
+    ...metadata,
+  };
+}
 
 export function isThreatDetected(
   threat: LocatableTarget,
@@ -102,64 +189,82 @@ export function weaponEndgame(
   currentScenario.weapons = currentScenario.weapons.filter(
     (currentScenarioWeapon) => currentScenarioWeapon.id !== weapon.id
   );
-  if (randomFloat() <= weapon.lethality) {
-    if (target instanceof ReferencePoint) {
-      simulationLogs.addLog(
-        weapon.sideId,
-        `${weapon.name}이(가) ${target.name} 지점에 착탄했습니다.`,
-        currentScenario.currentTime,
-        SimulationLogType.WEAPON_HIT
-      );
-      return true;
-    }
-
-    // Find original launcher of weapon, then calculate the score
-    const victor =
-      currentScenario.getAircraft(weapon.launcherId) ??
-      currentScenario.getFacility(weapon.launcherId) ??
-      currentScenario.getShip(weapon.launcherId) ??
-      null;
-
-    if (victor) {
-      processKill(currentScenario, victor, target);
-    }
-
-    if (target instanceof Aircraft) {
-      currentScenario.aircraft = currentScenario.aircraft.filter(
-        (currentScenarioAircraft) => currentScenarioAircraft.id !== target.id
-      );
-    } else if (target instanceof Facility) {
-      currentScenario.facilities = currentScenario.facilities.filter(
-        (currentScenarioFacility) => currentScenarioFacility.id !== target.id
-      );
-    } else if (target instanceof Weapon) {
-      currentScenario.weapons = currentScenario.weapons.filter(
-        (currentScenarioWeapon) => currentScenarioWeapon.id !== target.id
-      );
-    } else if (target instanceof Airbase) {
-      currentScenario.airbases = currentScenario.airbases.filter(
-        (currentScenarioAirbase) => currentScenarioAirbase.id !== target.id
-      );
-    } else if (target instanceof Ship) {
-      currentScenario.ships = currentScenario.ships.filter(
-        (currentScenarioShip) => currentScenarioShip.id !== target.id
-      );
-    }
+  if (target instanceof ReferencePoint) {
     simulationLogs.addLog(
       weapon.sideId,
-      `${weapon.name}이(가) ${target.name}을(를) 명중시켜 파괴했습니다.`,
+      `${weapon.name}이(가) ${target.name} 지점에 착탄했습니다.`,
       currentScenario.currentTime,
-      SimulationLogType.WEAPON_HIT
+      SimulationLogType.WEAPON_HIT,
+      buildWeaponLogMetadata(currentScenario, weapon, target, {
+        objectiveId: target.id,
+        objectiveName: target.name,
+        resultTag: "impact",
+      })
     );
     return true;
   }
+
+  const damage = target.applyDamage(weapon.attackPower);
+  if (!target.isDestroyed()) {
+    simulationLogs.addLog(
+      weapon.sideId,
+      `${weapon.name}이(가) ${target.name}을(를) 명중해 피해 ${damage.toFixed(
+        0
+      )}를 입혔습니다. 잔여 HP ${target.currentHp.toFixed(
+        0
+      )}/${target.maxHp.toFixed(0)}.`,
+      currentScenario.currentTime,
+      SimulationLogType.WEAPON_HIT,
+      buildWeaponLogMetadata(currentScenario, weapon, target, {
+        resultTag: "damage",
+        damage,
+        remainingHp: target.currentHp,
+        maxHp: target.maxHp,
+      })
+    );
+    return false;
+  }
+
+  const victor = resolveLauncher(currentScenario, weapon);
+  const scoreDelta = processKill(currentScenario, victor, target);
+
+  if (target instanceof Aircraft) {
+    currentScenario.aircraft = currentScenario.aircraft.filter(
+      (currentScenarioAircraft) => currentScenarioAircraft.id !== target.id
+    );
+  } else if (target instanceof Facility) {
+    currentScenario.facilities = currentScenario.facilities.filter(
+      (currentScenarioFacility) => currentScenarioFacility.id !== target.id
+    );
+  } else if (target instanceof Weapon) {
+    currentScenario.weapons = currentScenario.weapons.filter(
+      (currentScenarioWeapon) => currentScenarioWeapon.id !== target.id
+    );
+  } else if (target instanceof Airbase) {
+    currentScenario.airbases = currentScenario.airbases.filter(
+      (currentScenarioAirbase) => currentScenarioAirbase.id !== target.id
+    );
+  } else if (target instanceof Ship) {
+    currentScenario.ships = currentScenario.ships.filter(
+      (currentScenarioShip) => currentScenarioShip.id !== target.id
+    );
+  }
   simulationLogs.addLog(
     weapon.sideId,
-    `${weapon.name}이(가) ${target.name}을(를) 빗맞혔습니다.`,
+    `${weapon.name}이(가) ${target.name}을(를) 명중시켜 파괴했습니다.`,
     currentScenario.currentTime,
-    SimulationLogType.WEAPON_MISSED
+    SimulationLogType.WEAPON_HIT,
+    buildWeaponLogMetadata(currentScenario, weapon, target, {
+      resultTag: "kill",
+      damage,
+      remainingHp: 0,
+      maxHp: target.maxHp,
+      actorScoreDelta: scoreDelta.actorDelta,
+      targetScoreDelta: scoreDelta.targetDelta,
+      scoreNetDelta: scoreDelta.netDelta,
+    })
   );
-  return false;
+  return true;
 }
 
 export function launchWeapon(
@@ -213,8 +318,12 @@ export function launchWeapon(
       sideColor: launchedWeapon.sideColor,
       targetId: target.id,
       lethality: launchedWeapon.lethality,
+      attackPower: launchedWeapon.attackPower,
       maxQuantity: 1,
       currentQuantity: 1,
+      maxHp: launchedWeapon.maxHp,
+      currentHp: launchedWeapon.maxHp,
+      defense: launchedWeapon.defense,
     });
     currentScenario.weapons.push(newWeapon);
   }
@@ -223,7 +332,16 @@ export function launchWeapon(
     origin.sideId,
     `${origin.name}이(가) ${target.name}을(를) 향해 ${launchedWeapon.name} ${launchedWeaponQuantity}발을 발사했습니다.`,
     currentScenario.currentTime,
-    SimulationLogType.WEAPON_LAUNCHED
+    SimulationLogType.WEAPON_LAUNCHED,
+    buildLaunchLogMetadata(
+      origin,
+      target,
+      launchedWeapon,
+      launchedWeaponQuantity,
+      {
+        resultTag: "launch",
+      }
+    )
   );
   if (launchedWeapon.currentQuantity < 1) {
     origin.weapons = origin.weapons.filter(
@@ -233,7 +351,8 @@ export function launchWeapon(
       origin.sideId,
       `${origin.name}의 ${launchedWeapon.name} 재고가 모두 소진되었습니다.`,
       currentScenario.currentTime,
-      SimulationLogType.WEAPON_EXPENDED
+      SimulationLogType.WEAPON_EXPENDED,
+      buildLaunchLogMetadata(origin, target, launchedWeapon, 0)
     );
   }
 }
@@ -286,7 +405,7 @@ export function weaponEngagement(
       // if weapon runs out of fuel too
       if (weapon.currentFuel <= 0) {
         // only when weapon fuel run out, the weapon is ineffectively fired, does not apply to target does not exist rn
-        processWeaponIneffective(currentScenario, weapon);
+        const scoreDelta = processWeaponIneffective(currentScenario, weapon);
         currentScenario.weapons = currentScenario.weapons.filter(
           (currentScenarioWeapon) => currentScenarioWeapon.id !== weapon.id
         );
@@ -294,7 +413,12 @@ export function weaponEngagement(
           weapon.sideId,
           `${weapon.name}의 연료가 소진되어 더 이상 작동하지 않습니다.`,
           currentScenario.currentTime,
-          SimulationLogType.WEAPON_CRASHED
+          SimulationLogType.WEAPON_CRASHED,
+          buildWeaponLogMetadata(currentScenario, weapon, target, {
+            resultTag: "fuel_loss",
+            actorScoreDelta: scoreDelta.actorDelta,
+            scoreNetDelta: scoreDelta.netDelta,
+          })
         );
       }
     }
@@ -306,7 +430,10 @@ export function weaponEngagement(
       weapon.sideId,
       `${weapon.name}이(가) 표적을 상실해 더 이상 작동하지 않습니다.`,
       currentScenario.currentTime,
-      SimulationLogType.WEAPON_CRASHED
+      SimulationLogType.WEAPON_CRASHED,
+      buildWeaponLogMetadata(currentScenario, weapon, null, {
+        resultTag: "target_lost",
+      })
     );
   }
 }

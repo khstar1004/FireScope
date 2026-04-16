@@ -44,27 +44,32 @@ export default function LayerVisibilityPanelToggle(
     border: 1,
     backgroundColor: colorPalette.white,
     color: colorPalette.black,
-    borderRadius: "3px",
-    borderColor: "black",
-    borderWidth: "2px",
+    borderRadius: "10px",
+    borderColor: colorPalette.darkGray,
+    borderWidth: "1px",
     justifyContent: "left",
     textTransform: "none",
     fontStyle: "normal",
     lineHeight: "normal",
+    width: "100%",
+    boxShadow: "0 14px 28px rgba(0, 0, 0, 0.18)",
   };
   const openLayersPanelButtonStyle = {
     border: `1px solid ${colorPalette.darkGray}`,
-    backgroundColor: colorPalette.lightGray,
-    borderRadius: "4px",
+    backgroundColor: "rgba(7, 23, 29, 0.92)",
+    backdropFilter: "blur(16px)",
+    borderRadius: "10px",
+    boxShadow: "0 14px 28px rgba(0, 0, 0, 0.24)",
     position: "absolute",
     top: "4em",
     right: "0.2em",
   };
   const layersVisibilityPanelStyle = {
     backgroundColor: colorPalette.lightGray,
-    borderRadius: "4px",
-    borderColor: "black",
-    borderWidth: "2px",
+    borderRadius: "12px",
+    borderColor: colorPalette.darkGray,
+    borderWidth: "1px",
+    boxShadow: "0 18px 36px rgba(0, 0, 0, 0.28)",
   };
 
   const layerVisibilityPanelCard = (

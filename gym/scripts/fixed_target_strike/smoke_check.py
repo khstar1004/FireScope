@@ -24,6 +24,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 SCENARIO_PATH = SCRIPT_DIR / "scen.json"
 REQUIRED_REWARD_KEYS = {
     "kill_reward",
+    "damage_progress_reward",
     "tot_bonus",
     "eta_progress_bonus",
     "ready_to_fire_bonus",

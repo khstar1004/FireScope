@@ -116,7 +116,7 @@ function createConfig(
     case "ground": {
       return {
         profile,
-        modeTitle: "지상 기동 실전체험",
+        modeTitle: "지상 기동 시뮬레이터",
         modeDescription:
           "실제 지도 위에서 전차 전술 축을 따라 이동하고, 표적을 추적하며 직사 화력을 운용합니다.",
         unitLabel: "Tracked Armor",
@@ -215,7 +215,7 @@ function createConfig(
     case "fires": {
       return {
         profile,
-        modeTitle: "화력 운용 실전체험",
+        modeTitle: "화력 운용 시뮬레이터",
         modeDescription:
           "포대/런처를 실제 지도에 놓고 목표 구역에 사격을 집중합니다.",
         unitLabel: "Fires Battery",
@@ -317,7 +317,7 @@ function createConfig(
     case "defense": {
       return {
         profile,
-        modeTitle: "방공 실전체험",
+        modeTitle: "방공 시뮬레이터",
         modeDescription:
           "레이더 추적 범위 안에서 공중 위협을 찾아 요격하고 방어 구역을 유지합니다.",
         unitLabel: "Air Defense Battery",
@@ -418,7 +418,7 @@ function createConfig(
     case "maritime": {
       return {
         profile,
-        modeTitle: "해상 전력 실전체험",
+        modeTitle: "해상 전력 시뮬레이터",
         modeDescription:
           "실제 해역 지도 위에서 함정을 기동시키고 표적을 포착해 해상 화력을 운용합니다.",
         unitLabel: "Surface Combatant",
@@ -521,7 +521,7 @@ function createConfig(
     case "base": {
       return {
         profile,
-        modeTitle: "기지 운용 실전체험",
+        modeTitle: "기지 운용 시뮬레이터",
         modeDescription:
           "기지 경보 상황에서 선택한 대응 자산을 출격시키고, 포인트 디펜스와 함께 외곽 위협을 처리합니다.",
         unitLabel: "Base Response Cell",

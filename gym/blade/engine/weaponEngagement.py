@@ -13,7 +13,6 @@ from blade.utils.utils import (
     get_distance_between_two_points,
     get_next_coordinates,
     get_terminal_coordinates_from_distance_and_bearing,
-    random_float,
     random_int,
 )
 
@@ -53,7 +52,8 @@ def check_target_tracked_by_count(current_scenario: Scenario, target: Target) ->
 
 def weapon_endgame(current_scenario: Scenario, weapon: Weapon, target: Target) -> bool:
     current_scenario.weapons.remove(weapon)
-    if random_float(0, 1) <= weapon.lethality:
+    target.apply_damage(weapon.attack_power)
+    if target.is_destroyed():
         if isinstance(target, Aircraft):
             current_scenario.aircraft.remove(target)
         elif isinstance(target, Ship):
@@ -114,8 +114,12 @@ def launch_weapon(
             side_color=launched_weapon.side_color,
             target_id=target.id,
             lethality=launched_weapon.lethality,
+            attack_power=launched_weapon.attack_power,
             current_quantity=1,
             max_quantity=1,
+            max_hp=launched_weapon.max_hp,
+            current_hp=launched_weapon.max_hp,
+            defense=launched_weapon.defense,
         )
         current_scenario.weapons.append(new_weapon)
     launched_weapon.current_quantity -= launched_weapon_quantity

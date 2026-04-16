@@ -47,6 +47,7 @@ type GameEntity =
   | Weapon
   | Ship
   | ReferencePoint;
+type CombatEntity = Aircraft | Facility | Airbase | Weapon | Ship;
 type GameEntityWithRange = Aircraft | Facility | Ship;
 type GameEntityWithRoute = Aircraft | Ship;
 
@@ -60,6 +61,10 @@ export type FacilityPlacementPreview = {
   detectionArcDegrees: number;
 };
 
+function isCombatEntity(entity: GameEntity): entity is CombatEntity {
+  return !(entity instanceof ReferencePoint);
+}
+
 const defaultProjection = getProjection(DEFAULT_OL_PROJECTION_CODE);
 
 function buildProjectedSectorCoordinates(
@@ -72,7 +77,10 @@ function buildProjectedSectorCoordinates(
   const boundedArc = Math.max(Math.min(sectorArcDegrees, 359.9), 1);
   const halfArc = boundedArc / 2;
   const startBearing = sectorCenterDegrees - halfArc;
-  const totalSegments = Math.max(6, Math.ceil((boundedArc / 360) * segmentCount));
+  const totalSegments = Math.max(
+    6,
+    Math.ceil((boundedArc / 360) * segmentCount)
+  );
   const [centerX, centerY] = center;
   const coordinates = [[centerX, centerY]];
 
@@ -153,6 +161,9 @@ export class AircraftLayer extends FeatureLayer {
       selected: aircraft.selected,
       sideId: aircraft.sideId,
       sideColor: aircraft.sideColor,
+      currentHp: aircraft.currentHp,
+      maxHp: aircraft.maxHp,
+      healthRatio: aircraft.getHealthFraction(),
     });
     aircraftFeature.setId(aircraft.id);
     return aircraftFeature;
@@ -214,6 +225,9 @@ export class FacilityLayer extends FeatureLayer {
       heading: facility.heading,
       sideId: facility.sideId,
       sideColor: facility.sideColor,
+      currentHp: facility.currentHp,
+      maxHp: facility.maxHp,
+      healthRatio: facility.getHealthFraction(),
     });
   }
 
@@ -246,6 +260,9 @@ export class AirbasesLayer extends FeatureLayer {
       name: airbase.name,
       sideId: airbase.sideId,
       sideColor: airbase.sideColor,
+      currentHp: airbase.currentHp,
+      maxHp: airbase.maxHp,
+      healthRatio: airbase.getHealthFraction(),
     });
   }
 
@@ -477,6 +494,9 @@ export class WeaponLayer extends FeatureLayer {
       heading: weapon.heading,
       sideId: weapon.sideId,
       sideColor: weapon.sideColor,
+      currentHp: weapon.currentHp,
+      maxHp: weapon.maxHp,
+      healthRatio: weapon.getHealthFraction(),
     });
   }
 
@@ -521,6 +541,16 @@ export class FeatureLabelLayer extends FeatureLayer {
         fromLonLat([entity.longitude, entity.latitude], this.projection)
       ),
       sideColor: entity.sideColor,
+      selected:
+        (entity instanceof Aircraft || entity instanceof Ship) &&
+        entity.selected,
+      ...(isCombatEntity(entity)
+        ? {
+            currentHp: entity.currentHp,
+            maxHp: entity.maxHp,
+            healthRatio: entity.getHealthFraction(),
+          }
+        : {}),
     });
   }
 
@@ -576,6 +606,9 @@ export class ShipLayer extends FeatureLayer {
       selected: ship.selected,
       sideId: ship.sideId,
       sideColor: ship.sideColor,
+      currentHp: ship.currentHp,
+      maxHp: ship.maxHp,
+      healthRatio: ship.getHealthFraction(),
     });
     shipFeature.setId(ship.id);
     return shipFeature;

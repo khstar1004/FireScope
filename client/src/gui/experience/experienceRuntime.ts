@@ -124,7 +124,7 @@ export function getExperienceTheme(
         labDescription:
           "전차와 장갑 플랫폼을 크게 띄우고 차체 실루엣, 포탑 축, 기동 감각을 먼저 확인합니다.",
         opsOverline: "FIRE SCOPE GROUND ASSAULT OPS",
-        opsTitle: "지상 기동 3D 실전체험",
+        opsTitle: "지상 기동 3D 시뮬레이터",
         opsDescription:
           "실제 지도 위에서 장갑 플랫폼을 움직이며 도로 축을 따라 전진하고, 주포와 유도탄을 발사합니다.",
         accentColor: "#b5e37a",
@@ -139,7 +139,7 @@ export function getExperienceTheme(
         labDescription:
           "포대와 런처를 발사 자세로 보여주고, 살보 방향과 탄도 감각을 미리 확인합니다.",
         opsOverline: "FIRE SCOPE FIRES STRIKE OPS",
-        opsTitle: "화력 운용 3D 실전체험",
+        opsTitle: "화력 운용 3D 시뮬레이터",
         opsDescription:
           "실제 3D 지도에서 포대/런처를 배치하고 발사부터 비행, 착탄 폭발까지 한 흐름으로 추적합니다.",
         accentColor: "#ffb15a",
@@ -154,7 +154,7 @@ export function getExperienceTheme(
         labDescription:
           "레이더, 발사기, 요격 범위를 레이더 콘솔처럼 정리해 계층 방어 구조를 먼저 이해합니다.",
         opsOverline: "FIRE SCOPE AIR DEFENSE OPS",
-        opsTitle: "방공 체계 3D 실전체험",
+        opsTitle: "방공 체계 3D 시뮬레이터",
         opsDescription:
           "실제 3D 지도에서 표적을 탐지하고, 우선순위를 정해 요격 미사일을 발사한 뒤 공중 폭발까지 추적합니다.",
         accentColor: "#72f0d0",
@@ -169,7 +169,7 @@ export function getExperienceTheme(
         labDescription:
           "함정 실루엣과 갑판 구성을 비교하고, 선택한 함형을 그대로 해역 임무에 넘깁니다.",
         opsOverline: "FIRE SCOPE MARITIME TASK OPS",
-        opsTitle: "함정 운용 3D 실전체험",
+        opsTitle: "함정 운용 3D 시뮬레이터",
         opsDescription:
           "실제 3D 해역에서 함정을 기동하고, 함포와 대함 미사일의 발사-비행-착탄 흐름을 모두 봅니다.",
         accentColor: "#74d8ff",
@@ -184,7 +184,7 @@ export function getExperienceTheme(
         labDescription:
           "전투기, 헬기, 드론을 기지 디오라마 위에 올려두고 어떤 자산을 즉응 출격시킬지 고릅니다.",
         opsOverline: "FIRE SCOPE BASE RESPONSE OPS",
-        opsTitle: "기지 운용 3D 실전체험",
+        opsTitle: "기지 운용 3D 시뮬레이터",
         opsDescription:
           "실제 3D 지도 위 기지 구역에서 선택한 항공 자산을 출격시키고, 주변 위협에 대한 방호와 대응 흐름을 지휘합니다.",
         accentColor: "#d9c181",
@@ -201,7 +201,7 @@ function buildMissionSummary(
   option: ImmersiveOperationOption
 ) {
   const modelLabel = model?.label ?? asset.name;
-  return `${option.note}. 쇼룸에서 고른 ${modelLabel} 모델을 그대로 들고 들어가 실제 지도 위에서 임무 흐름을 체험합니다.`;
+  return `${option.note}. 쇼룸에서 고른 ${modelLabel} 모델을 그대로 들고 들어가 실제 지도 위에서 임무 흐름을 시뮬레이션합니다.`;
 }
 
 export function buildExperienceMissionPlan(
@@ -283,7 +283,7 @@ export function buildExperienceMissionPlan(
               "잔여 표적을 정리하고 원하는 각도에서 차량을 운용합니다.",
             instruction: "필요 시 상공 카메라로 돌아가 전장을 다시 훑습니다.",
             cameraCue: "topdown",
-            successHint: "모든 표적 제거 후 자유 체험으로 전환됩니다.",
+            successHint: "모든 표적 제거 후 자유 시뮬레이션으로 전환됩니다.",
           },
         ],
         outcomes: [
@@ -366,7 +366,7 @@ export function buildExperienceMissionPlan(
           },
         ],
         outcomes: [
-          "발사체 추적과 폭발 연출이 체험의 중심이어야 합니다.",
+          "발사체 추적과 폭발 연출이 시뮬레이션의 중심이어야 합니다.",
           "포대 지휘형 UI가 지상 기동 페이지와 명확히 달라야 합니다.",
           "목표 구역과 착탄 반경이 한눈에 읽혀야 합니다.",
         ],
@@ -404,7 +404,7 @@ export function buildExperienceMissionPlan(
         coreLoops: [
           "먼저 탐지하고, 그 다음 표적 우선순위를 정한 뒤 발사 여부를 결정합니다.",
           "요격탄 발사 후에는 미사일 추적 카메라가 공중 요격 순간까지 이어집니다.",
-          "보호 구역을 뚫린 위협 없이 유지하는 것이 체험의 핵심입니다.",
+          "보호 구역을 뚫린 위협 없이 유지하는 것이 시뮬레이션의 핵심입니다.",
         ],
         missionPhases: [
           {
@@ -439,7 +439,7 @@ export function buildExperienceMissionPlan(
             objective: "남은 위협을 정리하고 보호 구역을 지켜냅니다.",
             instruction: "레이더 탑뷰로 복귀해 잔여 위협을 점검합니다.",
             cameraCue: "radar",
-            successHint: "모든 웨이브를 막으면 자유 방공 체험으로 넘어갑니다.",
+            successHint: "모든 웨이브를 막으면 자유 방공 시뮬레이션으로 넘어갑니다.",
           },
         ],
         outcomes: [

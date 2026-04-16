@@ -18,6 +18,7 @@ from blade.units.Airbase import Airbase
 class FixedTargetStrikeRewardConfig:
     kill_base: float = 100.0
     high_value_target_bonus: float = 50.0
+    damage_progress_weight: float = 30.0
     tot_weight: float = 40.0
     tot_tau_seconds: float = 8.0
     eta_progress_weight: float = 6.0
@@ -56,6 +57,9 @@ def compute_fixed_target_strike_reward(
             destroyed_high_value_target_ids.append(target_id)
         kill_reward += target_reward
 
+    damage_progress_reward = (
+        float(step_context.total_damage_fraction) * reward_config.damage_progress_weight
+    )
     tot_bonus, tot_groups = _compute_tot_bonus(step_context.launch_events, reward_config)
     eta_progress_ratio = _compute_eta_progress_ratio(step_context)
     eta_progress_bonus = reward_config.eta_progress_weight * eta_progress_ratio
@@ -83,6 +87,7 @@ def compute_fixed_target_strike_reward(
 
     total_reward = (
         kill_reward
+        + damage_progress_reward
         + tot_bonus
         + eta_progress_bonus
         + ready_to_fire_bonus
@@ -97,6 +102,7 @@ def compute_fixed_target_strike_reward(
 
     breakdown = {
         "kill_reward": float(kill_reward),
+        "damage_progress_reward": float(damage_progress_reward),
         "tot_bonus": float(tot_bonus),
         "eta_progress_bonus": float(eta_progress_bonus),
         "ready_to_fire_bonus": float(ready_to_fire_bonus),
@@ -108,6 +114,11 @@ def compute_fixed_target_strike_reward(
         "loss_cost": float(loss_cost),
         "terminal_bonus": float(terminal_bonus),
         "destroyed_target_ids": list(step_context.destroyed_target_ids),
+        "target_damage_fractions": {
+            target_id: float(damage_fraction)
+            for target_id, damage_fraction in step_context.target_damage_fractions.items()
+        },
+        "total_damage_fraction": float(step_context.total_damage_fraction),
         "destroyed_high_value_target_ids": destroyed_high_value_target_ids,
         "lost_ally_ids": list(step_context.lost_ally_ids),
         "threat_exposure_count": int(step_context.threat_exposure_count),

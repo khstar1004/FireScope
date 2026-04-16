@@ -61,7 +61,7 @@ export default function SideSelect(props: Readonly<SideSelectProps>) {
         borderRadius: 1.5,
         fontSize: 14,
         backgroundColor: COLOR_PALETTE.WHITE,
-        boxShadow: "0 3px 10px rgba(28, 35, 24, 0.05)",
+        boxShadow: "0 14px 28px rgba(0, 0, 0, 0.22)",
         "& .MuiOutlinedInput-notchedOutline": {
           borderColor: COLOR_PALETTE.DARK_GRAY,
         },

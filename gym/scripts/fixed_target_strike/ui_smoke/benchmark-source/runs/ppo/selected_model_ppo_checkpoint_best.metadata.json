@@ -1,0 +1,10 @@
+{
+  "metadata_version": 1,
+  "algorithm": "ppo",
+  "model_path": "gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-source\\runs\\ppo\\selected_model_ppo_checkpoint_best.zip",
+  "scenario_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\scen.json",
+  "training_mode": "standard",
+  "observation_version": 3,
+  "reward_version": 3,
+  "curriculum_stage": null
+}

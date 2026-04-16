@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { initCesium, setCameraToPlane, getViewer, setControlsEnabled, setRenderOptimization, updateKoreaMapMode } from './world/cesiumWorld';
+import { initCesium, setCameraToPlane, getViewer, setControlsEnabled, setRenderOptimization } from './world/cesiumWorld';
 import { PlanePhysics } from './plane/planePhysics';
 import { PlaneController } from './plane/planeController';
 import { DronePhysics } from './plane/dronePhysics';
@@ -11,6 +11,7 @@ import { HUD } from './ui/hud';
 import { JetFlame } from './plane/jetFlame';
 import { WeaponSystem } from './systems/weaponSystem';
 import { FocusFireSystem } from './systems/focusFireSystem';
+import { BattleSpectatorSystem } from './systems/battleSpectatorSystem';
 import { soundManager } from './utils/soundManager';
 import { NPCSystem } from './systems/npcSystem';
 import { DialogueSystem } from './systems/dialogueSystem';
@@ -60,6 +61,8 @@ const requestedLon = Number(urlParams.get('lon') ?? runtimeConfig.initialPositio
 const requestedLat = Number(urlParams.get('lat') ?? runtimeConfig.initialPosition?.lat);
 const requestedAlt = Number(urlParams.get('alt') ?? runtimeConfig.initialPosition?.alt);
 const requestedCraft = urlParams.get('craft') ?? runtimeConfig.craft ?? 'jet';
+const battleSpectatorEnabledFromQuery =
+	urlParams.get('battleSpectator') === '1';
 let gameSettings = readPersistedSettings();
 const hasVWorldRuntimeConfig = Boolean((runtimeConfig.vworldApiKey ?? '').trim());
 const hasMapTilerRuntimeConfig = Boolean((runtimeConfig.mapTilerApiKey ?? '').trim());
@@ -316,6 +319,7 @@ let hud = new HUD();
 let npcSystem;
 let weaponSystem;
 let focusFireSystem;
+let battleSpectatorSystem;
 let dialogueSystem = new DialogueSystem(activeCraft);
 
 let fps = 0;
@@ -740,8 +744,50 @@ function triggerFocusFireMainBarrage(bursts = null, focusState = focusFireRuntim
 	}
 }
 
+function ensureBattleSpectatorSystem() {
+	const activeViewer = getViewer();
+	if (!activeViewer || battleSpectatorSystem) {
+		return;
+	}
+
+	battleSpectatorSystem = new BattleSpectatorSystem(activeViewer);
+}
+
+function isBattleSpectatorOverlayMode() {
+	return battleSpectatorEnabledFromQuery || Boolean(battleSpectatorRuntimeState);
+}
+
+function applyBattleSpectatorRuntime(payload) {
+	if (!payload || typeof payload !== 'object') {
+		battleSpectatorRuntimeState = null;
+		if (battleSpectatorSystem) {
+			battleSpectatorSystem.clear();
+		}
+		return;
+	}
+
+	battleSpectatorRuntimeState = payload;
+	ensureBattleSpectatorSystem();
+	if (battleSpectatorSystem) {
+		battleSpectatorSystem.setState(battleSpectatorRuntimeState);
+	}
+}
+
 window.addEventListener('message', (event) => {
 	if (event.origin !== window.location.origin || !event.data) {
+		return;
+	}
+
+	if (event.data.type === 'firescope-battle-spectator-update') {
+		applyBattleSpectatorRuntime(event.data.payload);
+		return;
+	}
+
+	if (event.data.type === 'firescope-battle-spectator-command') {
+		ensureBattleSpectatorSystem();
+		if (battleSpectatorSystem) {
+			battleSpectatorSystem.applyCommand(event.data.payload);
+		}
 		return;
 	}
 
@@ -1059,6 +1105,8 @@ const loadingText = document.getElementById('loadingText');
 
 let focusFireRuntimeState = null;
 let pendingFocusFireBarrage = null;
+let battleSpectatorRuntimeState = null;
+let battleSpectatorSessionStarted = false;
 
 const loadingStatus = {
 	audio: false,
@@ -1068,11 +1116,145 @@ const loadingStatus = {
 	failed: false
 };
 
+function prepareBattleSpectatorUi() {
+	mainMenu.classList.add('hidden');
+	spawnInstruction.classList.add('hidden');
+	confirmSpawnBtn.classList.add('hidden');
+	uiContainer.classList.add('hidden');
+	threeContainer.classList.add('hidden');
+	pauseMenu.classList.add('hidden');
+	crashMenu.classList.add('hidden');
+
+	const weaponsHud = document.getElementById('weapons-hud');
+	if (weaponsHud) {
+		weaponsHud.classList.add('hidden');
+	}
+}
+
+function resolveBattleSpectatorOverview() {
+	const latestEventWithPoint = Array.isArray(battleSpectatorRuntimeState?.recentEvents)
+		? [...battleSpectatorRuntimeState.recentEvents]
+			.reverse()
+			.find(
+				(event) =>
+					Number.isFinite(Number(event?.focusLongitude)) &&
+					Number.isFinite(Number(event?.focusLatitude))
+			)
+		: null;
+
+	const longitude = Number.isFinite(Number(latestEventWithPoint?.focusLongitude))
+		? Number(latestEventWithPoint.focusLongitude)
+		: Number.isFinite(Number(battleSpectatorRuntimeState?.centerLongitude))
+			? Number(battleSpectatorRuntimeState.centerLongitude)
+			: state.lon;
+	const latitude = Number.isFinite(Number(latestEventWithPoint?.focusLatitude))
+		? Number(latestEventWithPoint.focusLatitude)
+		: Number.isFinite(Number(battleSpectatorRuntimeState?.centerLatitude))
+			? Number(battleSpectatorRuntimeState.centerLatitude)
+			: state.lat;
+	const altitudeMeters = Math.max(
+		2600,
+		Number(latestEventWithPoint?.focusAltitudeMeters) || 0,
+		state.alt + activeCraft.spawnAltitudeOffset + 1600
+	);
+
+	return {
+		longitude,
+		latitude,
+		altitudeMeters
+	};
+}
+
+function startBattleSpectatorSession() {
+	if (!isBattleSpectatorOverlayMode() || battleSpectatorSessionStarted) {
+		return;
+	}
+
+	const viewer = getViewer();
+	if (!viewer) {
+		return;
+	}
+
+	battleSpectatorSessionStarted = true;
+	closeAllModals();
+	prepareBattleSpectatorUi();
+	stopAllFlyingSounds(0.2);
+	setControlsEnabled(true);
+	setRenderOptimization(false);
+	cameraDirector.killCam = null;
+	state.cameraModeLabel = '관전자';
+	state.renderPlayerOverlay = false;
+	currentState = States.TRANSITIONING;
+
+	const overview = resolveBattleSpectatorOverview();
+
+	viewer.camera.flyTo({
+		destination: Cesium.Cartesian3.fromDegrees(
+			overview.longitude,
+			overview.latitude,
+			overview.altitudeMeters
+		),
+		orientation: {
+			heading: Cesium.Math.toRadians(0),
+			pitch: Cesium.Math.toRadians(-55),
+			roll: 0
+		},
+		duration: 1.2,
+		easingFunction: Cesium.EasingFunction.QUADRATIC_IN_OUT,
+		complete: () => {
+			currentState = States.FLYING;
+			if (loadingIndicator) {
+				loadingIndicator.classList.add('hidden');
+			}
+		}
+	});
+}
+
 function updateLoadingUI() {
 	if (!loadingIndicator || !loadingText || !startBtn) return;
 
 	if (currentState === States.FLYING || currentState === States.TRANSITIONING) {
 		loadingIndicator.classList.add('hidden');
+		return;
+	}
+
+	if (isBattleSpectatorOverlayMode()) {
+		const isSpectatorStartupReady = loadingStatus.cesium && loadingStatus.globe;
+		const hasSpectatorStartupFailure =
+			loadingStatus.failed && (!loadingStatus.cesium || !loadingStatus.globe);
+
+		if (hasSpectatorStartupFailure) {
+			loadingText.textContent =
+				"전장 관전자 3D를 불러오지 못했습니다. 새로고침해 주세요.";
+			loadingText.style.color = "#f00";
+			startBtn.disabled = true;
+			startBtn.style.pointerEvents = "none";
+			loadingIndicator.classList.remove('hidden');
+			return;
+		}
+
+		if (isSpectatorStartupReady) {
+			loadingText.textContent = "전장 관전자 시점을 여는 중...";
+			loadingText.style.color = "";
+			startBtn.disabled = true;
+			startBtn.style.pointerEvents = "none";
+			loadingIndicator.classList.remove('hidden');
+
+			if (!battleSpectatorSessionStarted) {
+				window.setTimeout(() => {
+					startBattleSpectatorSession();
+				}, 0);
+			}
+			return;
+		}
+
+		loadingText.textContent = !loadingStatus.cesium
+			? "위성 지도를 불러오는 중..."
+			: "지형 표면을 불러오는 중...";
+		loadingText.style.color = "";
+		startBtn.disabled = true;
+		startBtn.style.pointerEvents = "none";
+		loadingIndicator.classList.remove('hidden');
 		return;
 	}
 
@@ -1106,7 +1288,12 @@ function updateLoadingUI() {
 		loadingIndicator.classList.add('hidden');
 		startBtn.disabled = false;
 		startBtn.style.pointerEvents = "auto";
+		loadingText.style.color = "";
 	}
+}
+
+if (isBattleSpectatorOverlayMode()) {
+	prepareBattleSpectatorUi();
 }
 
 async function initSounds() {
@@ -1264,6 +1451,12 @@ function initThree() {
 
 function update(dt) {
 	if (currentState !== States.FLYING) return;
+
+	if (isBattleSpectatorOverlayMode()) {
+		state.cameraModeLabel = '관전자';
+		state.renderPlayerOverlay = false;
+		return;
+	}
 
 	const input = controller.update();
 	const physicsResult = physics.update(input, dt);
@@ -1640,6 +1833,9 @@ function animate() {
 		if (focusFireSystem) {
 			focusFireSystem.update(currentState === States.FLYING ? dt : 0);
 		}
+		if (battleSpectatorSystem) {
+			battleSpectatorSystem.update(currentState === States.FLYING ? dt : dt * 0.3);
+		}
 		updateFocusFireMainControl();
 
 		if (mixer) mixer.update(dt);
@@ -1855,6 +2051,7 @@ function enterSpawnPicking(useVignette = true) {
 			resultsContainer.style.display = 'none';
 		}
 
+		setRenderOptimization(false);
 		setControlsEnabled(true);
 
 		if (spawnMarker) {
@@ -1920,7 +2117,6 @@ function setupSpawnPicker() {
 			state.lon = lon;
 			state.lat = lat;
 			setSpawnAltitude(cartographic);
-			updateKoreaMapMode(lon, lat);
 
 			instructionText.textContent = '위치 정보를 확인하는 중...';
 
@@ -2025,7 +2221,6 @@ function setupLocationSearch() {
 							state.lon = lon;
 							state.lat = lat;
 							state.alt = activeCraft.spawnAltitudeOffset;
-							updateKoreaMapMode(lon, lat);
 
 							const cartographic = Cesium.Cartographic.fromDegrees(lon, lat);
 							Cesium.sampleTerrainMostDetailed(viewer.terrainProvider, [cartographic])
@@ -2208,6 +2403,10 @@ window.addEventListener('keydown', (e) => {
 	}
 
 	if (key === 'escape' || key === 'p') {
+		if (isBattleSpectatorOverlayMode()) {
+			return;
+		}
+
 		if (currentState === States.FLYING) {
 			currentState = States.PAUSED;
 			if (dialogueSystem) dialogueSystem.pause();
@@ -2234,11 +2433,19 @@ window.addEventListener('keydown', (e) => {
 	}
 
 	if (key === 'z' && currentState === States.FLYING) {
+		if (isBattleSpectatorOverlayMode()) {
+			return;
+		}
+
 		if (dialogueSystem) dialogueSystem.skip();
 	}
 });
 
 document.addEventListener('visibilitychange', () => {
+	if (isBattleSpectatorOverlayMode()) {
+		return;
+	}
+
 	if (document.hidden && currentState === States.FLYING) {
 		currentState = States.PAUSED;
 		if (dialogueSystem) dialogueSystem.pause();
@@ -2251,6 +2458,10 @@ document.addEventListener('visibilitychange', () => {
 });
 
 window.addEventListener('blur', () => {
+	if (isBattleSpectatorOverlayMode()) {
+		return;
+	}
+
 	if (currentState === States.FLYING) {
 		currentState = States.PAUSED;
 		if (dialogueSystem) dialogueSystem.pause();
@@ -2270,6 +2481,52 @@ const resumeAudio = () => {
 window.addEventListener('pointerdown', resumeAudio);
 window.addEventListener('keydown', resumeAudio);
 
+let flightSystemsInitialized = false;
+
+function initializeFlightSystems(viewer) {
+	if (flightSystemsInitialized) {
+		return;
+	}
+
+	flightSystemsInitialized = true;
+	initThree();
+	npcSystem = activeCraft.enableNpc
+		? new NPCSystem(viewer, scene, new GLTFLoader())
+		: null;
+	focusFireSystem = new FocusFireSystem(viewer);
+	if (battleSpectatorEnabledFromQuery || battleSpectatorRuntimeState) {
+		battleSpectatorSystem = new BattleSpectatorSystem(viewer);
+	}
+	if (focusFireRuntimeState) {
+		focusFireSystem.setState(focusFireRuntimeState);
+	}
+	if (battleSpectatorSystem && battleSpectatorRuntimeState) {
+		battleSpectatorSystem.setState(battleSpectatorRuntimeState);
+	}
+	if (pendingFocusFireBarrage) {
+		if (pendingFocusFireBarrage.focusState) {
+			focusFireSystem.setState(pendingFocusFireBarrage.focusState);
+		}
+		focusFireSystem.triggerBarrage({
+			bursts: pendingFocusFireBarrage.bursts,
+			launchPlatforms: pendingFocusFireBarrage.focusState?.launchPlatforms,
+			weaponTracks: pendingFocusFireBarrage.focusState?.weaponTracks
+		});
+		pendingFocusFireBarrage = null;
+	}
+}
+
+function scheduleFlightSystemsInitialization(viewer) {
+	const initialize = () => initializeFlightSystems(viewer);
+
+	if (typeof window.requestIdleCallback === 'function') {
+		window.requestIdleCallback(initialize, { timeout: 1500 });
+		return;
+	}
+
+	window.setTimeout(initialize, 0);
+}
+
 async function bootstrap() {
 	const viewer = await initCesium({
 		lon: state.lon,
@@ -2278,8 +2535,6 @@ async function bootstrap() {
 			? Math.max(state.alt + activeCraft.spawnAltitudeOffset, 2800)
 			: Math.max(state.alt + activeCraft.spawnAltitudeOffset, 12000)
 	});
-
-	updateKoreaMapMode(state.lon, state.lat);
 
 	loadingStatus.cesium = true;
 	updateLoadingUI();
@@ -2326,25 +2581,7 @@ async function bootstrap() {
 		}
 	};
 
-	initThree();
-	npcSystem = activeCraft.enableNpc
-		? new NPCSystem(viewer, scene, new GLTFLoader())
-		: null;
-	focusFireSystem = new FocusFireSystem(viewer);
-	if (focusFireRuntimeState) {
-		focusFireSystem.setState(focusFireRuntimeState);
-	}
-	if (pendingFocusFireBarrage) {
-		if (pendingFocusFireBarrage.focusState) {
-			focusFireSystem.setState(pendingFocusFireBarrage.focusState);
-		}
-		focusFireSystem.triggerBarrage({
-			bursts: pendingFocusFireBarrage.bursts,
-			launchPlatforms: pendingFocusFireBarrage.focusState?.launchPlatforms,
-			weaponTracks: pendingFocusFireBarrage.focusState?.weaponTracks
-		});
-		pendingFocusFireBarrage = null;
-	}
+	scheduleFlightSystemsInitialization(viewer);
 	setupSpawnPicker();
 	setupLocationSearch();
 	loadSettings();
@@ -2354,6 +2591,7 @@ async function bootstrap() {
 	threeContainer.classList.add('hidden');
 
 	updateLoadingUI();
+	setRenderOptimization(true);
 	animate();
 
 	window.addEventListener('resize', () => {

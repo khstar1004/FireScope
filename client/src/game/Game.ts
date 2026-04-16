@@ -15,6 +15,7 @@ import {
   isThreatDetected,
   checkTargetTrackedByCount,
   launchWeapon,
+  type Target,
   platformCanEngageTarget,
   routeAircraftToStrikePosition,
   weaponEngagement,
@@ -25,6 +26,7 @@ import Side from "@/game/Side";
 import Weapon from "@/game/units/Weapon";
 import {
   GAME_SPEED_DELAY_MS,
+  KILOMETERS_TO_NAUTICAL_MILES,
   NAUTICAL_MILES_TO_METERS,
 } from "@/utils/constants";
 import Ship from "@/game/units/Ship";
@@ -42,6 +44,7 @@ import {
   getFacilityDetectionArcDegrees,
   getFacilityThreatRange,
 } from "@/game/db/facilityThreatProfiles";
+import { getDisplayName } from "@/utils/koreanCatalog";
 import {
   processFuelExhaustion,
   processPatrolMissionSuccess,
@@ -54,10 +57,20 @@ import {
   isSupportAircraftClassName,
   isTankFacilityClassName,
 } from "@/utils/assetTypeCatalog";
+import { isTargetInsideSector } from "@/utils/threatCoverage";
+import {
+  FOCUS_FIRE_RERANKER_FEATURE_NAMES,
+  type FocusFireRerankerModel,
+  createDefaultFocusFireRerankerModel,
+  getFocusFireRerankerConfidence,
+  rerankFocusFireCandidates,
+  trainFocusFireRerankerFromTelemetry,
+} from "@/game/focusFireReranker";
 
 const MAX_HISTORY_SIZE = 20;
 const FOCUS_FIRE_OBJECTIVE_NAME = "집중포격 목표";
 const FOCUS_FIRE_CAPTURE_RADIUS_KM = 1.6;
+const FOCUS_FIRE_TARGET_ANALYSIS_RADIUS_KM = 5;
 const FEET_TO_METERS = 0.3048;
 
 interface IMapView {
@@ -81,6 +94,7 @@ export interface FocusFireOperation {
   active: boolean;
   sideId: string | null;
   objectiveReferencePointId: string | null;
+  desiredEffectOverride: number | null;
   captureProgress: number;
   launchedPlatformIds: string[];
 }
@@ -113,12 +127,234 @@ export interface FocusFireWeaponTrack {
   variant: FocusFireLaunchVariant;
 }
 
+export type BattleSpectatorEntityType =
+  | "aircraft"
+  | "facility"
+  | "airbase"
+  | "ship";
+
+export interface BattleSpectatorUnitSnapshot {
+  id: string;
+  name: string;
+  className: string;
+  entityType: BattleSpectatorEntityType;
+  sideId: string;
+  sideName: string;
+  sideColor: string;
+  latitude: number;
+  longitude: number;
+  altitudeMeters: number;
+  headingDeg: number;
+  speedKts: number;
+  weaponCount: number;
+  hpFraction: number;
+  selected: boolean;
+  targetId?: string;
+}
+
+export interface BattleSpectatorWeaponSnapshot {
+  id: string;
+  name: string;
+  className: string;
+  launcherId: string;
+  launcherName: string;
+  sideId: string;
+  sideName: string;
+  sideColor: string;
+  latitude: number;
+  longitude: number;
+  altitudeMeters: number;
+  launchLatitude: number;
+  launchLongitude: number;
+  launchAltitudeMeters: number;
+  headingDeg: number;
+  speedKts: number;
+  targetId: string | null;
+  targetLatitude?: number;
+  targetLongitude?: number;
+}
+
+export interface BattleSpectatorEvent {
+  id: string;
+  timestamp: number;
+  sideId: string;
+  sideName: string;
+  sideColor: string;
+  type: SimulationLogType;
+  message: string;
+  actorId?: string;
+  actorName?: string;
+  sourceLatitude?: number;
+  sourceLongitude?: number;
+  sourceAltitudeMeters?: number;
+  targetId?: string;
+  targetName?: string;
+  targetLatitude?: number;
+  targetLongitude?: number;
+  targetAltitudeMeters?: number;
+  weaponId?: string;
+  focusLatitude?: number;
+  focusLongitude?: number;
+  focusAltitudeMeters?: number;
+  resultTag?: string;
+}
+
+export interface BattleSpectatorSnapshot {
+  scenarioId: string;
+  scenarioName: string;
+  currentTime: number;
+  currentSideId: string;
+  currentSideName: string;
+  centerLongitude: number | null;
+  centerLatitude: number | null;
+  units: BattleSpectatorUnitSnapshot[];
+  weapons: BattleSpectatorWeaponSnapshot[];
+  recentEvents: BattleSpectatorEvent[];
+  stats: {
+    aircraft: number;
+    facilities: number;
+    airbases: number;
+    ships: number;
+    weaponsInFlight: number;
+    sides: number;
+  };
+}
+
+interface FocusFireAnalysisTarget {
+  id: string;
+  name: string;
+  sideId: string;
+  className: string;
+  latitude: number;
+  longitude: number;
+  entityType: "aircraft" | "facility" | "airbase" | "ship";
+  weaponInventory: number;
+}
+
+interface FocusFireObjectivePoint {
+  name: string | null;
+  latitude: number;
+  longitude: number;
+}
+
+interface FocusFireRecommendationAccumulator {
+  weaponName: string;
+  shotCount: number;
+  expectedStrikeEffect: number;
+  weightedDistanceSum: number;
+  minimumDistanceKm: number;
+  maximumDistanceKm: number;
+  immediateLaunchReadyCount: number;
+  repositionRequiredCount: number;
+  blockedLauncherCount: number;
+  totalTimeToFireSeconds: number;
+  maximumTimeToFireSeconds: number | null;
+  threatExposureScore: number;
+  firingPlan: FocusFireFiringPlanItem[];
+}
+
+export interface FocusFireTargetComposition {
+  label: string;
+  count: number;
+  combatPower: number;
+}
+
+export type FocusFireExecutionState = "ready" | "reposition" | "blocked";
+
+export interface FocusFireFiringPlanItem {
+  launcherId: string;
+  launcherName: string;
+  launcherClassName: string;
+  variant: FocusFireLaunchVariant;
+  ammoType: string;
+  weaponName: string;
+  shotCount: number;
+  distanceKm: number;
+  expectedStrikeEffect: number;
+  executionState: FocusFireExecutionState;
+  estimatedTimeToFireSeconds: number | null;
+  threatExposureScore: number;
+}
+
+export interface FocusFireRecommendationOption {
+  label: string;
+  ammoType: string | null;
+  weaponName: string | null;
+  shotCount: number;
+  launcherCount: number;
+  firingUnitNames: string[];
+  averageDistanceKm: number | null;
+  minimumDistanceKm: number | null;
+  maximumDistanceKm: number | null;
+  immediateLaunchReadyCount: number;
+  repositionRequiredCount: number;
+  blockedLauncherCount: number;
+  averageTimeToFireSeconds: number | null;
+  maximumTimeToFireSeconds: number | null;
+  threatExposureScore: number;
+  executionReadinessLabel: string;
+  expectedStrikeEffect: number;
+  heuristicScore: number;
+  rerankerScore: number | null;
+  suitabilityScore: number;
+  rationale: string;
+  firingPlan: FocusFireFiringPlanItem[];
+}
+
+export interface FocusFireRecommendation {
+  recommendedOptionLabel: string | null;
+  primaryTargetId: string | null;
+  priorityScore: number;
+  missionKind: string;
+  targetPriorityLabel: string;
+  desiredEffectLabel: string;
+  ammoType: string | null;
+  desiredEffectEstimated: number;
+  desiredEffectIsUserDefined: boolean;
+  firingUnitNames: string[];
+  targetName: string | null;
+  targetSideNames: string[];
+  targetCount: number;
+  targetComposition: FocusFireTargetComposition[];
+  targetLatitude: number | null;
+  targetLongitude: number | null;
+  targetCombatPower: number;
+  desiredEffect: number;
+  targetDistanceKm: number | null;
+  minimumTargetDistanceKm: number | null;
+  maximumTargetDistanceKm: number | null;
+  immediateLaunchReadyCount: number;
+  repositionRequiredCount: number;
+  blockedLauncherCount: number;
+  averageTimeToFireSeconds: number | null;
+  threatExposureScore: number;
+  launchReadinessLabel: string;
+  selectionModelLabel: string;
+  rerankerApplied: boolean;
+  weaponName: string | null;
+  shotCount: number;
+  expectedStrikeEffect: number;
+  options: FocusFireRecommendationOption[];
+}
+
+export interface FireRecommendationTargetPriority {
+  targetId: string;
+  targetName: string;
+  targetClassName: string;
+  targetSideId: string;
+  targetSideName: string;
+  priorityRank: number;
+  priorityScore: number;
+  recommendation: FocusFireRecommendation;
+}
+
 export interface FocusFireSummary {
   enabled: boolean;
   active: boolean;
   objectiveName: string | null;
   objectiveLatitude: number | null;
   objectiveLongitude: number | null;
+  desiredEffectOverride: number | null;
   captureProgress: number;
   artilleryCount: number;
   armorCount: number;
@@ -127,10 +363,514 @@ export interface FocusFireSummary {
   statusLabel: string;
   launchPlatforms: FocusFireLaunchPlatform[];
   weaponTracks: FocusFireWeaponTrack[];
+  recommendation: FocusFireRecommendation | null;
+}
+
+export interface FocusFireRecommendationTelemetryOption {
+  label: string;
+  weaponName: string | null;
+  ammoType: string | null;
+  suitabilityScore: number;
+  heuristicScore: number;
+  rerankerScore: number | null;
+  executionReadinessLabel: string;
+  averageTimeToFireSeconds: number | null;
+  threatExposureScore: number;
+  shotCount: number;
+  expectedStrikeEffect: number;
+  launcherCount: number;
+  immediateLaunchReadyCount: number;
+  repositionRequiredCount: number;
+  blockedLauncherCount: number;
+  averageDistanceKm: number | null;
+}
+
+export interface FocusFireRecommendationTelemetryRecord {
+  id: string;
+  timestamp: number;
+  sideId: string | null;
+  objectiveName: string | null;
+  objectiveLatitude: number | null;
+  objectiveLongitude: number | null;
+  primaryTargetId: string | null;
+  targetName: string | null;
+  missionKind: string | null;
+  recommendedOptionLabel: string | null;
+  weaponName: string | null;
+  ammoType: string | null;
+  priorityScore: number | null;
+  desiredEffect: number | null;
+  expectedStrikeEffect: number | null;
+  launchReadinessLabel: string | null;
+  averageTimeToFireSeconds: number | null;
+  threatExposureScore: number | null;
+  selectionModelLabel: string | null;
+  rerankerApplied: boolean;
+  immediateLaunchReadyCount: number;
+  repositionRequiredCount: number;
+  blockedLauncherCount: number;
+  rerankerModelVersion: number | null;
+  feedbackOptionLabel: string | null;
+  feedbackCapturedAt: number | null;
+  options: FocusFireRecommendationTelemetryOption[];
 }
 
 function getFocusFireAltitudeMeters(altitudeFeet: number) {
   return Math.max(0, altitudeFeet) * FEET_TO_METERS;
+}
+
+function roundToDigits(value: number, digits: number) {
+  const multiplier = 10 ** digits;
+  return Math.round(value * multiplier) / multiplier;
+}
+
+function getFocusFireTravelTimeSeconds(distanceKm: number, speedKts: number) {
+  if (!(distanceKm > 0) || !(speedKts > 0)) {
+    return 0;
+  }
+
+  return ((distanceKm * KILOMETERS_TO_NAUTICAL_MILES) / speedKts) * 3600;
+}
+
+function getFocusFireExecutionReadinessLabel(
+  immediateLaunchReadyCount: number,
+  repositionRequiredCount: number,
+  blockedLauncherCount: number
+) {
+  if (
+    immediateLaunchReadyCount > 0 &&
+    repositionRequiredCount === 0 &&
+    blockedLauncherCount === 0
+  ) {
+    return "즉시 발사 가능";
+  }
+  if (immediateLaunchReadyCount > 0 && repositionRequiredCount > 0) {
+    return "즉시/기동 혼합";
+  }
+  if (immediateLaunchReadyCount > 0 && blockedLauncherCount > 0) {
+    return "일부 즉시 발사";
+  }
+  if (repositionRequiredCount > 0) {
+    return blockedLauncherCount > 0 ? "기동 후 제한적 발사" : "기동 후 발사";
+  }
+  return "현재 발사 곤란";
+}
+
+function getFocusFireAnalysisTargetBaseValue(target: FocusFireAnalysisTarget) {
+  switch (target.entityType) {
+    case "airbase":
+      return 40;
+    case "ship":
+      return 28;
+    case "aircraft":
+      return 20;
+    case "facility":
+      if (isFiresFacilityClassName(target.className)) {
+        return 22;
+      }
+      if (isTankFacilityClassName(target.className)) {
+        return 18;
+      }
+      return 12;
+  }
+}
+
+function getFocusFireAnalysisTargetCombatValue(
+  target: FocusFireAnalysisTarget
+) {
+  return (
+    getFocusFireAnalysisTargetBaseValue(target) +
+    Math.min(target.weaponInventory, 24) * 0.6
+  );
+}
+
+function buildFocusFireTargetLabel(
+  primaryTarget: FocusFireAnalysisTarget | undefined,
+  targetCount: number,
+  objectiveName: string | null
+) {
+  if (!primaryTarget) {
+    return objectiveName;
+  }
+
+  const primaryLabel = getDisplayName(primaryTarget.name);
+  if (targetCount <= 1) {
+    return primaryLabel;
+  }
+
+  return `${primaryLabel} 외 ${targetCount - 1}`;
+}
+
+function getFocusFireAnalysisTargetCategoryLabel(
+  target: FocusFireAnalysisTarget
+) {
+  switch (target.entityType) {
+    case "aircraft":
+      return "항공기";
+    case "airbase":
+      return "기지";
+    case "ship":
+      return "함정";
+    case "facility":
+      if (isFiresFacilityClassName(target.className)) {
+        return "화력 시설";
+      }
+      if (isTankFacilityClassName(target.className)) {
+        return "기갑 시설";
+      }
+      return "지상 시설";
+  }
+}
+
+type FocusFireWeaponProfile =
+  | "cluster"
+  | "precision"
+  | "antiArmor"
+  | "antiShip"
+  | "general";
+
+function getFocusFireWeaponProfile(weaponName: string) {
+  const signature = weaponName.toLowerCase();
+
+  if (
+    /\b(dpicm|cluster|rocket|mlrs|guided rocket|chunmoo|130mm|ksrr)\b/i.test(
+      signature
+    ) ||
+    /(천무|다연장|유도로켓|로켓)/i.test(weaponName)
+  ) {
+    return "cluster" as const;
+  }
+  if (
+    /\b(tank round|hellfire|brimstone|tow|anti-armor)\b/i.test(signature) ||
+    /(전차포탄|대전차)/i.test(weaponName)
+  ) {
+    return "antiArmor" as const;
+  }
+  if (
+    /\b(harpoon|c-star|haeseong|naval strike)\b/i.test(signature) ||
+    /(대함|해성|하푼)/i.test(weaponName)
+  ) {
+    return "antiShip" as const;
+  }
+  if (
+    /\b(maverick|jassm|tomahawk|hyunmoo|tactical surface|guided|kggb)\b/i.test(
+      signature
+    ) ||
+    /(매버릭|정밀|현무|유도무기|유도탄)/i.test(weaponName)
+  ) {
+    return "precision" as const;
+  }
+  return "general" as const;
+}
+
+function getFocusFireAmmoType(
+  weaponName: string,
+  profile: FocusFireWeaponProfile
+) {
+  const signature = weaponName.toLowerCase();
+
+  switch (profile) {
+    case "cluster":
+      if (
+        /\b(130mm|rocket|mlrs|chunmoo|ksrr)\b/i.test(signature) ||
+        /(천무|다연장|유도로켓|로켓)/i.test(weaponName)
+      ) {
+        return "DPICM";
+      }
+      return "HE";
+    case "precision":
+      if (
+        /\b(maverick|hellfire|brimstone|guided)\b/i.test(signature) ||
+        /(매버릭|정밀유도)/i.test(weaponName)
+      ) {
+        return "정밀유도";
+      }
+      if (
+        /\b(hyunmoo|jassm|tomahawk|surface)\b/i.test(signature) ||
+        /(현무|지대지유도무기)/i.test(weaponName)
+      ) {
+        return "장거리 정밀탄";
+      }
+      return "정밀유도";
+    case "antiArmor":
+      return "HEAT";
+    case "antiShip":
+      return "대함";
+    case "general":
+      if (/\b(tank round|shell|howitzer)\b/i.test(signature)) {
+        return "HE";
+      }
+      return "범용";
+  }
+}
+
+function getFocusFireMissionKind(
+  targetComposition: FocusFireTargetComposition[],
+  targetCount: number,
+  highValueTargetCount: number,
+  armorTargetCount: number
+) {
+  const shipTargetCount = targetComposition
+    .filter((entry) => entry.label === "함정")
+    .reduce((sum, entry) => sum + entry.count, 0);
+  const firesTargetCount = targetComposition
+    .filter((entry) => entry.label === "화력 시설")
+    .reduce((sum, entry) => sum + entry.count, 0);
+
+  if (shipTargetCount > 0) {
+    return "대함 타격";
+  }
+  if (firesTargetCount > 0) {
+    return "대화력전";
+  }
+  if (armorTargetCount > 0 && targetCount <= 3) {
+    return "기갑 제압";
+  }
+  if (highValueTargetCount > 0 && targetCount <= 2) {
+    return "정밀 타격";
+  }
+  if (targetCount >= 4) {
+    return "지역 제압";
+  }
+  return "시설 제압";
+}
+
+function getFocusFireTargetPriorityLabel(
+  targetCombatPower: number,
+  highValueTargetCount: number
+) {
+  if (highValueTargetCount >= 2 || targetCombatPower >= 80) {
+    return "최우선";
+  }
+  if (highValueTargetCount >= 1 || targetCombatPower >= 40) {
+    return "우선";
+  }
+  return "보통";
+}
+
+function getFocusFireDesiredEffectLabel(
+  missionKind: string,
+  targetCount: number,
+  highValueTargetCount: number,
+  desiredEffect: number
+) {
+  if (missionKind === "정밀 타격" || highValueTargetCount >= 1) {
+    return desiredEffect >= 8 ? "파괴" : "무력화";
+  }
+  if (missionKind === "대화력전" || missionKind === "기갑 제압") {
+    return "제압";
+  }
+  if (targetCount >= 4) {
+    return "지역 무력화";
+  }
+  return "무력화";
+}
+
+function buildFocusFireRecommendationRationale(
+  ammoType: string,
+  weaponName: string,
+  profile: FocusFireWeaponProfile,
+  missionKind: string,
+  executionReadinessLabel: string,
+  launcherCount: number,
+  targetCount: number,
+  highValueTargetCount: number
+) {
+  const readinessTail =
+    launcherCount > 1
+      ? ` ${launcherCount}개 발포 부대 기준 ${executionReadinessLabel} 상태입니다.`
+      : ` 단일 발포 부대 기준 ${executionReadinessLabel} 상태입니다.`;
+
+  switch (profile) {
+    case "cluster":
+      return `${ammoType} 계열(${weaponName})은(는) ${missionKind}에 맞는 광역 압박에 유리합니다.${readinessTail}`;
+    case "precision":
+      return `${ammoType} 계열(${weaponName})은(는) 고가치 표적 ${
+        highValueTargetCount > 0 ? "정밀 타격" : "우선 타격"
+      }에 유리합니다.${readinessTail}`;
+    case "antiArmor":
+      return `${ammoType} 계열(${weaponName})은(는) 장갑 표적 억제에 적합합니다.${readinessTail}`;
+    case "antiShip":
+      return `${ammoType} 계열(${weaponName})은(는) 해상 표적에 최적화된 선택입니다.${readinessTail}`;
+    case "general":
+      if (targetCount > 1) {
+        return `${ammoType} 계열(${weaponName})은(는) 현재 목표 구역의 혼합 표적군에 무난한 범용 선택입니다.${readinessTail}`;
+      }
+      return `${ammoType} 계열(${weaponName})은(는) 현재 주표적에 적용 가능한 기본 선택입니다.${readinessTail}`;
+  }
+}
+
+function buildFocusFireRecommendationTelemetryKey(
+  sideId: string | null | undefined,
+  objectiveName: string | null | undefined,
+  objectiveLatitude: number | null | undefined,
+  objectiveLongitude: number | null | undefined,
+  primaryTargetId: string | null | undefined
+) {
+  return [
+    sideId ?? "none",
+    objectiveName ?? "objective",
+    objectiveLatitude?.toFixed(4) ?? "na",
+    objectiveLongitude?.toFixed(4) ?? "na",
+    primaryTargetId ?? "no-target",
+  ].join("|");
+}
+
+function buildFocusFireRecommendationTelemetryOptionsSnapshot(
+  options:
+    | FocusFireRecommendationOption[]
+    | FocusFireRecommendationTelemetryOption[]
+) {
+  return options.map((option) => ({
+    label: option.label,
+    weaponName: option.weaponName,
+    ammoType: option.ammoType,
+    suitabilityScore: option.suitabilityScore,
+    heuristicScore: option.heuristicScore,
+    rerankerScore: option.rerankerScore,
+    executionReadinessLabel: option.executionReadinessLabel,
+    averageTimeToFireSeconds: option.averageTimeToFireSeconds,
+    threatExposureScore: option.threatExposureScore,
+    shotCount: option.shotCount,
+    expectedStrikeEffect: option.expectedStrikeEffect,
+    launcherCount: option.launcherCount,
+    immediateLaunchReadyCount: option.immediateLaunchReadyCount,
+    repositionRequiredCount: option.repositionRequiredCount,
+    blockedLauncherCount: option.blockedLauncherCount,
+    averageDistanceKm: option.averageDistanceKm,
+  }));
+}
+
+function buildFocusFireRecommendationTelemetrySignature(
+  recommendation: FocusFireRecommendation | null,
+  rerankerModelVersion: number | null,
+  feedbackOptionLabel: string | null = null,
+  feedbackCapturedAt: number | null = null
+) {
+  return JSON.stringify({
+    missionKind: recommendation?.missionKind ?? null,
+    recommendedOptionLabel: recommendation?.recommendedOptionLabel ?? null,
+    weaponName: recommendation?.weaponName ?? null,
+    ammoType: recommendation?.ammoType ?? null,
+    priorityScore: recommendation?.priorityScore ?? null,
+    desiredEffect: recommendation?.desiredEffect ?? null,
+    expectedStrikeEffect: recommendation?.expectedStrikeEffect ?? null,
+    launchReadinessLabel: recommendation?.launchReadinessLabel ?? null,
+    averageTimeToFireSeconds: recommendation?.averageTimeToFireSeconds ?? null,
+    threatExposureScore: recommendation?.threatExposureScore ?? null,
+    selectionModelLabel: recommendation?.selectionModelLabel ?? null,
+    rerankerApplied: recommendation?.rerankerApplied ?? false,
+    immediateLaunchReadyCount: recommendation?.immediateLaunchReadyCount ?? 0,
+    repositionRequiredCount: recommendation?.repositionRequiredCount ?? 0,
+    blockedLauncherCount: recommendation?.blockedLauncherCount ?? 0,
+    rerankerModelVersion,
+    feedbackOptionLabel,
+    feedbackCapturedAt,
+    options: recommendation
+      ? buildFocusFireRecommendationTelemetryOptionsSnapshot(
+          recommendation.options
+        )
+      : [],
+  });
+}
+
+function buildFocusFireRecommendationTelemetryRecordSignature(
+  entry: FocusFireRecommendationTelemetryRecord
+) {
+  return JSON.stringify({
+    missionKind: entry.missionKind,
+    recommendedOptionLabel: entry.recommendedOptionLabel,
+    weaponName: entry.weaponName,
+    ammoType: entry.ammoType,
+    priorityScore: entry.priorityScore,
+    desiredEffect: entry.desiredEffect,
+    expectedStrikeEffect: entry.expectedStrikeEffect,
+    launchReadinessLabel: entry.launchReadinessLabel,
+    averageTimeToFireSeconds: entry.averageTimeToFireSeconds,
+    threatExposureScore: entry.threatExposureScore,
+    selectionModelLabel: entry.selectionModelLabel,
+    rerankerApplied: entry.rerankerApplied,
+    immediateLaunchReadyCount: entry.immediateLaunchReadyCount,
+    repositionRequiredCount: entry.repositionRequiredCount,
+    blockedLauncherCount: entry.blockedLauncherCount,
+    rerankerModelVersion: entry.rerankerModelVersion,
+    feedbackOptionLabel: entry.feedbackOptionLabel,
+    feedbackCapturedAt: entry.feedbackCapturedAt,
+    options: buildFocusFireRecommendationTelemetryOptionsSnapshot(
+      entry.options
+    ),
+  });
+}
+
+function normalizeImportedFocusFireRerankerModel(
+  importedRerankerModel: Partial<FocusFireRerankerModel> | null | undefined
+): FocusFireRerankerModel | null {
+  if (!importedRerankerModel || typeof importedRerankerModel !== "object") {
+    return null;
+  }
+
+  const defaultModel = createDefaultFocusFireRerankerModel();
+  const normalizedWeights = {
+    ...defaultModel.weights,
+  };
+  if (
+    importedRerankerModel.weights &&
+    typeof importedRerankerModel.weights === "object"
+  ) {
+    for (const featureName of FOCUS_FIRE_RERANKER_FEATURE_NAMES) {
+      const importedValue = importedRerankerModel.weights[featureName];
+      if (typeof importedValue === "number" && Number.isFinite(importedValue)) {
+        normalizedWeights[featureName] = importedValue;
+      }
+    }
+  }
+
+  return {
+    version:
+      typeof importedRerankerModel.version === "number" &&
+      Number.isFinite(importedRerankerModel.version)
+        ? importedRerankerModel.version
+        : defaultModel.version,
+    trainedAt:
+      typeof importedRerankerModel.trainedAt === "string"
+        ? importedRerankerModel.trainedAt
+        : defaultModel.trainedAt,
+    source:
+      importedRerankerModel.source === "telemetry-pairwise"
+        ? "telemetry-pairwise"
+        : defaultModel.source,
+    sampleCount:
+      typeof importedRerankerModel.sampleCount === "number" &&
+      Number.isFinite(importedRerankerModel.sampleCount)
+        ? importedRerankerModel.sampleCount
+        : defaultModel.sampleCount,
+    operatorFeedbackCount:
+      typeof importedRerankerModel.operatorFeedbackCount === "number" &&
+      Number.isFinite(importedRerankerModel.operatorFeedbackCount)
+        ? importedRerankerModel.operatorFeedbackCount
+        : defaultModel.operatorFeedbackCount,
+    ruleSeedCount:
+      typeof importedRerankerModel.ruleSeedCount === "number" &&
+      Number.isFinite(importedRerankerModel.ruleSeedCount)
+        ? importedRerankerModel.ruleSeedCount
+        : defaultModel.ruleSeedCount,
+    epochCount:
+      typeof importedRerankerModel.epochCount === "number" &&
+      Number.isFinite(importedRerankerModel.epochCount)
+        ? importedRerankerModel.epochCount
+        : defaultModel.epochCount,
+    learningRate:
+      typeof importedRerankerModel.learningRate === "number" &&
+      Number.isFinite(importedRerankerModel.learningRate)
+        ? importedRerankerModel.learningRate
+        : defaultModel.learningRate,
+    intercept:
+      typeof importedRerankerModel.intercept === "number" &&
+      Number.isFinite(importedRerankerModel.intercept)
+        ? importedRerankerModel.intercept
+        : defaultModel.intercept,
+    weights: normalizedWeights,
+  };
 }
 
 function createDefaultFocusFireOperation(): FocusFireOperation {
@@ -139,6 +879,7 @@ function createDefaultFocusFireOperation(): FocusFireOperation {
     active: false,
     sideId: null,
     objectiveReferencePointId: null,
+    desiredEffectOverride: null,
     captureProgress: 0,
     launchedPlatformIds: [],
   };
@@ -179,6 +920,13 @@ export default class Game {
   demoMode: boolean = true; // flag for features that should be removed in the final product
   simulationLogs: SimulationLogs = new SimulationLogs();
   focusFireOperation: FocusFireOperation = createDefaultFocusFireOperation();
+  focusFireRecommendationTelemetry: FocusFireRecommendationTelemetryRecord[] =
+    [];
+  private focusFireRecommendationTelemetrySignatures: Map<string, string> =
+    new Map();
+  focusFireRerankerEnabled: boolean = false;
+  focusFireRerankerModel: FocusFireRerankerModel =
+    createDefaultFocusFireRerankerModel();
 
   constructor(currentScenario: Scenario) {
     this.currentScenario = currentScenario;
@@ -192,6 +940,20 @@ export default class Game {
       return 12;
     }
     return 0;
+  }
+
+  getTargetById(targetId: string | null): Target | undefined {
+    if (!targetId) {
+      return undefined;
+    }
+
+    return (
+      this.currentScenario.getAircraft(targetId) ??
+      this.currentScenario.getFacility(targetId) ??
+      this.currentScenario.getShip(targetId) ??
+      this.currentScenario.getAirbase(targetId) ??
+      this.currentScenario.getReferencePoint(targetId)
+    );
   }
 
   getFocusFireObjective(): ReferencePoint | undefined {
@@ -326,6 +1088,1600 @@ export default class Game {
       .filter((track): track is FocusFireWeaponTrack => track !== null);
   }
 
+  private buildBattleSpectatorUnitSnapshot(
+    entity: Aircraft | Facility | Airbase | Ship,
+    entityType: BattleSpectatorEntityType
+  ): BattleSpectatorUnitSnapshot {
+    const weaponCount =
+      entity instanceof Airbase
+        ? entity.aircraft.reduce(
+            (total, aircraft) => total + aircraft.getTotalWeaponQuantity(),
+            0
+          )
+        : entity.getTotalWeaponQuantity();
+    const targetId =
+      "targetId" in entity &&
+      typeof entity.targetId === "string" &&
+      entity.targetId.length > 0
+        ? entity.targetId
+        : undefined;
+
+    return {
+      id: entity.id,
+      name: entity.name,
+      className: entity.className,
+      entityType,
+      sideId: entity.sideId,
+      sideName: this.currentScenario.getSideName(entity.sideId),
+      sideColor: `${entity.sideColor ?? this.currentScenario.getSideColor(entity.sideId)}`,
+      latitude: entity.latitude,
+      longitude: entity.longitude,
+      altitudeMeters: getFocusFireAltitudeMeters(entity.altitude),
+      headingDeg: "heading" in entity ? (entity.heading ?? 0) : 0,
+      speedKts: "speed" in entity ? (entity.speed ?? 0) : 0,
+      weaponCount,
+      hpFraction: entity.getHealthFraction(),
+      selected: this.selectedUnitId === entity.id,
+      targetId,
+    };
+  }
+
+  getBattleSpectatorSnapshot(maxEvents = 8): BattleSpectatorSnapshot {
+    const [centerLongitude, centerLatitude] =
+      Array.isArray(this.mapView.currentCameraCenter) &&
+      this.mapView.currentCameraCenter.length >= 2 &&
+      Number.isFinite(this.mapView.currentCameraCenter[0]) &&
+      Number.isFinite(this.mapView.currentCameraCenter[1])
+        ? this.mapView.currentCameraCenter
+        : [null, null];
+
+    const units = [
+      ...this.currentScenario.aircraft.map((entity) =>
+        this.buildBattleSpectatorUnitSnapshot(entity, "aircraft")
+      ),
+      ...this.currentScenario.facilities.map((entity) =>
+        this.buildBattleSpectatorUnitSnapshot(entity, "facility")
+      ),
+      ...this.currentScenario.airbases.map((entity) =>
+        this.buildBattleSpectatorUnitSnapshot(entity, "airbase")
+      ),
+      ...this.currentScenario.ships.map((entity) =>
+        this.buildBattleSpectatorUnitSnapshot(entity, "ship")
+      ),
+    ];
+
+    const weapons = this.currentScenario.weapons.map((weapon) => {
+      const target = this.getTargetById(weapon.targetId);
+
+      return {
+        id: weapon.id,
+        name: weapon.name,
+        className: weapon.className,
+        launcherId: weapon.launcherId,
+        launcherName:
+          this.currentScenario.getAircraft(weapon.launcherId)?.name ??
+          this.currentScenario.getFacility(weapon.launcherId)?.name ??
+          this.currentScenario.getShip(weapon.launcherId)?.name ??
+          weapon.launcherId,
+        sideId: weapon.sideId,
+        sideName: this.currentScenario.getSideName(weapon.sideId),
+        sideColor: `${weapon.sideColor ?? this.currentScenario.getSideColor(weapon.sideId)}`,
+        latitude: weapon.latitude,
+        longitude: weapon.longitude,
+        altitudeMeters: getFocusFireAltitudeMeters(weapon.altitude),
+        launchLatitude: weapon.launchLatitude ?? weapon.latitude,
+        launchLongitude: weapon.launchLongitude ?? weapon.longitude,
+        launchAltitudeMeters: getFocusFireAltitudeMeters(
+          weapon.launchAltitude ?? weapon.altitude
+        ),
+        headingDeg: weapon.heading,
+        speedKts: weapon.speed,
+        targetId: weapon.targetId,
+        targetLatitude: target?.latitude,
+        targetLongitude: target?.longitude,
+      };
+    });
+
+    const recentEvents = this.simulationLogs
+      .getLogs(undefined, undefined, undefined, "asc")
+      .slice(-Math.max(1, maxEvents))
+      .map((log) => {
+        const actorId =
+          log.metadata?.actorId ?? log.metadata?.launcherId ?? null;
+        const actor =
+          this.getTargetById(actorId) ??
+          this.currentScenario.getWeapon(actorId);
+        const target =
+          this.getTargetById(log.metadata?.targetId ?? null) ??
+          this.currentScenario.getWeapon(log.metadata?.targetId ?? null);
+        const weapon =
+          this.currentScenario.getWeapon(log.metadata?.weaponId ?? null) ??
+          null;
+        const focusTarget = weapon ?? target ?? actor;
+        const sourceAltitudeFeet =
+          actor && "altitude" in actor ? actor.altitude : 0;
+        const targetAltitudeFeet =
+          target && "altitude" in target ? target.altitude : 0;
+        const focusAltitudeFeet =
+          focusTarget && "altitude" in focusTarget ? focusTarget.altitude : 0;
+
+        return {
+          id: log.id,
+          timestamp: log.timestamp,
+          sideId: log.sideId,
+          sideName: this.currentScenario.getSideName(log.sideId),
+          sideColor: this.currentScenario.getSideColor(log.sideId),
+          type: log.type,
+          message: log.message,
+          actorId: log.metadata?.actorId,
+          actorName: log.metadata?.actorName,
+          sourceLatitude: actor?.latitude,
+          sourceLongitude: actor?.longitude,
+          sourceAltitudeMeters: getFocusFireAltitudeMeters(sourceAltitudeFeet),
+          targetId: log.metadata?.targetId,
+          targetName: log.metadata?.targetName,
+          targetLatitude: target?.latitude,
+          targetLongitude: target?.longitude,
+          targetAltitudeMeters: getFocusFireAltitudeMeters(targetAltitudeFeet),
+          weaponId: log.metadata?.weaponId,
+          focusLatitude: focusTarget?.latitude,
+          focusLongitude: focusTarget?.longitude,
+          focusAltitudeMeters: getFocusFireAltitudeMeters(focusAltitudeFeet),
+          resultTag: log.metadata?.resultTag,
+        };
+      });
+
+    return {
+      scenarioId: this.currentScenario.id,
+      scenarioName: this.currentScenario.name,
+      currentTime: this.currentScenario.currentTime,
+      currentSideId: this.currentSideId,
+      currentSideName: this.currentScenario.getSideName(this.currentSideId),
+      centerLongitude:
+        typeof centerLongitude === "number" ? centerLongitude : null,
+      centerLatitude:
+        typeof centerLatitude === "number" ? centerLatitude : null,
+      units,
+      weapons,
+      recentEvents,
+      stats: {
+        aircraft: this.currentScenario.aircraft.length,
+        facilities: this.currentScenario.facilities.length,
+        airbases: this.currentScenario.airbases.length,
+        ships: this.currentScenario.ships.length,
+        weaponsInFlight: this.currentScenario.weapons.length,
+        sides: this.currentScenario.sides.length,
+      },
+    };
+  }
+
+  getFocusFireHostileSideIds(sideId: string): Set<string> {
+    const declaredHostiles =
+      this.currentScenario.relationships.getHostiles(sideId);
+    if (declaredHostiles.length > 0) {
+      return new Set(declaredHostiles);
+    }
+
+    return new Set(
+      this.currentScenario.sides
+        .filter((side) => side.id !== sideId)
+        .map((side) => side.id)
+    );
+  }
+
+  getFocusFireThreatExposureScore(
+    sideId: string,
+    latitude: number,
+    longitude: number
+  ) {
+    const hostileSideIds = this.getFocusFireHostileSideIds(sideId);
+    let exposureScore = 0;
+
+    this.currentScenario.facilities.forEach((facility) => {
+      if (!hostileSideIds.has(facility.sideId)) {
+        return;
+      }
+
+      const threatRange = getFacilityThreatRange(
+        facility.className,
+        Math.max(
+          facility.getWeaponEngagementRange(),
+          facility.getDetectionRange()
+        )
+      );
+      const threatArc = getFacilityDetectionArcDegrees(
+        facility.className,
+        facility.getDetectionArcDegrees()
+      );
+      if (
+        isTargetInsideSector(
+          facility.latitude,
+          facility.longitude,
+          latitude,
+          longitude,
+          threatRange,
+          facility.getDetectionHeading(),
+          threatArc
+        )
+      ) {
+        exposureScore += 1 + Math.min(threatRange / 120, 1.5);
+      }
+    });
+
+    this.currentScenario.ships.forEach((ship) => {
+      if (!hostileSideIds.has(ship.sideId)) {
+        return;
+      }
+
+      const threatRange = Math.max(
+        ship.getWeaponEngagementRange(),
+        ship.getDetectionRange()
+      );
+      if (
+        threatRange > 0 &&
+        isTargetInsideSector(
+          ship.latitude,
+          ship.longitude,
+          latitude,
+          longitude,
+          threatRange,
+          ship.getDetectionHeading(),
+          ship.getDetectionArcDegrees()
+        )
+      ) {
+        exposureScore += 1 + Math.min(threatRange / 150, 1.2);
+      }
+    });
+
+    this.currentScenario.aircraft.forEach((aircraft) => {
+      if (!hostileSideIds.has(aircraft.sideId)) {
+        return;
+      }
+
+      const threatRange = Math.max(
+        aircraft.getWeaponEngagementRange(),
+        aircraft.getDetectionRange()
+      );
+      if (
+        threatRange > 0 &&
+        isTargetInsideSector(
+          aircraft.latitude,
+          aircraft.longitude,
+          latitude,
+          longitude,
+          threatRange,
+          aircraft.getDetectionHeading(),
+          aircraft.getDetectionArcDegrees()
+        )
+      ) {
+        exposureScore += 0.8 + Math.min(threatRange / 180, 1);
+      }
+    });
+
+    return roundToDigits(exposureScore, 1);
+  }
+
+  getFocusFireExecutionAssessment(
+    platform: Aircraft | Facility,
+    weapon: Weapon,
+    objective: FocusFireObjectivePoint,
+    sideId: string
+  ): {
+    executionState: FocusFireExecutionState;
+    estimatedTimeToFireSeconds: number | null;
+    threatExposureScore: number;
+  } {
+    const distanceToObjectiveKm = getDistanceBetweenTwoPoints(
+      platform.latitude,
+      platform.longitude,
+      objective.latitude,
+      objective.longitude
+    );
+    const distanceToObjectiveNm =
+      (distanceToObjectiveKm * 1000) / NAUTICAL_MILES_TO_METERS;
+    const detectionRangeNm = platform.getDetectionRange();
+    const weaponRangeNm = weapon.getEngagementRange();
+    const immediateLaunchReady =
+      distanceToObjectiveNm <= weaponRangeNm &&
+      isTargetInsideSector(
+        platform.latitude,
+        platform.longitude,
+        objective.latitude,
+        objective.longitude,
+        detectionRangeNm,
+        platform.getDetectionHeading(),
+        platform.getDetectionArcDegrees()
+      );
+
+    if (immediateLaunchReady) {
+      return {
+        executionState: "ready",
+        estimatedTimeToFireSeconds: 0,
+        threatExposureScore: this.getFocusFireThreatExposureScore(
+          sideId,
+          platform.latitude,
+          platform.longitude
+        ),
+      };
+    }
+
+    if (platform instanceof Aircraft) {
+      const strikeRadiusNm = Math.min(detectionRangeNm, weaponRangeNm);
+      if (!(platform.speed > 0) || !(strikeRadiusNm > 0)) {
+        return {
+          executionState: "blocked",
+          estimatedTimeToFireSeconds: null,
+          threatExposureScore: this.getFocusFireThreatExposureScore(
+            sideId,
+            platform.latitude,
+            platform.longitude
+          ),
+        };
+      }
+
+      const travelDistanceNm = Math.max(
+        distanceToObjectiveNm - strikeRadiusNm * 0.95,
+        0
+      );
+      const travelDistanceKm = travelDistanceNm / KILOMETERS_TO_NAUTICAL_MILES;
+      const approachBearing = getBearingBetweenTwoPoints(
+        objective.latitude,
+        objective.longitude,
+        platform.latitude,
+        platform.longitude
+      );
+      const [strikeLatitude, strikeLongitude] =
+        getTerminalCoordinatesFromDistanceAndBearing(
+          objective.latitude,
+          objective.longitude,
+          travelDistanceKm,
+          approachBearing
+        );
+
+      return {
+        executionState: "reposition",
+        estimatedTimeToFireSeconds: roundToDigits(
+          getFocusFireTravelTimeSeconds(travelDistanceKm, platform.speed),
+          1
+        ),
+        threatExposureScore: this.getFocusFireThreatExposureScore(
+          sideId,
+          strikeLatitude,
+          strikeLongitude
+        ),
+      };
+    }
+
+    if (isTankFacilityClassName(platform.className) && platform.speed > 0) {
+      const effectiveLaunchRadiusNm = Math.min(
+        detectionRangeNm,
+        weaponRangeNm * 1.05
+      );
+      const travelDistanceNm = Math.max(
+        distanceToObjectiveNm - effectiveLaunchRadiusNm,
+        0
+      );
+      const travelDistanceKm = travelDistanceNm / KILOMETERS_TO_NAUTICAL_MILES;
+
+      return {
+        executionState: "reposition",
+        estimatedTimeToFireSeconds: roundToDigits(
+          getFocusFireTravelTimeSeconds(travelDistanceKm, platform.speed),
+          1
+        ),
+        threatExposureScore: this.getFocusFireThreatExposureScore(
+          sideId,
+          objective.latitude,
+          objective.longitude
+        ),
+      };
+    }
+
+    return {
+      executionState: "blocked",
+      estimatedTimeToFireSeconds: null,
+      threatExposureScore: this.getFocusFireThreatExposureScore(
+        sideId,
+        platform.latitude,
+        platform.longitude
+      ),
+    };
+  }
+
+  getFocusFireRecommendationTelemetry(
+    sideId?: string | null
+  ): FocusFireRecommendationTelemetryRecord[] {
+    if (!sideId) {
+      return [...this.focusFireRecommendationTelemetry];
+    }
+
+    return this.focusFireRecommendationTelemetry.filter(
+      (entry) => entry.sideId === sideId
+    );
+  }
+
+  clearFocusFireRecommendationTelemetry() {
+    this.focusFireRecommendationTelemetry = [];
+    this.focusFireRecommendationTelemetrySignatures.clear();
+  }
+
+  private findLatestFocusFireRecommendationTelemetryRecord(
+    sideId: string | null | undefined,
+    objective: FocusFireObjectivePoint | undefined,
+    primaryTargetId: string | null | undefined
+  ) {
+    const telemetryKey = buildFocusFireRecommendationTelemetryKey(
+      sideId,
+      objective?.name ?? null,
+      objective?.latitude ?? null,
+      objective?.longitude ?? null,
+      primaryTargetId
+    );
+    for (
+      let index = this.focusFireRecommendationTelemetry.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      const candidate = this.focusFireRecommendationTelemetry[index];
+      if (
+        buildFocusFireRecommendationTelemetryKey(
+          candidate.sideId,
+          candidate.objectiveName,
+          candidate.objectiveLatitude,
+          candidate.objectiveLongitude,
+          candidate.primaryTargetId
+        ) === telemetryKey
+      ) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  getFocusFireRecommendationFeedbackLabel(
+    objective:
+      | FocusFireObjectivePoint
+      | undefined = this.getFocusFireObjective(),
+    sideId = this.focusFireOperation.sideId,
+    primaryTargetId: string | null = null
+  ) {
+    return (
+      this.findLatestFocusFireRecommendationTelemetryRecord(
+        sideId,
+        objective,
+        primaryTargetId
+      )?.feedbackOptionLabel ?? null
+    );
+  }
+
+  getFocusFireRerankerState() {
+    return {
+      enabled: this.focusFireRerankerEnabled,
+      model: this.focusFireRerankerModel,
+      confidenceScore: getFocusFireRerankerConfidence(
+        this.focusFireRerankerModel
+      ),
+    };
+  }
+
+  setFocusFireRerankerEnabled(enabled: boolean) {
+    this.focusFireRerankerEnabled = enabled;
+    return this.focusFireRerankerEnabled;
+  }
+
+  resetFocusFireRerankerModel() {
+    this.focusFireRerankerModel = createDefaultFocusFireRerankerModel();
+    this.focusFireRerankerEnabled = false;
+    return this.focusFireRerankerModel;
+  }
+
+  trainFocusFireRerankerModel() {
+    let operatorFeedbackRecords = 0;
+    let ruleSeedRecords = 0;
+    let skippedAiOnlyRecords = 0;
+
+    const trainingRecords = this.focusFireRecommendationTelemetry
+      .map((entry) => {
+        const preferredOptionLabel =
+          entry.feedbackOptionLabel ??
+          (!entry.rerankerApplied ? entry.recommendedOptionLabel : null);
+        if (
+          !preferredOptionLabel ||
+          !entry.options.some((option) => option.label === preferredOptionLabel)
+        ) {
+          if (entry.rerankerApplied && !entry.feedbackOptionLabel) {
+            skippedAiOnlyRecords += 1;
+          }
+          return null;
+        }
+
+        if (entry.feedbackOptionLabel) {
+          operatorFeedbackRecords += 1;
+        } else {
+          ruleSeedRecords += 1;
+        }
+
+        return {
+          recommendedOptionLabel: preferredOptionLabel,
+          desiredEffect: entry.desiredEffect,
+          options: entry.options.map((option) => ({
+            ...option,
+          })),
+        };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+
+    if (trainingRecords.length === 0) {
+      return {
+        model: this.focusFireRerankerModel,
+        summary: {
+          comparisons: 0,
+          recordsUsed: 0,
+          epochs: 0,
+          learningRate: 0,
+          telemetryRecordsConsidered:
+            this.focusFireRecommendationTelemetry.length,
+          operatorFeedbackRecords,
+          ruleSeedRecords,
+          skippedAiOnlyRecords,
+        },
+      };
+    }
+
+    const { model, summary } = trainFocusFireRerankerFromTelemetry(
+      trainingRecords,
+      this.focusFireRerankerModel
+    );
+    this.focusFireRerankerModel = {
+      ...model,
+      operatorFeedbackCount: operatorFeedbackRecords,
+      ruleSeedCount: ruleSeedRecords,
+    };
+    this.focusFireRerankerEnabled = true;
+    return {
+      model: this.focusFireRerankerModel,
+      summary: {
+        ...summary,
+        telemetryRecordsConsidered:
+          this.focusFireRecommendationTelemetry.length,
+        operatorFeedbackRecords,
+        ruleSeedRecords,
+        skippedAiOnlyRecords,
+      },
+    };
+  }
+
+  exportFocusFireRecommendationTelemetryJsonl(sideId?: string | null): string {
+    return this.getFocusFireRecommendationTelemetry(sideId)
+      .map((entry) => JSON.stringify(entry))
+      .join("\n");
+  }
+
+  exportFocusFireRecommendationTelemetryCsv(sideId?: string | null): string {
+    const rows: Array<Record<string, string | number>> =
+      this.getFocusFireRecommendationTelemetry(sideId).flatMap((entry) =>
+        entry.options.map((option) => {
+          const trainingPreferredOptionLabel =
+            entry.feedbackOptionLabel ??
+            (!entry.rerankerApplied ? entry.recommendedOptionLabel : null);
+          return {
+            timestamp: entry.timestamp,
+            side_id: entry.sideId ?? "",
+            objective_name: entry.objectiveName ?? "",
+            objective_latitude: entry.objectiveLatitude ?? "",
+            objective_longitude: entry.objectiveLongitude ?? "",
+            primary_target_id: entry.primaryTargetId ?? "",
+            target_name: entry.targetName ?? "",
+            mission_kind: entry.missionKind ?? "",
+            recommended_option_label: entry.recommendedOptionLabel ?? "",
+            selection_model_label: entry.selectionModelLabel ?? "",
+            reranker_applied: entry.rerankerApplied ? "true" : "false",
+            reranker_model_version: entry.rerankerModelVersion ?? "",
+            feedback_option_label: entry.feedbackOptionLabel ?? "",
+            feedback_captured_at: entry.feedbackCapturedAt ?? "",
+            training_preferred_option_label: trainingPreferredOptionLabel ?? "",
+            training_record_source: entry.feedbackOptionLabel
+              ? "operator_feedback"
+              : entry.rerankerApplied
+                ? "ai_only"
+                : "rule_seed",
+            selected_weapon_name: entry.weaponName ?? "",
+            selected_ammo_type: entry.ammoType ?? "",
+            priority_score: entry.priorityScore ?? "",
+            desired_effect: entry.desiredEffect ?? "",
+            expected_strike_effect: entry.expectedStrikeEffect ?? "",
+            launch_readiness_label: entry.launchReadinessLabel ?? "",
+            average_time_to_fire_seconds: entry.averageTimeToFireSeconds ?? "",
+            threat_exposure_score: entry.threatExposureScore ?? "",
+            immediate_launch_ready_count: entry.immediateLaunchReadyCount,
+            reposition_required_count: entry.repositionRequiredCount,
+            blocked_launcher_count: entry.blockedLauncherCount,
+            option_label: option.label,
+            option_weapon_name: option.weaponName ?? "",
+            option_ammo_type: option.ammoType ?? "",
+            option_heuristic_score: option.heuristicScore,
+            option_reranker_score: option.rerankerScore ?? "",
+            option_suitability_score: option.suitabilityScore,
+            option_execution_readiness_label: option.executionReadinessLabel,
+            option_average_time_to_fire_seconds:
+              option.averageTimeToFireSeconds ?? "",
+            option_threat_exposure_score: option.threatExposureScore,
+            option_average_distance_km: option.averageDistanceKm ?? "",
+            option_launcher_count: option.launcherCount,
+            option_immediate_launch_ready_count:
+              option.immediateLaunchReadyCount,
+            option_reposition_required_count: option.repositionRequiredCount,
+            option_blocked_launcher_count: option.blockedLauncherCount,
+            option_shot_count: option.shotCount,
+            option_expected_strike_effect: option.expectedStrikeEffect,
+            option_selected:
+              option.label === entry.recommendedOptionLabel ? "true" : "false",
+            option_feedback_selected:
+              option.label === entry.feedbackOptionLabel ? "true" : "false",
+            option_training_selected:
+              option.label === trainingPreferredOptionLabel ? "true" : "false",
+          };
+        })
+      );
+
+    if (rows.length === 0) {
+      return "";
+    }
+
+    const headers = Object.keys(rows[0]);
+    const escapeCsvValue = (value: string | number) => {
+      const text = `${value}`;
+      if (/[",\n]/.test(text)) {
+        return `"${text.replace(/"/g, '""')}"`;
+      }
+      return text;
+    };
+
+    return [
+      headers.join(","),
+      ...rows.map((row) =>
+        headers.map((header) => escapeCsvValue(row[header])).join(",")
+      ),
+    ].join("\n");
+  }
+
+  exportFocusFireRerankerModel() {
+    return JSON.stringify(this.focusFireRerankerModel, null, 2);
+  }
+
+  importFocusFireRerankerModel(modelJson: string) {
+    const importedPayload = JSON.parse(modelJson) as
+      | {
+          focusFireRerankerModel?: Partial<FocusFireRerankerModel>;
+          focusFireRerankerEnabled?: boolean;
+        }
+      | Partial<FocusFireRerankerModel>;
+    const modelCandidate =
+      importedPayload &&
+      typeof importedPayload === "object" &&
+      "focusFireRerankerModel" in importedPayload
+        ? importedPayload.focusFireRerankerModel
+        : (importedPayload as Partial<FocusFireRerankerModel>);
+    const normalizedModel =
+      normalizeImportedFocusFireRerankerModel(modelCandidate);
+    if (!normalizedModel) {
+      throw new Error("유효한 집중포격 AI 모델 JSON이 아닙니다.");
+    }
+
+    this.focusFireRerankerModel = normalizedModel;
+    this.focusFireRerankerEnabled =
+      importedPayload &&
+      typeof importedPayload === "object" &&
+      "focusFireRerankerEnabled" in importedPayload
+        ? importedPayload.focusFireRerankerEnabled === true
+        : true;
+    return {
+      enabled: this.focusFireRerankerEnabled,
+      model: this.focusFireRerankerModel,
+    };
+  }
+
+  recordFocusFireRecommendationTelemetry(
+    objective: FocusFireObjectivePoint | undefined,
+    sideId: string | null | undefined,
+    recommendation: FocusFireRecommendation | null
+  ) {
+    if (!objective && !recommendation) {
+      return null;
+    }
+
+    const telemetryKey = buildFocusFireRecommendationTelemetryKey(
+      sideId,
+      objective?.name ?? null,
+      objective?.latitude ?? null,
+      objective?.longitude ?? null,
+      recommendation?.primaryTargetId ?? null
+    );
+    const existingRecord =
+      this.findLatestFocusFireRecommendationTelemetryRecord(
+        sideId,
+        objective,
+        recommendation?.primaryTargetId ?? null
+      );
+    const preservedFeedbackOptionLabel =
+      existingRecord?.feedbackOptionLabel &&
+      recommendation?.options.some(
+        (option) => option.label === existingRecord.feedbackOptionLabel
+      )
+        ? existingRecord.feedbackOptionLabel
+        : null;
+    const preservedFeedbackCapturedAt = preservedFeedbackOptionLabel
+      ? (existingRecord?.feedbackCapturedAt ?? null)
+      : null;
+    const rerankerModelVersion = recommendation?.rerankerApplied
+      ? this.focusFireRerankerModel.version
+      : null;
+    const signature = buildFocusFireRecommendationTelemetrySignature(
+      recommendation,
+      rerankerModelVersion,
+      preservedFeedbackOptionLabel,
+      preservedFeedbackCapturedAt
+    );
+
+    if (
+      this.focusFireRecommendationTelemetrySignatures.get(telemetryKey) ===
+      signature
+    ) {
+      return null;
+    }
+
+    const telemetryRecord: FocusFireRecommendationTelemetryRecord = {
+      id: randomUUID(),
+      timestamp: this.currentScenario.currentTime,
+      sideId: sideId ?? null,
+      objectiveName: objective?.name ?? null,
+      objectiveLatitude: objective?.latitude ?? null,
+      objectiveLongitude: objective?.longitude ?? null,
+      primaryTargetId: recommendation?.primaryTargetId ?? null,
+      targetName: recommendation?.targetName ?? null,
+      missionKind: recommendation?.missionKind ?? null,
+      recommendedOptionLabel: recommendation?.recommendedOptionLabel ?? null,
+      weaponName: recommendation?.weaponName ?? null,
+      ammoType: recommendation?.ammoType ?? null,
+      priorityScore: recommendation?.priorityScore ?? null,
+      desiredEffect: recommendation?.desiredEffect ?? null,
+      expectedStrikeEffect: recommendation?.expectedStrikeEffect ?? null,
+      launchReadinessLabel: recommendation?.launchReadinessLabel ?? null,
+      averageTimeToFireSeconds:
+        recommendation?.averageTimeToFireSeconds ?? null,
+      threatExposureScore: recommendation?.threatExposureScore ?? null,
+      selectionModelLabel: recommendation?.selectionModelLabel ?? null,
+      rerankerApplied: recommendation?.rerankerApplied ?? false,
+      immediateLaunchReadyCount: recommendation?.immediateLaunchReadyCount ?? 0,
+      repositionRequiredCount: recommendation?.repositionRequiredCount ?? 0,
+      blockedLauncherCount: recommendation?.blockedLauncherCount ?? 0,
+      rerankerModelVersion,
+      feedbackOptionLabel: preservedFeedbackOptionLabel,
+      feedbackCapturedAt: preservedFeedbackCapturedAt,
+      options: recommendation
+        ? buildFocusFireRecommendationTelemetryOptionsSnapshot(
+            recommendation.options
+          )
+        : [],
+    };
+
+    this.focusFireRecommendationTelemetrySignatures.set(
+      telemetryKey,
+      signature
+    );
+    this.focusFireRecommendationTelemetry.push(telemetryRecord);
+    this.focusFireRecommendationTelemetry =
+      this.focusFireRecommendationTelemetry.slice(-200);
+    return telemetryRecord;
+  }
+
+  setFocusFireRecommendationFeedback(
+    optionLabel: string,
+    objective:
+      | FocusFireObjectivePoint
+      | undefined = this.getFocusFireObjective(),
+    sideId = this.focusFireOperation.sideId,
+    recommendation = this.getFocusFireRecommendation(objective, sideId)
+  ) {
+    const normalizedLabel = optionLabel.trim();
+    if (!normalizedLabel || !objective || !sideId || !recommendation) {
+      return null;
+    }
+
+    if (
+      !recommendation.options.some((option) => option.label === normalizedLabel)
+    ) {
+      return null;
+    }
+
+    const telemetryRecord =
+      this.recordFocusFireRecommendationTelemetry(
+        objective,
+        sideId,
+        recommendation
+      ) ??
+      this.findLatestFocusFireRecommendationTelemetryRecord(
+        sideId,
+        objective,
+        recommendation.primaryTargetId
+      );
+    if (!telemetryRecord) {
+      return null;
+    }
+
+    telemetryRecord.feedbackOptionLabel = normalizedLabel;
+    telemetryRecord.feedbackCapturedAt = this.currentScenario.currentTime;
+    this.focusFireRecommendationTelemetrySignatures.set(
+      buildFocusFireRecommendationTelemetryKey(
+        telemetryRecord.sideId,
+        telemetryRecord.objectiveName,
+        telemetryRecord.objectiveLatitude,
+        telemetryRecord.objectiveLongitude,
+        telemetryRecord.primaryTargetId
+      ),
+      buildFocusFireRecommendationTelemetryRecordSignature(telemetryRecord)
+    );
+    return telemetryRecord;
+  }
+
+  getFocusFireAnalysisTargets(
+    objective:
+      | FocusFireObjectivePoint
+      | undefined = this.getFocusFireObjective(),
+    sideId = this.focusFireOperation.sideId,
+    primaryTargetId?: string | null
+  ): FocusFireAnalysisTarget[] {
+    if (!objective || !sideId) {
+      return [];
+    }
+
+    const hostileSideIds = this.getFocusFireHostileSideIds(sideId);
+    const targets: FocusFireAnalysisTarget[] = [
+      ...this.currentScenario.aircraft.map((aircraft) => ({
+        id: aircraft.id,
+        name: aircraft.name,
+        sideId: aircraft.sideId,
+        className: aircraft.className,
+        latitude: aircraft.latitude,
+        longitude: aircraft.longitude,
+        entityType: "aircraft" as const,
+        weaponInventory: aircraft.getTotalWeaponQuantity(),
+      })),
+      ...this.currentScenario.facilities.map((facility) => ({
+        id: facility.id,
+        name: facility.name,
+        sideId: facility.sideId,
+        className: facility.className,
+        latitude: facility.latitude,
+        longitude: facility.longitude,
+        entityType: "facility" as const,
+        weaponInventory: facility.getTotalWeaponQuantity(),
+      })),
+      ...this.currentScenario.airbases.map((airbase) => ({
+        id: airbase.id,
+        name: airbase.name,
+        sideId: airbase.sideId,
+        className: airbase.className,
+        latitude: airbase.latitude,
+        longitude: airbase.longitude,
+        entityType: "airbase" as const,
+        weaponInventory: airbase.aircraft.length * 4,
+      })),
+      ...this.currentScenario.ships.map((ship) => ({
+        id: ship.id,
+        name: ship.name,
+        sideId: ship.sideId,
+        className: ship.className,
+        latitude: ship.latitude,
+        longitude: ship.longitude,
+        entityType: "ship" as const,
+        weaponInventory: ship.getTotalWeaponQuantity(),
+      })),
+    ];
+
+    return targets
+      .filter((target) => hostileSideIds.has(target.sideId))
+      .filter(
+        (target) =>
+          getDistanceBetweenTwoPoints(
+            objective.latitude,
+            objective.longitude,
+            target.latitude,
+            target.longitude
+          ) <= FOCUS_FIRE_TARGET_ANALYSIS_RADIUS_KM
+      )
+      .sort((left, right) => {
+        if (primaryTargetId) {
+          if (left.id === primaryTargetId && right.id !== primaryTargetId) {
+            return -1;
+          }
+          if (right.id === primaryTargetId && left.id !== primaryTargetId) {
+            return 1;
+          }
+        }
+
+        const combatGap =
+          getFocusFireAnalysisTargetCombatValue(right) -
+          getFocusFireAnalysisTargetCombatValue(left);
+        if (combatGap !== 0) {
+          return combatGap;
+        }
+
+        return (
+          getDistanceBetweenTwoPoints(
+            objective.latitude,
+            objective.longitude,
+            left.latitude,
+            left.longitude
+          ) -
+          getDistanceBetweenTwoPoints(
+            objective.latitude,
+            objective.longitude,
+            right.latitude,
+            right.longitude
+          )
+        );
+      });
+  }
+
+  buildFocusFireRecommendation(
+    objective: FocusFireObjectivePoint | undefined,
+    sideId: string | null | undefined,
+    desiredEffectOverride: number | null = null,
+    primaryTargetId: string | null = null
+  ): FocusFireRecommendation | null {
+    if (!objective || !sideId) {
+      return null;
+    }
+
+    const analysisTargets = this.getFocusFireAnalysisTargets(
+      objective,
+      sideId,
+      primaryTargetId
+    );
+    const primaryTarget = analysisTargets[0];
+    const engagementPoint = primaryTarget ?? objective;
+    const targetSideNames = [
+      ...new Set(
+        analysisTargets.map((target) =>
+          this.currentScenario.getSideName(target.sideId)
+        )
+      ),
+    ].filter((name) => name !== "N/A");
+    const targetCompositionMap = new Map<string, FocusFireTargetComposition>();
+    let highValueTargetCount = 0;
+    let armorTargetCount = 0;
+
+    analysisTargets.forEach((target) => {
+      const label = getFocusFireAnalysisTargetCategoryLabel(target);
+      const combatPower = getFocusFireAnalysisTargetCombatValue(target);
+      const currentEntry = targetCompositionMap.get(label) ?? {
+        label,
+        count: 0,
+        combatPower: 0,
+      };
+
+      currentEntry.count += 1;
+      currentEntry.combatPower += combatPower;
+      targetCompositionMap.set(label, currentEntry);
+
+      if (
+        target.entityType === "airbase" ||
+        target.entityType === "ship" ||
+        (target.entityType === "facility" &&
+          isFiresFacilityClassName(target.className))
+      ) {
+        highValueTargetCount += 1;
+      }
+
+      if (
+        target.entityType === "facility" &&
+        isTankFacilityClassName(target.className)
+      ) {
+        armorTargetCount += 1;
+      }
+    });
+
+    const targetComposition = [...targetCompositionMap.values()]
+      .map((entry) => ({
+        ...entry,
+        combatPower: Math.round(entry.combatPower),
+      }))
+      .sort((left, right) => right.combatPower - left.combatPower);
+    const targetCombatPower = Math.round(
+      analysisTargets.reduce(
+        (sum, target) => sum + getFocusFireAnalysisTargetCombatValue(target),
+        0
+      )
+    );
+    const desiredEffect =
+      targetCombatPower > 0
+        ? roundToDigits(
+            targetCombatPower * 0.11 +
+              highValueTargetCount * 1.4 +
+              armorTargetCount * 0.6,
+            1
+          )
+        : 0;
+    const desiredEffectRequested = roundToDigits(
+      desiredEffectOverride ?? desiredEffect,
+      1
+    );
+    const desiredEffectIsUserDefined = desiredEffectOverride !== null;
+    const missionKind = getFocusFireMissionKind(
+      targetComposition,
+      analysisTargets.length,
+      highValueTargetCount,
+      armorTargetCount
+    );
+    const targetPriorityLabel = getFocusFireTargetPriorityLabel(
+      targetCombatPower,
+      highValueTargetCount
+    );
+    const desiredEffectLabel = getFocusFireDesiredEffectLabel(
+      missionKind,
+      analysisTargets.length,
+      highValueTargetCount,
+      desiredEffect
+    );
+
+    const recommendationMap = new Map<
+      string,
+      FocusFireRecommendationAccumulator
+    >();
+    const candidatePlatforms = [
+      ...this.getFocusFireArtilleryFacilities(sideId),
+      ...this.getFocusFireAircraft(sideId),
+    ];
+
+    candidatePlatforms.forEach((platform) => {
+      const distanceKm = getDistanceBetweenTwoPoints(
+        platform.latitude,
+        platform.longitude,
+        engagementPoint.latitude,
+        engagementPoint.longitude
+      );
+
+      platform.weapons
+        .filter((weapon) => weapon.currentQuantity > 0)
+        .forEach((weapon) => {
+          const key = weapon.className || weapon.name;
+          const expectedStrikeEffect =
+            weapon.currentQuantity * weapon.lethality;
+          const ammoType = getFocusFireAmmoType(
+            getDisplayName(weapon.className || weapon.name),
+            getFocusFireWeaponProfile(
+              getDisplayName(weapon.className || weapon.name)
+            )
+          );
+          const executionAssessment = this.getFocusFireExecutionAssessment(
+            platform,
+            weapon,
+            engagementPoint,
+            sideId
+          );
+          const currentGroup = recommendationMap.get(key) ?? {
+            weaponName: getDisplayName(weapon.className || weapon.name),
+            shotCount: 0,
+            expectedStrikeEffect: 0,
+            weightedDistanceSum: 0,
+            minimumDistanceKm: distanceKm,
+            maximumDistanceKm: distanceKm,
+            immediateLaunchReadyCount: 0,
+            repositionRequiredCount: 0,
+            blockedLauncherCount: 0,
+            totalTimeToFireSeconds: 0,
+            maximumTimeToFireSeconds: null,
+            threatExposureScore: 0,
+            firingPlan: [],
+          };
+
+          if (executionAssessment.executionState === "blocked") {
+            currentGroup.blockedLauncherCount += 1;
+            recommendationMap.set(key, currentGroup);
+            return;
+          }
+
+          currentGroup.shotCount += weapon.currentQuantity;
+          currentGroup.expectedStrikeEffect += expectedStrikeEffect;
+          currentGroup.weightedDistanceSum +=
+            distanceKm * weapon.currentQuantity;
+          currentGroup.minimumDistanceKm = Math.min(
+            currentGroup.minimumDistanceKm,
+            distanceKm
+          );
+          currentGroup.maximumDistanceKm = Math.max(
+            currentGroup.maximumDistanceKm,
+            distanceKm
+          );
+          currentGroup.threatExposureScore +=
+            executionAssessment.threatExposureScore;
+          currentGroup.totalTimeToFireSeconds +=
+            executionAssessment.estimatedTimeToFireSeconds ?? 0;
+          currentGroup.maximumTimeToFireSeconds =
+            executionAssessment.estimatedTimeToFireSeconds == null
+              ? currentGroup.maximumTimeToFireSeconds
+              : Math.max(
+                  currentGroup.maximumTimeToFireSeconds ?? 0,
+                  executionAssessment.estimatedTimeToFireSeconds
+                );
+          if (executionAssessment.executionState === "ready") {
+            currentGroup.immediateLaunchReadyCount += 1;
+          } else {
+            currentGroup.repositionRequiredCount += 1;
+          }
+
+          const existingPlan = currentGroup.firingPlan.find(
+            (plan) => plan.launcherId === platform.id
+          );
+          if (existingPlan) {
+            existingPlan.shotCount += weapon.currentQuantity;
+            existingPlan.expectedStrikeEffect += expectedStrikeEffect;
+          } else {
+            currentGroup.firingPlan.push({
+              launcherId: platform.id,
+              launcherName: platform.name,
+              launcherClassName: platform.className,
+              variant: this.getFocusFireLaunchVariant(platform),
+              ammoType,
+              weaponName: getDisplayName(weapon.className || weapon.name),
+              shotCount: weapon.currentQuantity,
+              distanceKm,
+              expectedStrikeEffect,
+              executionState: executionAssessment.executionState,
+              estimatedTimeToFireSeconds:
+                executionAssessment.estimatedTimeToFireSeconds,
+              threatExposureScore: executionAssessment.threatExposureScore,
+            });
+          }
+
+          recommendationMap.set(key, currentGroup);
+        });
+    });
+
+    const heuristicRecommendations = [...recommendationMap.values()]
+      .filter((candidate) => candidate.shotCount > 0)
+      .map((candidate) => ({
+        ...candidate,
+        profile: getFocusFireWeaponProfile(candidate.weaponName),
+        ammoType: getFocusFireAmmoType(
+          candidate.weaponName,
+          getFocusFireWeaponProfile(candidate.weaponName)
+        ),
+        launcherCount:
+          candidate.immediateLaunchReadyCount +
+          candidate.repositionRequiredCount,
+        averageDistanceKm:
+          candidate.shotCount > 0
+            ? candidate.weightedDistanceSum / candidate.shotCount
+            : Number.POSITIVE_INFINITY,
+        averageTimeToFireSeconds:
+          candidate.immediateLaunchReadyCount +
+            candidate.repositionRequiredCount >
+          0
+            ? candidate.totalTimeToFireSeconds /
+              (candidate.immediateLaunchReadyCount +
+                candidate.repositionRequiredCount)
+            : null,
+        executionReadinessLabel: getFocusFireExecutionReadinessLabel(
+          candidate.immediateLaunchReadyCount,
+          candidate.repositionRequiredCount,
+          candidate.blockedLauncherCount
+        ),
+        firingPlan: [...candidate.firingPlan].sort(
+          (left, right) =>
+            (left.estimatedTimeToFireSeconds ?? 0) -
+              (right.estimatedTimeToFireSeconds ?? 0) ||
+            left.distanceKm - right.distanceKm
+        ),
+      }))
+      .map((candidate) => {
+        let profileBonus = 2;
+        switch (candidate.profile) {
+          case "cluster":
+            profileBonus +=
+              Math.max(analysisTargets.length - 1, 0) * 1.5 +
+              targetComposition
+                .filter((entry) =>
+                  ["기지", "지상 시설", "화력 시설"].includes(entry.label)
+                )
+                .reduce((sum, entry) => sum + entry.count, 0) *
+                1.2;
+            if (missionKind === "지역 제압" || missionKind === "대화력전") {
+              profileBonus += 4;
+            }
+            break;
+          case "precision":
+            profileBonus += highValueTargetCount * 3.2;
+            if (analysisTargets.length <= 2) {
+              profileBonus += 3;
+            }
+            if (missionKind === "정밀 타격") {
+              profileBonus += 4.5;
+            }
+            break;
+          case "antiArmor":
+            profileBonus += armorTargetCount * 3.5;
+            if (missionKind === "기갑 제압") {
+              profileBonus += 4;
+            }
+            break;
+          case "antiShip":
+            profileBonus +=
+              targetComposition
+                .filter((entry) => entry.label === "함정")
+                .reduce((sum, entry) => sum + entry.count, 0) * 4.5;
+            if (missionKind === "대함 타격") {
+              profileBonus += 5;
+            }
+            break;
+          case "general":
+            profileBonus += Math.min(analysisTargets.length, 3);
+            break;
+        }
+
+        const baseSuitabilityScore =
+          candidate.expectedStrikeEffect * 12 +
+          profileBonus +
+          Math.min(candidate.shotCount, 24) * 0.25 +
+          candidate.immediateLaunchReadyCount * 10 +
+          candidate.repositionRequiredCount * 4 -
+          candidate.blockedLauncherCount * 5 -
+          (candidate.averageTimeToFireSeconds ?? 0) / 180 -
+          candidate.threatExposureScore * 3 -
+          candidate.averageDistanceKm * 0.08;
+
+        const desiredEffectGap = Math.abs(
+          candidate.expectedStrikeEffect - desiredEffectRequested
+        );
+        const requestedCoverageRatio =
+          desiredEffectRequested > 0
+            ? candidate.expectedStrikeEffect / desiredEffectRequested
+            : 1;
+
+        let suitabilityScore = baseSuitabilityScore;
+        if (desiredEffectIsUserDefined) {
+          const effectMatchScore = Math.max(0, 30 - desiredEffectGap * 18);
+          let coverageAdjustment = 0;
+          if (requestedCoverageRatio >= 1 && requestedCoverageRatio <= 1.8) {
+            coverageAdjustment += 12;
+          } else if (requestedCoverageRatio < 1) {
+            coverageAdjustment -= (1 - requestedCoverageRatio) * 20;
+          } else if (requestedCoverageRatio > 1.8) {
+            coverageAdjustment -= Math.min(
+              12,
+              (requestedCoverageRatio - 1.8) * 10
+            );
+          }
+
+          suitabilityScore =
+            profileBonus * 1.4 +
+            effectMatchScore +
+            coverageAdjustment +
+            candidate.immediateLaunchReadyCount * 8 +
+            candidate.repositionRequiredCount * 3 -
+            candidate.blockedLauncherCount * 6 -
+            (candidate.averageTimeToFireSeconds ?? 0) / 150 -
+            candidate.threatExposureScore * 2.5 +
+            candidate.shotCount * 0.15 -
+            candidate.averageDistanceKm * 0.06;
+        }
+
+        suitabilityScore = roundToDigits(suitabilityScore, 1);
+
+        return {
+          label: "",
+          ammoType: candidate.ammoType,
+          weaponName: candidate.weaponName,
+          shotCount: candidate.shotCount,
+          launcherCount: candidate.launcherCount,
+          firingUnitNames: candidate.firingPlan.map(
+            (plan) => plan.launcherName
+          ),
+          averageDistanceKm: roundToDigits(candidate.averageDistanceKm, 1),
+          minimumDistanceKm: roundToDigits(candidate.minimumDistanceKm, 1),
+          maximumDistanceKm: roundToDigits(candidate.maximumDistanceKm, 1),
+          immediateLaunchReadyCount: candidate.immediateLaunchReadyCount,
+          repositionRequiredCount: candidate.repositionRequiredCount,
+          blockedLauncherCount: candidate.blockedLauncherCount,
+          averageTimeToFireSeconds:
+            candidate.averageTimeToFireSeconds == null
+              ? null
+              : roundToDigits(candidate.averageTimeToFireSeconds, 1),
+          maximumTimeToFireSeconds:
+            candidate.maximumTimeToFireSeconds == null
+              ? null
+              : roundToDigits(candidate.maximumTimeToFireSeconds, 1),
+          threatExposureScore: roundToDigits(candidate.threatExposureScore, 1),
+          executionReadinessLabel: candidate.executionReadinessLabel,
+          expectedStrikeEffect: roundToDigits(
+            candidate.expectedStrikeEffect,
+            2
+          ),
+          heuristicScore: suitabilityScore,
+          rerankerScore: null,
+          suitabilityScore,
+          rationale: buildFocusFireRecommendationRationale(
+            candidate.ammoType,
+            candidate.weaponName,
+            candidate.profile,
+            missionKind,
+            candidate.executionReadinessLabel,
+            candidate.launcherCount,
+            analysisTargets.length,
+            highValueTargetCount
+          ),
+          firingPlan: candidate.firingPlan.map((plan) => ({
+            ...plan,
+            distanceKm: roundToDigits(plan.distanceKm, 1),
+            expectedStrikeEffect: roundToDigits(plan.expectedStrikeEffect, 2),
+            estimatedTimeToFireSeconds:
+              plan.estimatedTimeToFireSeconds == null
+                ? null
+                : roundToDigits(plan.estimatedTimeToFireSeconds, 1),
+            threatExposureScore: roundToDigits(plan.threatExposureScore, 1),
+          })),
+        } satisfies FocusFireRecommendationOption;
+      })
+      .sort((left, right) => {
+        if (right.suitabilityScore !== left.suitabilityScore) {
+          return right.suitabilityScore - left.suitabilityScore;
+        }
+        if (right.expectedStrikeEffect !== left.expectedStrikeEffect) {
+          return right.expectedStrikeEffect - left.expectedStrikeEffect;
+        }
+        if (right.shotCount !== left.shotCount) {
+          return right.shotCount - left.shotCount;
+        }
+        return (
+          (left.averageDistanceKm ?? Number.POSITIVE_INFINITY) -
+          (right.averageDistanceKm ?? Number.POSITIVE_INFINITY)
+        );
+      });
+
+    const rerankerApplied =
+      this.focusFireRerankerEnabled && heuristicRecommendations.length > 0;
+    const rankedRecommendations = rerankerApplied
+      ? rerankFocusFireCandidates(
+          heuristicRecommendations.map((option) => ({
+            ...option,
+            desiredEffect: desiredEffectRequested,
+          })),
+          this.focusFireRerankerModel
+        ).map(({ candidate, rerankerScore }) => ({
+          ...candidate,
+          rerankerScore: roundToDigits(rerankerScore, 4),
+        }))
+      : heuristicRecommendations;
+    const recommendations = rankedRecommendations
+      .slice(0, 3)
+      .map((option, index) => ({
+        ...option,
+        label: `추천 ${index + 1}안`,
+      }));
+
+    const bestRecommendation = recommendations[0] ?? null;
+    const rerankerConfidenceScore = rerankerApplied
+      ? getFocusFireRerankerConfidence(this.focusFireRerankerModel)
+      : 0;
+    let priorityScore =
+      targetCombatPower +
+      highValueTargetCount * 18 +
+      armorTargetCount * 8 +
+      Math.max(analysisTargets.length - 1, 0) * 3;
+
+    switch (missionKind) {
+      case "대함 타격":
+        priorityScore += 18;
+        break;
+      case "대화력전":
+        priorityScore += 14;
+        break;
+      case "정밀 타격":
+        priorityScore += 12;
+        break;
+      case "기갑 제압":
+        priorityScore += 8;
+        break;
+      case "지역 제압":
+        priorityScore += 6;
+        break;
+      default:
+        priorityScore += 4;
+        break;
+    }
+
+    if (bestRecommendation) {
+      priorityScore += bestRecommendation.suitabilityScore * 0.35;
+      priorityScore +=
+        Math.min(
+          bestRecommendation.expectedStrikeEffect,
+          desiredEffectRequested
+        ) * 1.4;
+    }
+    priorityScore = roundToDigits(priorityScore, 1);
+
+    return {
+      recommendedOptionLabel: bestRecommendation?.label ?? null,
+      primaryTargetId: primaryTarget?.id ?? primaryTargetId ?? null,
+      priorityScore,
+      missionKind,
+      targetPriorityLabel,
+      desiredEffectLabel,
+      ammoType: bestRecommendation?.ammoType ?? null,
+      desiredEffectEstimated: desiredEffect,
+      desiredEffectIsUserDefined,
+      firingUnitNames: bestRecommendation
+        ? bestRecommendation.firingUnitNames
+        : [],
+      targetName: buildFocusFireTargetLabel(
+        analysisTargets[0],
+        analysisTargets.length,
+        objective.name
+      ),
+      targetSideNames,
+      targetCount: analysisTargets.length,
+      targetComposition,
+      targetLatitude: primaryTarget?.latitude ?? objective.latitude,
+      targetLongitude: primaryTarget?.longitude ?? objective.longitude,
+      targetCombatPower,
+      desiredEffect: desiredEffectRequested,
+      targetDistanceKm: bestRecommendation
+        ? roundToDigits(bestRecommendation.averageDistanceKm, 1)
+        : null,
+      minimumTargetDistanceKm: bestRecommendation
+        ? bestRecommendation.minimumDistanceKm
+        : null,
+      maximumTargetDistanceKm: bestRecommendation
+        ? bestRecommendation.maximumDistanceKm
+        : null,
+      immediateLaunchReadyCount:
+        bestRecommendation?.immediateLaunchReadyCount ?? 0,
+      repositionRequiredCount: bestRecommendation?.repositionRequiredCount ?? 0,
+      blockedLauncherCount: bestRecommendation?.blockedLauncherCount ?? 0,
+      averageTimeToFireSeconds:
+        bestRecommendation?.averageTimeToFireSeconds ?? null,
+      threatExposureScore: bestRecommendation?.threatExposureScore ?? 0,
+      launchReadinessLabel:
+        bestRecommendation?.executionReadinessLabel ?? "추천 없음",
+      selectionModelLabel: rerankerApplied
+        ? `AI 재정렬 v${this.focusFireRerankerModel.version} · 신뢰도 ${Math.round(
+            rerankerConfidenceScore * 100
+          )}%`
+        : "규칙 기반",
+      rerankerApplied,
+      weaponName: bestRecommendation?.weaponName ?? null,
+      shotCount: bestRecommendation?.shotCount ?? 0,
+      expectedStrikeEffect: bestRecommendation
+        ? bestRecommendation.expectedStrikeEffect
+        : 0,
+      options: recommendations,
+    };
+  }
+
+  getFocusFireRecommendation(
+    objective:
+      | FocusFireObjectivePoint
+      | undefined = this.getFocusFireObjective(),
+    sideId = this.focusFireOperation.sideId
+  ): FocusFireRecommendation | null {
+    return this.buildFocusFireRecommendation(
+      objective,
+      sideId,
+      this.focusFireOperation.desiredEffectOverride
+    );
+  }
+
+  getFireRecommendationForTarget(
+    targetId: string,
+    sideId = this.currentSideId,
+    desiredEffectOverride: number | null = null
+  ): FocusFireRecommendation | null {
+    if (!sideId) {
+      return null;
+    }
+
+    const target = this.getTargetById(targetId);
+    if (
+      !target ||
+      !(
+        target instanceof Aircraft ||
+        target instanceof Facility ||
+        target instanceof Ship ||
+        target instanceof Airbase
+      )
+    ) {
+      return null;
+    }
+
+    if (!this.getFocusFireHostileSideIds(sideId).has(target.sideId)) {
+      return null;
+    }
+
+    return this.buildFocusFireRecommendation(
+      {
+        name: target.name,
+        latitude: target.latitude,
+        longitude: target.longitude,
+      },
+      sideId,
+      desiredEffectOverride,
+      target.id
+    );
+  }
+
+  getFireRecommendationTargetPriorities(
+    sideId = this.currentSideId,
+    targetIds?: string[]
+  ): FireRecommendationTargetPriority[] {
+    if (!sideId) {
+      return [];
+    }
+
+    const explicitTargetIds = targetIds?.filter((targetId) => targetId) ?? [];
+    const candidateTargets = (
+      explicitTargetIds.length > 0
+        ? explicitTargetIds
+            .map((targetId) => this.getTargetById(targetId))
+            .filter((target): target is Target => target !== undefined)
+        : this.currentScenario.getAllTargetsFromEnemySides(sideId)
+    ).filter(
+      (target): target is Aircraft | Facility | Ship | Airbase =>
+        target instanceof Aircraft ||
+        target instanceof Facility ||
+        target instanceof Ship ||
+        target instanceof Airbase
+    );
+
+    return [
+      ...new Map(
+        candidateTargets.map((target) => [target.id, target])
+      ).values(),
+    ]
+      .map((target) => {
+        const recommendation = this.getFireRecommendationForTarget(
+          target.id,
+          sideId
+        );
+        if (!recommendation) {
+          return null;
+        }
+
+        return {
+          targetId: target.id,
+          targetName: target.name,
+          targetClassName: target.className,
+          targetSideId: target.sideId,
+          targetSideName: this.currentScenario.getSideName(target.sideId),
+          priorityRank: 0,
+          priorityScore: recommendation.priorityScore,
+          recommendation,
+        } satisfies FireRecommendationTargetPriority;
+      })
+      .filter(
+        (entry): entry is FireRecommendationTargetPriority => entry !== null
+      )
+      .sort((left, right) => {
+        if (right.priorityScore !== left.priorityScore) {
+          return right.priorityScore - left.priorityScore;
+        }
+        if (
+          right.recommendation.targetCombatPower !==
+          left.recommendation.targetCombatPower
+        ) {
+          return (
+            right.recommendation.targetCombatPower -
+            left.recommendation.targetCombatPower
+          );
+        }
+        return left.targetName.localeCompare(right.targetName);
+      })
+      .map((entry, index) => ({
+        ...entry,
+        priorityRank: index + 1,
+      }));
+  }
+
   getFocusFireSummary(): FocusFireSummary {
     const objective = this.getFocusFireObjective();
     const aircraftCount = this.getFocusFireAircraft().length;
@@ -334,6 +2690,12 @@ export default class Game {
     const launchPlatforms = this.getFocusFireLaunchPlatforms();
     const weaponTracks = this.getFocusFireWeaponTracks(objective);
     const weaponsInFlight = weaponTracks.length;
+    const recommendation = this.getFocusFireRecommendation(objective);
+    this.recordFocusFireRecommendationTelemetry(
+      objective,
+      this.focusFireOperation.sideId,
+      recommendation
+    );
 
     let statusLabel = "대기";
     if (this.focusFireOperation.enabled && !objective) {
@@ -352,6 +2714,7 @@ export default class Game {
       objectiveName: objective?.name ?? null,
       objectiveLatitude: objective?.latitude ?? null,
       objectiveLongitude: objective?.longitude ?? null,
+      desiredEffectOverride: this.focusFireOperation.desiredEffectOverride,
       captureProgress: this.focusFireOperation.captureProgress,
       artilleryCount,
       armorCount,
@@ -360,6 +2723,7 @@ export default class Game {
       statusLabel,
       launchPlatforms,
       weaponTracks,
+      recommendation,
     };
   }
 
@@ -405,6 +2769,39 @@ export default class Game {
 
     this.clearFocusFireOperation(true, true);
     return false;
+  }
+
+  setFocusFireDesiredEffectOverride(
+    desiredEffectOverride: number | null,
+    recordHistory = true
+  ) {
+    if (!this.focusFireOperation.enabled && !this.currentSideId) {
+      return null;
+    }
+
+    const normalizedDesiredEffect =
+      desiredEffectOverride == null
+        ? null
+        : roundToDigits(Math.max(desiredEffectOverride, 0.1), 1);
+
+    if (
+      this.focusFireOperation.desiredEffectOverride === normalizedDesiredEffect
+    ) {
+      return this.focusFireOperation.desiredEffectOverride;
+    }
+
+    if (recordHistory) {
+      this.recordHistory();
+    }
+
+    if (!this.focusFireOperation.enabled) {
+      this.focusFireOperation.enabled = true;
+      this.focusFireOperation.sideId =
+        this.focusFireOperation.sideId ?? this.currentSideId;
+    }
+
+    this.focusFireOperation.desiredEffectOverride = normalizedDesiredEffect;
+    return this.focusFireOperation.desiredEffectOverride;
   }
 
   setFocusFireObjective(latitude: number, longitude: number) {
@@ -453,6 +2850,7 @@ export default class Game {
       active: true,
       sideId: this.currentSideId,
       objectiveReferencePointId: objective.id,
+      desiredEffectOverride: this.focusFireOperation.desiredEffectOverride,
       captureProgress: 0,
       launchedPlatformIds: [],
     };
@@ -461,7 +2859,12 @@ export default class Game {
       this.currentSideId,
       `${FOCUS_FIRE_OBJECTIVE_NAME}을(를) 지정했습니다. 모든 화력이 목표 지점에 집중됩니다.`,
       this.currentScenario.currentTime,
-      SimulationLogType.OTHER
+      SimulationLogType.OTHER,
+      {
+        objectiveId: objective.id,
+        objectiveName: objective.name,
+        resultTag: "objective_assigned",
+      }
     );
 
     return objective;
@@ -1174,6 +3577,9 @@ export default class Game {
           rtb: false,
           targetId: aircraft.targetId,
           sideColor: aircraft.sideColor,
+          maxHp: aircraft.maxHp,
+          currentHp: aircraft.maxHp,
+          defense: aircraft.defense,
         });
         this.currentScenario.aircraft.push(newAircraft);
         return newAircraft;
@@ -1659,7 +4065,13 @@ export default class Game {
           aircraft.sideId,
           `${aircraft.name}의 복귀 명령이 취소되었습니다.`,
           this.currentScenario.currentTime,
-          SimulationLogType.RETURN_TO_BASE
+          SimulationLogType.RETURN_TO_BASE,
+          {
+            actorId: aircraft.id,
+            actorName: aircraft.name,
+            actorType: "aircraft",
+            resultTag: "rtb_cancel",
+          }
         );
         aircraft.rtb = false;
         aircraft.route = [];
@@ -1678,7 +4090,15 @@ export default class Game {
             aircraft.sideId,
             `${aircraft.name}가 ${homeBase.name}(으)로 복귀 중입니다.`,
             this.currentScenario.currentTime,
-            SimulationLogType.RETURN_TO_BASE
+            SimulationLogType.RETURN_TO_BASE,
+            {
+              actorId: aircraft.id,
+              actorName: aircraft.name,
+              actorType: "aircraft",
+              destinationId: homeBase.id,
+              destinationName: homeBase.name,
+              resultTag: "rtb_start",
+            }
           );
           return this.commitRoute(aircraftId);
         }
@@ -1735,6 +4155,9 @@ export default class Game {
           rtb: false,
           targetId: aircraft.targetId,
           sideColor: aircraft.sideColor,
+          maxHp: aircraft.maxHp,
+          currentHp: aircraft.currentHp,
+          defense: aircraft.defense,
         });
         homeBase.aircraft.push(newAircraft);
         this.removeAircraft(aircraft.id);
@@ -1768,6 +4191,9 @@ export default class Game {
       selectedUnitId: this.selectedUnitId,
       mapView: this.mapView,
       focusFireOperation: this.focusFireOperation,
+      focusFireRecommendationTelemetry: this.focusFireRecommendationTelemetry,
+      focusFireRerankerEnabled: this.focusFireRerankerEnabled,
+      focusFireRerankerModel: this.focusFireRerankerModel,
     };
     return JSON.stringify(exportObject);
   }
@@ -1779,6 +4205,8 @@ export default class Game {
     this.mapView = importObject.mapView;
     this.simulationLogs.clearLogs();
     this.focusFireOperation = createDefaultFocusFireOperation();
+    this.clearFocusFireRecommendationTelemetry();
+    this.resetFocusFireRerankerModel();
 
     const savedScenario = importObject.currentScenario;
     const savedSides = savedScenario.sides.map((side: Side) => {
@@ -1805,34 +4233,37 @@ export default class Game {
       }),
       doctrine: savedScenario.doctrine,
     });
-    savedScenario.aircraft.forEach((aircraft: Aircraft) => {
-      const aircraftWeapons: Weapon[] = aircraft.weapons?.map(
-        (weapon: Weapon) => {
-          return new Weapon({
-            id: weapon.id,
-            launcherId: "None",
-            name: weapon.name,
-            sideId: weapon.sideId,
-            className: weapon.className,
-            latitude: weapon.latitude,
-            longitude: weapon.longitude,
-            altitude: weapon.altitude,
-            heading: weapon.heading,
-            speed: weapon.speed,
-            currentFuel: weapon.currentFuel,
-            maxFuel: weapon.maxFuel,
-            fuelRate: weapon.fuelRate,
-            range: weapon.range,
-            route: weapon.route,
-            targetId: weapon.targetId,
-            lethality: weapon.lethality,
-            maxQuantity: weapon.maxQuantity,
-            currentQuantity: weapon.currentQuantity,
-            sideColor: weapon.sideColor,
-          });
-        }
-      );
-      const newAircraft = new Aircraft({
+
+    const buildWeapon = (weapon: Weapon) =>
+      new Weapon({
+        id: weapon.id,
+        launcherId: weapon.launcherId ?? "None",
+        name: weapon.name,
+        sideId: weapon.sideId,
+        className: weapon.className,
+        latitude: weapon.latitude,
+        longitude: weapon.longitude,
+        altitude: weapon.altitude,
+        heading: weapon.heading,
+        speed: weapon.speed,
+        currentFuel: weapon.currentFuel,
+        maxFuel: weapon.maxFuel,
+        fuelRate: weapon.fuelRate,
+        range: weapon.range,
+        route: weapon.route,
+        targetId: weapon.targetId,
+        lethality: weapon.lethality,
+        attackPower: weapon.attackPower,
+        maxQuantity: weapon.maxQuantity,
+        currentQuantity: weapon.currentQuantity,
+        maxHp: weapon.maxHp,
+        currentHp: weapon.currentHp,
+        defense: weapon.defense,
+        sideColor: weapon.sideColor,
+      });
+
+    const buildAircraft = (aircraft: Aircraft, aircraftWeapons: Weapon[]) =>
+      new Aircraft({
         id: aircraft.id,
         name: aircraft.name,
         sideId: aircraft.sideId,
@@ -1853,60 +4284,21 @@ export default class Game {
         rtb: aircraft.rtb,
         targetId: aircraft.targetId ?? "",
         sideColor: aircraft.sideColor,
+        maxHp: aircraft.maxHp,
+        currentHp: aircraft.currentHp,
+        defense: aircraft.defense,
       });
+
+    savedScenario.aircraft.forEach((aircraft: Aircraft) => {
+      const aircraftWeapons: Weapon[] = aircraft.weapons?.map(buildWeapon);
+      const newAircraft = buildAircraft(aircraft, aircraftWeapons);
       loadedScenario.aircraft.push(newAircraft);
     });
     savedScenario.airbases.forEach((airbase: Airbase) => {
       const airbaseAircraft: Aircraft[] = [];
       airbase.aircraft.forEach((aircraft: Aircraft) => {
-        const aircraftWeapons: Weapon[] = aircraft.weapons?.map(
-          (weapon: Weapon) => {
-            return new Weapon({
-              id: weapon.id,
-              launcherId: "None",
-              name: weapon.name,
-              sideId: weapon.sideId,
-              className: weapon.className,
-              latitude: weapon.latitude,
-              longitude: weapon.longitude,
-              altitude: weapon.altitude,
-              heading: weapon.heading,
-              speed: weapon.speed,
-              currentFuel: weapon.currentFuel,
-              maxFuel: weapon.maxFuel,
-              fuelRate: weapon.fuelRate,
-              range: weapon.range,
-              route: weapon.route,
-              targetId: weapon.targetId,
-              lethality: weapon.lethality,
-              maxQuantity: weapon.maxQuantity,
-              currentQuantity: weapon.currentQuantity,
-              sideColor: weapon.sideColor,
-            });
-          }
-        );
-        const newAircraft = new Aircraft({
-          id: aircraft.id,
-          name: aircraft.name,
-          sideId: aircraft.sideId,
-          className: aircraft.className,
-          latitude: aircraft.latitude,
-          longitude: aircraft.longitude,
-          altitude: aircraft.altitude,
-          heading: aircraft.heading,
-          speed: aircraft.speed,
-          currentFuel: aircraft.currentFuel,
-          maxFuel: aircraft.maxFuel,
-          fuelRate: aircraft.fuelRate,
-          range: aircraft.range,
-          route: aircraft.route,
-          selected: aircraft.selected,
-          weapons: aircraftWeapons,
-          homeBaseId: aircraft.homeBaseId,
-          rtb: aircraft.rtb,
-          targetId: aircraft.targetId ?? "",
-          sideColor: aircraft.sideColor,
-        });
+        const aircraftWeapons: Weapon[] = aircraft.weapons?.map(buildWeapon);
+        const newAircraft = buildAircraft(aircraft, aircraftWeapons);
         airbaseAircraft.push(newAircraft);
       });
       const newAirbase = new Airbase({
@@ -1919,36 +4311,14 @@ export default class Game {
         altitude: airbase.altitude,
         sideColor: airbase.sideColor,
         aircraft: airbaseAircraft,
+        maxHp: airbase.maxHp,
+        currentHp: airbase.currentHp,
+        defense: airbase.defense,
       });
       loadedScenario.airbases.push(newAirbase);
     });
     savedScenario.facilities.forEach((facility: Facility) => {
-      const facilityWeapons: Weapon[] = facility.weapons?.map(
-        (weapon: Weapon) => {
-          return new Weapon({
-            id: weapon.id,
-            launcherId: "None",
-            name: weapon.name,
-            sideId: weapon.sideId,
-            className: weapon.className,
-            latitude: weapon.latitude,
-            longitude: weapon.longitude,
-            altitude: weapon.altitude,
-            heading: weapon.heading,
-            speed: weapon.speed,
-            currentFuel: weapon.currentFuel,
-            maxFuel: weapon.maxFuel,
-            fuelRate: weapon.fuelRate,
-            range: weapon.range,
-            route: weapon.route,
-            targetId: weapon.targetId,
-            lethality: weapon.lethality,
-            maxQuantity: weapon.maxQuantity,
-            currentQuantity: weapon.currentQuantity,
-            sideColor: weapon.sideColor,
-          });
-        }
-      );
+      const facilityWeapons: Weapon[] = facility.weapons?.map(buildWeapon);
       const newFacility = new Facility({
         id: facility.id,
         name: facility.name,
@@ -1967,111 +4337,24 @@ export default class Game {
           getFacilityDetectionArcDegrees(facility.className),
         weapons: facilityWeapons,
         sideColor: facility.sideColor,
+        maxHp: facility.maxHp,
+        currentHp: facility.currentHp,
+        defense: facility.defense,
       });
       loadedScenario.facilities.push(newFacility);
     });
     savedScenario.weapons.forEach((weapon: Weapon) => {
-      const newWeapon = new Weapon({
-        id: weapon.id,
-        launcherId: "None",
-        name: weapon.name,
-        sideId: weapon.sideId,
-        className: weapon.className,
-        latitude: weapon.latitude,
-        longitude: weapon.longitude,
-        altitude: weapon.altitude,
-        heading: weapon.heading,
-        speed: weapon.speed,
-        currentFuel: weapon.currentFuel,
-        maxFuel: weapon.maxFuel,
-        fuelRate: weapon.fuelRate,
-        range: weapon.range,
-        route: weapon.route,
-        targetId: weapon.targetId,
-        lethality: weapon.lethality,
-        maxQuantity: weapon.maxQuantity,
-        currentQuantity: weapon.currentQuantity,
-        sideColor: weapon.sideColor,
-      });
+      const newWeapon = buildWeapon(weapon);
       loadedScenario.weapons.push(newWeapon);
     });
     savedScenario.ships?.forEach((ship: Ship) => {
       const shipAircraft: Aircraft[] = [];
       ship.aircraft.forEach((aircraft: Aircraft) => {
-        const aircraftWeapons: Weapon[] = aircraft.weapons?.map(
-          (weapon: Weapon) => {
-            return new Weapon({
-              id: weapon.id,
-              launcherId: "None",
-              name: weapon.name,
-              sideId: weapon.sideId,
-              className: weapon.className,
-              latitude: weapon.latitude,
-              longitude: weapon.longitude,
-              altitude: weapon.altitude,
-              heading: weapon.heading,
-              speed: weapon.speed,
-              currentFuel: weapon.currentFuel,
-              maxFuel: weapon.maxFuel,
-              fuelRate: weapon.fuelRate,
-              range: weapon.range,
-              route: weapon.route,
-              targetId: weapon.targetId,
-              lethality: weapon.lethality,
-              maxQuantity: weapon.maxQuantity,
-              currentQuantity: weapon.currentQuantity,
-              sideColor: weapon.sideColor,
-            });
-          }
-        );
-        const newAircraft = new Aircraft({
-          id: aircraft.id,
-          name: aircraft.name,
-          sideId: aircraft.sideId,
-          className: aircraft.className,
-          latitude: aircraft.latitude,
-          longitude: aircraft.longitude,
-          altitude: aircraft.altitude,
-          heading: aircraft.heading,
-          speed: aircraft.speed,
-          currentFuel: aircraft.currentFuel,
-          maxFuel: aircraft.maxFuel,
-          fuelRate: aircraft.fuelRate,
-          range: aircraft.range,
-          route: aircraft.route,
-          selected: aircraft.selected,
-          weapons: aircraftWeapons,
-          homeBaseId: aircraft.homeBaseId,
-          rtb: aircraft.rtb,
-          targetId: aircraft.targetId ?? "",
-          sideColor: aircraft.sideColor,
-        });
+        const aircraftWeapons: Weapon[] = aircraft.weapons?.map(buildWeapon);
+        const newAircraft = buildAircraft(aircraft, aircraftWeapons);
         shipAircraft.push(newAircraft);
       });
-      const shipWeapons: Weapon[] = ship.weapons?.map((weapon: Weapon) => {
-        return new Weapon({
-          id: weapon.id,
-          launcherId: "None",
-          name: weapon.name,
-          sideId: weapon.sideId,
-          className: weapon.className,
-          latitude: weapon.latitude,
-          longitude: weapon.longitude,
-          altitude: weapon.altitude,
-          heading: weapon.heading,
-          speed: weapon.speed,
-          currentFuel: weapon.currentFuel,
-          maxFuel: weapon.maxFuel,
-          fuelRate: weapon.fuelRate,
-          range: weapon.range,
-          route: weapon.route,
-          targetId: weapon.targetId,
-          lethality: weapon.lethality,
-          maxQuantity: weapon.maxQuantity,
-          currentQuantity: weapon.currentQuantity,
-          sideColor: weapon.sideColor,
-        });
-      });
+      const shipWeapons: Weapon[] = ship.weapons?.map(buildWeapon);
       const newShip = new Ship({
         id: ship.id,
         name: ship.name,
@@ -2090,6 +4373,9 @@ export default class Game {
         sideColor: ship.sideColor,
         weapons: shipWeapons,
         aircraft: shipAircraft,
+        maxHp: ship.maxHp,
+        currentHp: ship.currentHp,
+        defense: ship.defense,
       });
       loadedScenario.ships.push(newShip);
     });
@@ -2155,6 +4441,15 @@ export default class Game {
         sideId: importedFocusFireOperation.sideId ?? this.currentSideId ?? null,
         objectiveReferencePointId:
           importedFocusFireOperation.objectiveReferencePointId ?? null,
+        desiredEffectOverride:
+          typeof importedFocusFireOperation.desiredEffectOverride ===
+            "number" &&
+          Number.isFinite(importedFocusFireOperation.desiredEffectOverride)
+            ? roundToDigits(
+                Math.max(importedFocusFireOperation.desiredEffectOverride, 0.1),
+                1
+              )
+            : null,
         captureProgress: importedFocusFireOperation.captureProgress ?? 0,
         launchedPlatformIds: Array.isArray(
           importedFocusFireOperation.launchedPlatformIds
@@ -2171,6 +4466,205 @@ export default class Game {
         this.focusFireOperation = createDefaultFocusFireOperation();
       }
     }
+
+    if (Array.isArray(importObject.focusFireRecommendationTelemetry)) {
+      this.focusFireRecommendationTelemetry =
+        importObject.focusFireRecommendationTelemetry
+          .map((entry: unknown) => {
+            if (!entry || typeof entry !== "object") {
+              return null;
+            }
+
+            const telemetryEntry =
+              entry as Partial<FocusFireRecommendationTelemetryRecord>;
+            return {
+              id: telemetryEntry.id ?? randomUUID(),
+              timestamp:
+                typeof telemetryEntry.timestamp === "number"
+                  ? telemetryEntry.timestamp
+                  : this.currentScenario.currentTime,
+              sideId: telemetryEntry.sideId ?? null,
+              objectiveName: telemetryEntry.objectiveName ?? null,
+              objectiveLatitude:
+                typeof telemetryEntry.objectiveLatitude === "number"
+                  ? telemetryEntry.objectiveLatitude
+                  : null,
+              objectiveLongitude:
+                typeof telemetryEntry.objectiveLongitude === "number"
+                  ? telemetryEntry.objectiveLongitude
+                  : null,
+              primaryTargetId: telemetryEntry.primaryTargetId ?? null,
+              targetName: telemetryEntry.targetName ?? null,
+              missionKind: telemetryEntry.missionKind ?? null,
+              recommendedOptionLabel:
+                telemetryEntry.recommendedOptionLabel ?? null,
+              weaponName: telemetryEntry.weaponName ?? null,
+              ammoType: telemetryEntry.ammoType ?? null,
+              priorityScore:
+                typeof telemetryEntry.priorityScore === "number"
+                  ? telemetryEntry.priorityScore
+                  : null,
+              desiredEffect:
+                typeof telemetryEntry.desiredEffect === "number"
+                  ? telemetryEntry.desiredEffect
+                  : null,
+              expectedStrikeEffect:
+                typeof telemetryEntry.expectedStrikeEffect === "number"
+                  ? telemetryEntry.expectedStrikeEffect
+                  : null,
+              launchReadinessLabel: telemetryEntry.launchReadinessLabel ?? null,
+              averageTimeToFireSeconds:
+                typeof telemetryEntry.averageTimeToFireSeconds === "number"
+                  ? telemetryEntry.averageTimeToFireSeconds
+                  : null,
+              threatExposureScore:
+                typeof telemetryEntry.threatExposureScore === "number"
+                  ? telemetryEntry.threatExposureScore
+                  : null,
+              selectionModelLabel: telemetryEntry.selectionModelLabel ?? null,
+              rerankerApplied: telemetryEntry.rerankerApplied === true,
+              immediateLaunchReadyCount:
+                typeof telemetryEntry.immediateLaunchReadyCount === "number"
+                  ? telemetryEntry.immediateLaunchReadyCount
+                  : 0,
+              repositionRequiredCount:
+                typeof telemetryEntry.repositionRequiredCount === "number"
+                  ? telemetryEntry.repositionRequiredCount
+                  : 0,
+              blockedLauncherCount:
+                typeof telemetryEntry.blockedLauncherCount === "number"
+                  ? telemetryEntry.blockedLauncherCount
+                  : 0,
+              rerankerModelVersion:
+                typeof telemetryEntry.rerankerModelVersion === "number"
+                  ? telemetryEntry.rerankerModelVersion
+                  : null,
+              feedbackOptionLabel:
+                typeof telemetryEntry.feedbackOptionLabel === "string" &&
+                telemetryEntry.feedbackOptionLabel.trim().length > 0
+                  ? telemetryEntry.feedbackOptionLabel
+                  : null,
+              feedbackCapturedAt:
+                typeof telemetryEntry.feedbackCapturedAt === "number"
+                  ? telemetryEntry.feedbackCapturedAt
+                  : null,
+              options: Array.isArray(telemetryEntry.options)
+                ? telemetryEntry.options
+                    .map((option) => {
+                      if (!option || typeof option !== "object") {
+                        return null;
+                      }
+
+                      const telemetryOption =
+                        option as Partial<FocusFireRecommendationTelemetryOption>;
+                      return {
+                        label: telemetryOption.label ?? "추천안",
+                        weaponName: telemetryOption.weaponName ?? null,
+                        ammoType: telemetryOption.ammoType ?? null,
+                        suitabilityScore:
+                          typeof telemetryOption.suitabilityScore === "number"
+                            ? telemetryOption.suitabilityScore
+                            : 0,
+                        heuristicScore:
+                          typeof telemetryOption.heuristicScore === "number"
+                            ? telemetryOption.heuristicScore
+                            : typeof telemetryOption.suitabilityScore ===
+                                "number"
+                              ? telemetryOption.suitabilityScore
+                              : 0,
+                        rerankerScore:
+                          typeof telemetryOption.rerankerScore === "number"
+                            ? telemetryOption.rerankerScore
+                            : null,
+                        executionReadinessLabel:
+                          telemetryOption.executionReadinessLabel ?? "미지정",
+                        averageTimeToFireSeconds:
+                          typeof telemetryOption.averageTimeToFireSeconds ===
+                          "number"
+                            ? telemetryOption.averageTimeToFireSeconds
+                            : null,
+                        threatExposureScore:
+                          typeof telemetryOption.threatExposureScore ===
+                          "number"
+                            ? telemetryOption.threatExposureScore
+                            : 0,
+                        shotCount:
+                          typeof telemetryOption.shotCount === "number"
+                            ? telemetryOption.shotCount
+                            : 0,
+                        expectedStrikeEffect:
+                          typeof telemetryOption.expectedStrikeEffect ===
+                          "number"
+                            ? telemetryOption.expectedStrikeEffect
+                            : 0,
+                        launcherCount:
+                          typeof telemetryOption.launcherCount === "number"
+                            ? telemetryOption.launcherCount
+                            : 0,
+                        immediateLaunchReadyCount:
+                          typeof telemetryOption.immediateLaunchReadyCount ===
+                          "number"
+                            ? telemetryOption.immediateLaunchReadyCount
+                            : 0,
+                        repositionRequiredCount:
+                          typeof telemetryOption.repositionRequiredCount ===
+                          "number"
+                            ? telemetryOption.repositionRequiredCount
+                            : 0,
+                        blockedLauncherCount:
+                          typeof telemetryOption.blockedLauncherCount ===
+                          "number"
+                            ? telemetryOption.blockedLauncherCount
+                            : 0,
+                        averageDistanceKm:
+                          typeof telemetryOption.averageDistanceKm === "number"
+                            ? telemetryOption.averageDistanceKm
+                            : null,
+                      } satisfies FocusFireRecommendationTelemetryOption;
+                    })
+                    .filter(
+                      (
+                        option
+                      ): option is FocusFireRecommendationTelemetryOption =>
+                        option !== null
+                    )
+                : [],
+            } satisfies FocusFireRecommendationTelemetryRecord;
+          })
+          .filter(
+            (
+              entry: FocusFireRecommendationTelemetryRecord | null
+            ): entry is FocusFireRecommendationTelemetryRecord => entry !== null
+          )
+          .slice(-200);
+      this.focusFireRecommendationTelemetry.forEach((entry) => {
+        const telemetryKey = buildFocusFireRecommendationTelemetryKey(
+          entry.sideId,
+          entry.objectiveName,
+          entry.objectiveLatitude,
+          entry.objectiveLongitude,
+          entry.primaryTargetId
+        );
+        const signature =
+          buildFocusFireRecommendationTelemetryRecordSignature(entry);
+        this.focusFireRecommendationTelemetrySignatures.set(
+          telemetryKey,
+          signature
+        );
+      });
+    }
+
+    const normalizedImportedModel = normalizeImportedFocusFireRerankerModel(
+      importObject.focusFireRerankerModel as
+        | Partial<FocusFireRerankerModel>
+        | undefined
+    );
+    if (normalizedImportedModel) {
+      this.focusFireRerankerModel = normalizedImportedModel;
+    }
+
+    this.focusFireRerankerEnabled =
+      importObject.focusFireRerankerEnabled === true;
   }
 
   toggleGodMode(enabled: boolean = !this.godMode) {
@@ -2397,21 +4891,32 @@ export default class Game {
         if (mission instanceof StrikeMission) {
           let isMissionOngoing = true;
 
-          // SUCCESS CONDITION: Is the primary target destroyed?
-          const target =
-            this.currentScenario.getFacility(mission.assignedTargetIds[0]) ||
-            this.currentScenario.getShip(mission.assignedTargetIds[0]) ||
-            this.currentScenario.getAirbase(mission.assignedTargetIds[0]) ||
-            this.currentScenario.getAircraft(mission.assignedTargetIds[0]);
+          // SUCCESS CONDITION: Have all assigned targets been destroyed?
+          const target = this.getStrikeMissionCurrentTarget(mission);
 
           if (!target) {
             isMissionOngoing = false;
-            processStrikeMissionSuccess(this.currentScenario, mission);
+            const scoreDelta = processStrikeMissionSuccess(
+              this.currentScenario,
+              mission
+            );
             this.simulationLogs.addLog(
               mission.sideId,
-              `타격 임무 '${mission.name}' 완료: 목표가 파괴되었습니다.`,
+              `타격 임무 '${mission.name}' 완료: 지정 표적이 모두 무력화되었습니다.`,
               this.currentScenario.currentTime,
-              SimulationLogType.STRIKE_MISSION_SUCCESS
+              SimulationLogType.STRIKE_MISSION_SUCCESS,
+              {
+                missionId: mission.id,
+                missionName: mission.name,
+                objectiveId: mission.assignedTargetIds[0],
+                objectiveName:
+                  mission.assignedTargetIds.length > 1
+                    ? `${mission.assignedTargetIds.length}개 지정 표적`
+                    : undefined,
+                resultTag: "mission_success",
+                actorScoreDelta: scoreDelta.actorDelta,
+                scoreNetDelta: scoreDelta.netDelta,
+              }
             );
           }
 
@@ -2426,7 +4931,12 @@ export default class Game {
               mission.sideId,
               `타격 임무 '${mission.name}' 실패: 투입 항공기를 모두 상실했습니다.`,
               this.currentScenario.currentTime,
-              SimulationLogType.STRIKE_MISSION_ABORTED
+              SimulationLogType.STRIKE_MISSION_ABORTED,
+              {
+                missionId: mission.id,
+                missionName: mission.name,
+                resultTag: "mission_abort",
+              }
             );
           }
 
@@ -2463,11 +4973,7 @@ export default class Game {
       mission.assignedUnitIds.forEach((attackerId) => {
         const attacker = this.currentScenario.getAircraft(attackerId);
         if (attacker) {
-          const target =
-            this.currentScenario.getFacility(mission.assignedTargetIds[0]) ||
-            this.currentScenario.getShip(mission.assignedTargetIds[0]) ||
-            this.currentScenario.getAirbase(mission.assignedTargetIds[0]) ||
-            this.currentScenario.getAircraft(mission.assignedTargetIds[0]);
+          const target = this.getStrikeMissionCurrentTarget(mission);
           if (!target) return;
           let distanceBetweenWeaponLaunchPositionAndTargetNm = null;
           if (attacker.route.length > 0) {
@@ -2508,7 +5014,7 @@ export default class Game {
             routeAircraftToStrikePosition(
               this.currentScenario,
               attacker,
-              mission.assignedTargetIds[0],
+              target.id,
               Math.min(
                 attacker.getDetectionRange(),
                 aircraftWeaponWithMaxRange.getEngagementRange()
@@ -2695,7 +5201,12 @@ export default class Game {
         sideId,
         `${objective.name}을(를) 확보했습니다. 집중포격 작전이 종료됩니다.`,
         this.currentScenario.currentTime,
-        SimulationLogType.STRIKE_MISSION_SUCCESS
+        SimulationLogType.STRIKE_MISSION_SUCCESS,
+        {
+          objectiveId: objective.id,
+          objectiveName: objective.name,
+          resultTag: "objective_secured",
+        }
       );
     }
   }
@@ -2723,13 +5234,27 @@ export default class Game {
       const isMissionHealthy = assignedUnits.every((unit) => unit && !unit.rtb);
 
       if (isMissionHealthy) {
-        processPatrolMissionSuccess(this.currentScenario, mission);
+        const scoreDelta = processPatrolMissionSuccess(
+          this.currentScenario,
+          mission
+        );
         mission.lastScoringTime = this.currentScenario.currentTime; // Update the last scoring time
         this.simulationLogs.addLog(
           mission.sideId,
           `초계 임무 '${mission.name}' 유지 중입니다. 점수를 획득했습니다.`,
           this.currentScenario.currentTime,
-          SimulationLogType.PATROL_MISSION_SUCCESS
+          SimulationLogType.PATROL_MISSION_SUCCESS,
+          {
+            missionId: mission.id,
+            missionName: mission.name,
+            objectiveName:
+              mission.assignedArea.length > 0
+                ? `${mission.assignedArea.length}개 참조점 공역`
+                : undefined,
+            resultTag: "patrol_hold",
+            actorScoreDelta: scoreDelta.actorDelta,
+            scoreNetDelta: scoreDelta.netDelta,
+          }
         );
       }
     });
@@ -2754,6 +5279,21 @@ export default class Game {
         weapon.longitude = ship.longitude;
       });
     });
+  }
+
+  getStrikeMissionCurrentTarget(mission: StrikeMission) {
+    for (const targetId of mission.assignedTargetIds) {
+      const target =
+        this.currentScenario.getFacility(targetId) ??
+        this.currentScenario.getShip(targetId) ??
+        this.currentScenario.getAirbase(targetId) ??
+        this.currentScenario.getAircraft(targetId);
+      if (target) {
+        return target;
+      }
+    }
+
+    return undefined;
   }
 
   updateAllAircraftPosition() {
@@ -2818,13 +5358,24 @@ export default class Game {
         this.getFuelNeededToReturnToBase(aircraft);
       // if aircraft runs out of fuel
       if (aircraft.currentFuel <= 0) {
-        processFuelExhaustion(this.currentScenario, aircraft);
+        const scoreDelta = processFuelExhaustion(
+          this.currentScenario,
+          aircraft
+        );
         this.removeAircraft(aircraft.id);
         this.simulationLogs.addLog(
           aircraft.sideId,
           `${aircraft.name}의 연료가 소진되어 추락했습니다.`,
           this.currentScenario.currentTime,
-          SimulationLogType.AIRCRAFT_CRASHED
+          SimulationLogType.AIRCRAFT_CRASHED,
+          {
+            actorId: aircraft.id,
+            actorName: aircraft.name,
+            actorType: "aircraft",
+            resultTag: "fuel_loss",
+            actorScoreDelta: scoreDelta.actorDelta,
+            scoreNetDelta: scoreDelta.netDelta,
+          }
         );
       } else if (
         aircraft.currentFuel < fuelNeededToReturnToBase * 1.1 &&

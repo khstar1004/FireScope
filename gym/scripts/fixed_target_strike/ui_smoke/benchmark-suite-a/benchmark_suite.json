@@ -1,0 +1,212 @@
+{
+  "benchmark_suite_schema_version": 1,
+  "generated_at_utc": "2026-04-13T01:52:05.795463+00:00",
+  "preset": "smoke",
+  "run_label": "benchmark-suite-a",
+  "run_dir": "gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-suite-a",
+  "source_paths": [
+    "gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-source\\comparison_summary.json"
+  ],
+  "raw_model_paths": [],
+  "baseline_benchmark_path": null,
+  "scenario_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\gym\\scripts\\fixed_target_strike\\scen.json",
+  "observation_version": 3,
+  "reward_version": 3,
+  "suite_cases": [
+    {
+      "key": "full",
+      "label": "Full Scenario",
+      "eval_episodes": 1,
+      "eval_seed_count": 1,
+      "base_seed": 7,
+      "max_episode_steps": 80,
+      "curriculum_stage": null
+    }
+  ],
+  "thresholds": {
+    "min_success_rate": null,
+    "min_survivability": null,
+    "min_weapon_efficiency": null,
+    "min_tot_quality": null,
+    "min_mean_reward": null,
+    "max_time_to_ready": null,
+    "fail_on_seed_variability_warning": false
+  },
+  "regression_policy": {
+    "max_success_rate_drop": null,
+    "max_mean_reward_drop": null,
+    "max_survivability_drop": null,
+    "max_weapon_efficiency_drop": null,
+    "max_tot_quality_drop": null,
+    "max_time_to_ready_increase": null,
+    "fail_on_regression": false
+  },
+  "leaderboard": [
+    {
+      "rank": 1,
+      "candidate_id": "td3:gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-source\\runs\\td3\\selected_model_td3.zip",
+      "algorithm": "td3",
+      "label": "td3:leaderboard",
+      "overall_pass": true,
+      "passed_cases": 1,
+      "total_cases": 1,
+      "average_success_rate": 0.0,
+      "average_mean_reward": -3.8433345847847047,
+      "model_path": "gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-source\\runs\\td3\\selected_model_td3.zip"
+    },
+    {
+      "rank": 2,
+      "candidate_id": "ppo:gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-source\\runs\\ppo\\selected_model_ppo.zip",
+      "algorithm": "ppo",
+      "label": "ppo:leaderboard",
+      "overall_pass": true,
+      "passed_cases": 1,
+      "total_cases": 1,
+      "average_success_rate": 0.0,
+      "average_mean_reward": -28.00000000000004,
+      "model_path": "gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-source\\runs\\ppo\\selected_model_ppo.zip"
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "td3:gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-source\\runs\\td3\\selected_model_td3.zip",
+      "label": "td3:leaderboard",
+      "algorithm": "td3",
+      "model_path": "gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-source\\runs\\td3\\selected_model_td3.zip",
+      "model_metadata_path": "gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-source\\runs\\td3\\selected_model_td3.metadata.json",
+      "source_kind": "comparison_summary",
+      "source_path": "gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-source\\comparison_summary.json",
+      "training_mode": "standard",
+      "observation_version": 3,
+      "reward_version": 3,
+      "cases": [
+        {
+          "case_key": "full",
+          "label": "Full Scenario",
+          "candidate_id": "td3:gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-source\\runs\\td3\\selected_model_td3.zip",
+          "eval_episodes": 1,
+          "eval_seed_count": 1,
+          "base_seed": 7,
+          "max_episode_steps": 80,
+          "curriculum_stage": null,
+          "passed": true,
+          "thresholds": {
+            "checked": {
+              "min_success_rate": null,
+              "min_survivability": null,
+              "min_weapon_efficiency": null,
+              "min_tot_quality": null,
+              "min_mean_reward": null,
+              "max_time_to_ready": null,
+              "fail_on_seed_variability_warning": false
+            },
+            "passed": true,
+            "failures": []
+          },
+          "regression": {
+            "baseline_found": false,
+            "passed": true,
+            "failures": [],
+            "deltas": {}
+          },
+          "evaluation_summary": {
+            "benchmark_seed_count": 1,
+            "success_rate": 0.0,
+            "mean_reward": -3.8433345847847047,
+            "mean_episode_steps": 80.0,
+            "survivability": 1.0,
+            "weapon_efficiency": 0.0,
+            "time_to_ready": 80.0,
+            "tot_quality": 0.0,
+            "seed_variability_warning": false,
+            "done_reason": "truncated",
+            "done_reason_detail": "max_episode_steps"
+          },
+          "evaluation_path": "gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-suite-a\\td3-leaderboard\\full_evaluation.json"
+        }
+      ],
+      "aggregate": {
+        "total_cases": 1,
+        "passed_cases": 1,
+        "failed_cases": 0,
+        "overall_pass": true,
+        "average_success_rate": 0.0,
+        "average_mean_reward": -3.8433345847847047,
+        "average_survivability": 1.0,
+        "average_weapon_efficiency": 0.0,
+        "average_time_to_ready": 80.0,
+        "average_tot_quality": 0.0
+      }
+    },
+    {
+      "candidate_id": "ppo:gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-source\\runs\\ppo\\selected_model_ppo.zip",
+      "label": "ppo:leaderboard",
+      "algorithm": "ppo",
+      "model_path": "gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-source\\runs\\ppo\\selected_model_ppo.zip",
+      "model_metadata_path": "gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-source\\runs\\ppo\\selected_model_ppo.metadata.json",
+      "source_kind": "comparison_summary",
+      "source_path": "gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-source\\comparison_summary.json",
+      "training_mode": "standard",
+      "observation_version": 3,
+      "reward_version": 3,
+      "cases": [
+        {
+          "case_key": "full",
+          "label": "Full Scenario",
+          "candidate_id": "ppo:gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-source\\runs\\ppo\\selected_model_ppo.zip",
+          "eval_episodes": 1,
+          "eval_seed_count": 1,
+          "base_seed": 7,
+          "max_episode_steps": 80,
+          "curriculum_stage": null,
+          "passed": true,
+          "thresholds": {
+            "checked": {
+              "min_success_rate": null,
+              "min_survivability": null,
+              "min_weapon_efficiency": null,
+              "min_tot_quality": null,
+              "min_mean_reward": null,
+              "max_time_to_ready": null,
+              "fail_on_seed_variability_warning": false
+            },
+            "passed": true,
+            "failures": []
+          },
+          "regression": {
+            "baseline_found": false,
+            "passed": true,
+            "failures": [],
+            "deltas": {}
+          },
+          "evaluation_summary": {
+            "benchmark_seed_count": 1,
+            "success_rate": 0.0,
+            "mean_reward": -28.00000000000004,
+            "mean_episode_steps": 80.0,
+            "survivability": 1.0,
+            "weapon_efficiency": 0.0,
+            "time_to_ready": 80.0,
+            "tot_quality": 0.0,
+            "seed_variability_warning": false,
+            "done_reason": "truncated",
+            "done_reason_detail": "max_episode_steps"
+          },
+          "evaluation_path": "gym\\scripts\\fixed_target_strike\\ui_smoke\\benchmark-suite-a\\ppo-leaderboard\\full_evaluation.json"
+        }
+      ],
+      "aggregate": {
+        "total_cases": 1,
+        "passed_cases": 1,
+        "failed_cases": 0,
+        "overall_pass": true,
+        "average_success_rate": 0.0,
+        "average_mean_reward": -28.00000000000004,
+        "average_survivability": 1.0,
+        "average_weapon_efficiency": 0.0,
+        "average_time_to_ready": 80.0,
+        "average_tot_quality": 0.0
+      }
+    }
+  ]
+}

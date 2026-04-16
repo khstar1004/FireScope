@@ -6,6 +6,7 @@ import { EventsKey } from "ol/events";
 import { Geometry, LineString } from "ol/geom";
 import Point from "ol/geom/Point.js";
 import Draw from "ol/interaction/Draw.js";
+import DragBox from "ol/interaction/DragBox.js";
 import { Pixel } from "ol/pixel";
 import {
   Projection,
@@ -16,7 +17,9 @@ import {
 } from "ol/proj";
 import VectorSource from "ol/source/Vector";
 import { getLength } from "ol/sphere.js";
+import { mouseOnly } from "ol/events/condition";
 import Game, {
+  type BattleSpectatorSnapshot,
   type FocusFireLaunchPlatform,
   type FocusFireWeaponTrack,
 } from "@/game/Game";
@@ -66,6 +69,7 @@ import {
   FacilityPlacementPreview,
 } from "@/gui/map/mapLayers/FeatureLayers";
 import BottomInfoDisplay from "@/gui/map/toolbar/BottomInfoDisplay";
+import { type SelectedCombatantSummary } from "@/gui/map/toolbar/SelectedUnitStatusCard";
 import LayerVisibilityPanelToggle from "@/gui/map/toolbar/LayerVisibilityToggle";
 import Toolbar from "@/gui/map/toolbar/Toolbar";
 import {
@@ -86,6 +90,10 @@ import { useAuth0 } from "@auth0/auth0-react";
 import MapContextMenu from "@/gui/map/MapContextMenu";
 import { UnitDbContext } from "@/gui/contextProviders/contexts/UnitDbContext";
 import Aircraft from "@/game/units/Aircraft";
+import Airbase from "@/game/units/Airbase";
+import Facility from "@/game/units/Facility";
+import Ship from "@/game/units/Ship";
+import Weapon from "@/game/units/Weapon";
 import { SetSimulationLogsContext } from "@/gui/contextProviders/contexts/SimulationLogsContext";
 import SimulationLogs from "@/gui/map/toolbar/SimulationLogs";
 import LiveCommentaryNotifications from "@/gui/map/toolbar/LiveCommentaryNotifications";
@@ -105,11 +113,13 @@ import {
   ImmersiveExperienceProfile,
   createImmersiveExperienceDemoAsset,
 } from "@/gui/experience/immersiveExperience";
+import type { FlightSimBattleSpectatorState } from "@/gui/flightSim/battleSpectatorState";
 import {
   fixedTargetStrikeRlDemo,
   FixedTargetStrikeReplayMetric,
 } from "@/scenarios/fixedTargetStrikeRlDemo";
 import {
+  RL_CHECKPOINT_SPECTATOR_KEY,
   RL_PENDING_RECORDING_KEY,
   RL_PENDING_RECORDING_LABEL_KEY,
 } from "@/gui/rl/rlLabRoute";
@@ -119,6 +129,8 @@ import {
   isMajorSimulationLog,
   type LiveCommentaryNotification,
 } from "@/gui/map/toolbar/liveCommentary";
+import TargetFireRecommendationCard from "@/gui/fires/TargetFireRecommendationCard";
+import DragSelectionCard from "@/gui/map/DragSelectionCard";
 
 interface ScenarioMapProps {
   zoom: number;
@@ -144,7 +156,8 @@ interface ScenarioMapProps {
       launchPlatforms?: FocusFireLaunchPlatform[];
       weaponTracks?: FocusFireWeaponTrack[];
       continueSimulation?: boolean;
-    }
+    },
+    battleSpectator?: FlightSimBattleSpectatorState
   ) => void;
   openAssetExperiencePage: (asset: AssetExperienceSummary) => void;
   openImmersiveExperiencePage: (asset: AssetExperienceSummary) => void;
@@ -155,6 +168,19 @@ interface IOpenMultipleFeatureSelector {
   top: number;
   left: number;
   features: Feature<Geometry>[];
+}
+
+interface RlCheckpointSpectatorSession {
+  jobId: string;
+  startedAt?: string;
+  lastReplayKey?: string;
+}
+
+interface RlJobReplayableCheckpoint {
+  algorithm: string;
+  timesteps: number;
+  replay_available?: boolean;
+  recording_path?: string | null;
 }
 
 const Main = styled("main", { shouldForwardProp: (prop) => prop !== "open" })<{
@@ -179,6 +205,20 @@ const Main = styled("main", { shouldForwardProp: (prop) => prop !== "open" })<{
     },
   ],
 }));
+
+function createScenarioBaseMapLayers(
+  projection?: Projection,
+  mapTilerBasicUrl?: string,
+  mapTilerSatelliteUrl?: string,
+  hybridLabelUrl?: string
+) {
+  return new BaseMapLayers(
+    projection,
+    mapTilerBasicUrl,
+    mapTilerSatelliteUrl,
+    hybridLabelUrl
+  );
+}
 
 export default function ScenarioMap({
   zoom,
@@ -207,8 +247,17 @@ export default function ScenarioMap({
   const defaultProjection = getProjection(DEFAULT_OL_PROJECTION_CODE);
   const [drawerOpen, setDrawerOpen] = useState(true);
   const mapTilerBasicUrl = `https://api.maptiler.com/maps/basic-v2/256/{z}/{x}/{y}.png?key=${MAPTILER_DEFAULT_KEY}`;
+  const mapTilerSatelliteJsonUrl = `https://api.maptiler.com/tiles/satellite-v2/tiles.json?key=${MAPTILER_DEFAULT_KEY}`;
+  const vworldHybridUrl = import.meta.env.VITE_VWORLD_API_KEY
+    ? `https://api.vworld.kr/req/wmts/1.0.0/${import.meta.env.VITE_VWORLD_API_KEY}/Hybrid/{z}/{y}/{x}.png`
+    : undefined;
   const [baseMapLayers, setBaseMapLayers] = useState(
-    new BaseMapLayers(projection, mapTilerBasicUrl)
+    createScenarioBaseMapLayers(
+      projection,
+      mapTilerBasicUrl,
+      mapTilerSatelliteJsonUrl,
+      vworldHybridUrl
+    )
   );
   const [aircraftLayer, setAircraftLayer] = useState(
     new AircraftLayer(projection, 3)
@@ -317,10 +366,31 @@ export default function ScenarioMap({
     left: 0,
     coordinates: [0, 0],
   });
+  const [openTargetFireRecommendation, setOpenTargetFireRecommendation] =
+    useState({
+      open: false,
+      top: 0,
+      left: 0,
+      targetId: "",
+    });
+  const [dragSelectedFeatures, setDragSelectedFeatures] = useState<
+    Feature<Geometry>[]
+  >([]);
+  const [
+    selectedDragRecommendationTargetId,
+    setSelectedDragRecommendationTargetId,
+  ] = useState<string | null>(null);
+  const [
+    missionCreatorInitialMissionType,
+    setMissionCreatorInitialMissionType,
+  ] = useState<"Patrol" | "Strike">("Patrol");
+  const [missionCreatorInitialTargetIds, setMissionCreatorInitialTargetIds] =
+    useState<string[]>([]);
   const [pendingFacilityPlacement, setPendingFacilityPlacement] = useState<
     number[] | null
   >(null);
   const pendingFacilityPlacementRef = useRef<number[] | null>(null);
+  const suppressNextMapClickRef = useRef(false);
   const [selectingFocusFireObjective, setSelectingFocusFireObjective] =
     useState(false);
   const [featureLabelVisible, setFeatureLabelVisible] = useState(true);
@@ -405,6 +475,11 @@ export default function ScenarioMap({
     useState(false);
   const simulationOutcomeRequestIdRef = useRef(0);
   const liveCommentaryTimeoutsRef = useRef<Record<string, number>>({});
+  const rlCheckpointSpectatorRef = useRef<RlCheckpointSpectatorSession | null>(
+    null
+  );
+  const rlCheckpointSpectatorPollingTimeoutRef = useRef<number | null>(null);
+  const lastSpectatedCheckpointKeyRef = useRef<string | null>(null);
   const lastObservedSimulationLogIdRef = useRef<string | null>(
     game.simulationLogs.getLogs()[game.simulationLogs.getLogs().length - 1]
       ?.id ?? null
@@ -419,6 +494,9 @@ export default function ScenarioMap({
       Object.values(liveCommentaryTimeoutsRef.current).forEach((timeoutId) => {
         window.clearTimeout(timeoutId);
       });
+      if (rlCheckpointSpectatorPollingTimeoutRef.current !== null) {
+        window.clearTimeout(rlCheckpointSpectatorPollingTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -438,6 +516,97 @@ export default function ScenarioMap({
   ) {
     setActiveReplayMetrics(replayMetrics);
     setActiveReplayMetric(getReplayMetricForStep(stepIndex, replayMetrics));
+  }
+
+  function parseRlCheckpointSpectatorSession() {
+    const rawValue = window.sessionStorage.getItem(RL_CHECKPOINT_SPECTATOR_KEY);
+    if (!rawValue) {
+      return null;
+    }
+    try {
+      const parsed = JSON.parse(
+        rawValue
+      ) as Partial<RlCheckpointSpectatorSession>;
+      const jobId = `${parsed.jobId ?? ""}`.trim();
+      if (!jobId) {
+        return null;
+      }
+      return {
+        jobId,
+        startedAt:
+          typeof parsed.startedAt === "string" &&
+          parsed.startedAt.trim().length > 0
+            ? parsed.startedAt
+            : undefined,
+        lastReplayKey:
+          typeof parsed.lastReplayKey === "string" &&
+          parsed.lastReplayKey.trim().length > 0
+            ? parsed.lastReplayKey
+            : undefined,
+      } satisfies RlCheckpointSpectatorSession;
+    } catch {
+      return null;
+    }
+  }
+
+  function clearRlCheckpointSpectatorSession() {
+    rlCheckpointSpectatorRef.current = null;
+    lastSpectatedCheckpointKeyRef.current = null;
+    window.sessionStorage.removeItem(RL_CHECKPOINT_SPECTATOR_KEY);
+    if (rlCheckpointSpectatorPollingTimeoutRef.current !== null) {
+      window.clearTimeout(rlCheckpointSpectatorPollingTimeoutRef.current);
+      rlCheckpointSpectatorPollingTimeoutRef.current = null;
+    }
+  }
+
+  function findLatestReplayableCheckpoint(
+    checkpoints: unknown
+  ): RlJobReplayableCheckpoint | null {
+    if (!Array.isArray(checkpoints)) {
+      return null;
+    }
+
+    let latestCheckpoint: RlJobReplayableCheckpoint | null = null;
+    for (const checkpoint of checkpoints) {
+      if (!checkpoint || typeof checkpoint !== "object") {
+        continue;
+      }
+      const replayAvailable = Boolean(
+        (checkpoint as Record<string, unknown>).replay_available
+      );
+      const recordingPath = (checkpoint as Record<string, unknown>)
+        .recording_path;
+      if (
+        !replayAvailable ||
+        typeof recordingPath !== "string" ||
+        recordingPath.trim().length === 0
+      ) {
+        continue;
+      }
+      const algorithm =
+        `${(checkpoint as Record<string, unknown>).algorithm ?? ""}`
+          .trim()
+          .toLowerCase();
+      const timesteps = Number(
+        (checkpoint as Record<string, unknown>).timesteps ?? NaN
+      );
+      if (!algorithm || !Number.isFinite(timesteps)) {
+        continue;
+      }
+      if (
+        latestCheckpoint === null ||
+        timesteps >= latestCheckpoint.timesteps
+      ) {
+        latestCheckpoint = {
+          algorithm,
+          timesteps: Math.floor(timesteps),
+          replay_available: true,
+          recording_path: recordingPath,
+        };
+      }
+    }
+
+    return latestCheckpoint;
   }
 
   function clearPendingFacilityPlacement() {
@@ -613,6 +782,7 @@ export default function ScenarioMap({
   }
 
   function exitReplayMode() {
+    clearRlCheckpointSpectatorSession();
     setReplayState(null);
     clearRecordingPlayer();
   }
@@ -623,6 +793,7 @@ export default function ScenarioMap({
       replayMetrics?: FixedTargetStrikeReplayMetric[] | null;
       successMessage?: string;
       gameStatus?: string;
+      autoPlay?: boolean;
     }
   ) {
     if (!game.recordingPlayer.loadRecording(content)) {
@@ -657,6 +828,11 @@ export default function ScenarioMap({
     if (options?.successMessage) {
       toastContext?.addToast(options.successMessage, "success");
     }
+    if (options?.autoPlay) {
+      window.setTimeout(() => {
+        void handlePlayRecordingClick();
+      }, 0);
+    }
     return true;
   }
 
@@ -676,10 +852,11 @@ export default function ScenarioMap({
         );
         if (resp.ok) {
           const cfg = await resp.json();
-          const bml = new BaseMapLayers(
+          const bml = createScenarioBaseMapLayers(
             projection,
-            cfg.basicUrl,
-            cfg.satelliteJson
+            cfg.basicUrl ?? mapTilerBasicUrl,
+            cfg.satelliteJson ?? mapTilerSatelliteJsonUrl,
+            cfg.vworldHybridUrl ?? vworldHybridUrl
           );
           setTheMap((prevMap) => {
             prevMap.setLayers([
@@ -713,7 +890,7 @@ export default function ScenarioMap({
     scenarioMapActiveRef.current = true;
     theMap.setTarget(mapRef.current!);
 
-    theMap.on("pointermove", function (event) {
+    const pointerMoveKey = theMap.on("pointermove", function (event) {
       const coordinatesLatLong = toLonLat(
         event.coordinate,
         theMap.getView().getProjection()
@@ -727,7 +904,7 @@ export default function ScenarioMap({
       }
     });
 
-    theMap.on("moveend", function (event) {
+    const moveEndKey = theMap.on("moveend", function (event) {
       const view = event.map.getView();
       const center = view.getCenter();
       const zoom = view.getZoom();
@@ -740,22 +917,51 @@ export default function ScenarioMap({
       if (zoom) game.mapView.currentCameraZoom = zoom;
     });
 
-    theMap.getViewport().addEventListener("contextmenu", function (event) {
+    const handleMapContextMenu = (event: MouseEvent) => {
       event.preventDefault();
       const pixel = theMap.getEventPixel(event);
       const coordinate = theMap.getCoordinateFromPixel(pixel);
+      const recommendationTargetId = getRecommendationTargetIdAtPixel(pixel);
+
+      if (recommendationTargetId) {
+        setOpenMapContextMenu({
+          open: false,
+          top: 0,
+          left: 0,
+          coordinates: coordinate,
+        });
+        setOpenTargetFireRecommendation({
+          open: true,
+          top: event.clientY,
+          left: event.clientX,
+          targetId: recommendationTargetId,
+        });
+        return;
+      }
+
+      setOpenTargetFireRecommendation({
+        open: false,
+        top: 0,
+        left: 0,
+        targetId: "",
+      });
       setOpenMapContextMenu({
         open: true,
         top: event.clientY,
         left: event.clientX,
         coordinates: coordinate,
       });
-    });
+    };
+    theMap.getViewport().addEventListener("contextmenu", handleMapContextMenu);
 
     refreshAllLayers();
     setCurrentScenarioTimeToContext(game.currentScenario.currentTime);
     setCurrentScenarioSidesToContext(game.currentScenario.sides);
     loadFeatureEntitiesState();
+    const checkpointSpectatorSession = parseRlCheckpointSpectatorSession();
+    rlCheckpointSpectatorRef.current = checkpointSpectatorSession;
+    lastSpectatedCheckpointKeyRef.current =
+      checkpointSpectatorSession?.lastReplayKey ?? null;
     const pendingRecording = window.sessionStorage.getItem(
       RL_PENDING_RECORDING_KEY
     );
@@ -768,7 +974,10 @@ export default function ScenarioMap({
       const loaded = loadRecordingContent(pendingRecording, {
         replayMetrics: null,
         successMessage: `${pendingLabel}를 불러왔습니다.`,
-        gameStatus: "기록 재생 대기 중",
+        gameStatus: checkpointSpectatorSession
+          ? "RL 체크포인트 자동 재생 중"
+          : "기록 재생 대기 중",
+        autoPlay: Boolean(checkpointSpectatorSession),
       });
       if (!loaded) {
         toastContext?.addToast(
@@ -778,15 +987,116 @@ export default function ScenarioMap({
       }
     }
 
+    const scheduleCheckpointSpectatorPoll = (delayMs: number) => {
+      if (!scenarioMapActiveRef.current || !rlCheckpointSpectatorRef.current) {
+        return;
+      }
+      if (rlCheckpointSpectatorPollingTimeoutRef.current !== null) {
+        window.clearTimeout(rlCheckpointSpectatorPollingTimeoutRef.current);
+      }
+      rlCheckpointSpectatorPollingTimeoutRef.current = window.setTimeout(() => {
+        void pollLatestCheckpointReplay();
+      }, delayMs);
+    };
+
+    const pollLatestCheckpointReplay = async () => {
+      const activeSession = rlCheckpointSpectatorRef.current;
+      if (!scenarioMapActiveRef.current || !activeSession) {
+        return;
+      }
+
+      try {
+        const jobResponse = await fetch(`/api/rl/jobs/${activeSession.jobId}`);
+        if (!jobResponse.ok) {
+          throw new Error("RL checkpoint spectator job polling failed.");
+        }
+
+        const payload = (await jobResponse.json()) as {
+          status?: string;
+          progress?: { checkpoints?: unknown };
+        };
+        const latestCheckpoint = findLatestReplayableCheckpoint(
+          payload.progress?.checkpoints
+        );
+
+        if (latestCheckpoint) {
+          const replayKey = `${latestCheckpoint.algorithm}:${latestCheckpoint.timesteps}`;
+          if (lastSpectatedCheckpointKeyRef.current !== replayKey) {
+            const params = new URLSearchParams({
+              algorithm: latestCheckpoint.algorithm,
+              timesteps: `${latestCheckpoint.timesteps}`,
+            });
+            const replayResponse = await fetch(
+              `/api/rl/jobs/${activeSession.jobId}/checkpoint-recording?${params.toString()}`
+            );
+            if (!replayResponse.ok) {
+              throw new Error("RL checkpoint spectator replay fetch failed.");
+            }
+            const replayRecording = await replayResponse.text();
+            const loaded = loadRecordingContent(replayRecording, {
+              replayMetrics: null,
+              successMessage: `RL 체크포인트 ${latestCheckpoint.timesteps}를 불러왔습니다.`,
+              gameStatus: `RL 체크포인트 ${latestCheckpoint.timesteps} 자동 재생 중`,
+              autoPlay: true,
+            });
+            if (loaded) {
+              lastSpectatedCheckpointKeyRef.current = replayKey;
+            }
+          }
+        } else {
+          setCurrentGameStatusToContext("RL 체크포인트 대기 중");
+        }
+
+        if (payload.status === "running") {
+          scheduleCheckpointSpectatorPoll(2000);
+          return;
+        }
+
+        clearRlCheckpointSpectatorSession();
+        if (payload.status) {
+          toastContext?.addToast(
+            "RL 체크포인트 자동 감시를 종료했습니다.",
+            "info"
+          );
+        }
+      } catch (error) {
+        console.error(error);
+        scheduleCheckpointSpectatorPoll(4000);
+      }
+    };
+
+    if (checkpointSpectatorSession) {
+      if (!pendingRecording) {
+        setCurrentGameStatusToContext("RL 체크포인트 대기 중");
+        toastContext?.addToast(
+          "RL 체크포인트 자동 감시를 시작했습니다.",
+          "info"
+        );
+      }
+      void pollLatestCheckpointReplay();
+    }
+
     return () => {
       scenarioMapActiveRef.current = false;
+      if (rlCheckpointSpectatorPollingTimeoutRef.current !== null) {
+        window.clearTimeout(rlCheckpointSpectatorPollingTimeoutRef.current);
+        rlCheckpointSpectatorPollingTimeoutRef.current = null;
+      }
       if (!theMap) return;
+      unByKey([pointerMoveKey, moveEndKey]);
+      theMap
+        .getViewport()
+        .removeEventListener("contextmenu", handleMapContextMenu);
       theMap.setTarget();
     };
   }, []);
 
   useEffect(() => {
     const clickEventKey = theMap.on("click", (event) => {
+      if (suppressNextMapClickRef.current) {
+        suppressNextMapClickRef.current = false;
+        return;
+      }
       if (game.selectingTarget) {
         event.stopPropagation();
       }
@@ -797,6 +1107,73 @@ export default function ScenarioMap({
       unByKey(clickEventKey);
     };
   }, [theMap, game, handleMapClick]);
+
+  useEffect(() => {
+    const dragBox = new DragBox({
+      condition: (event) => {
+        const originalEvent = event.originalEvent;
+        return (
+          mouseOnly(event) &&
+          "ctrlKey" in originalEvent &&
+          Boolean(originalEvent.ctrlKey)
+        );
+      },
+      className: "fs-drag-select-box",
+    });
+    theMap.addInteraction(dragBox);
+
+    const handleBoxEnd = () => {
+      const selectedFeatures = getFeaturesInExtent(
+        dragBox.getGeometry().getExtent()
+      );
+      setOpenMapContextMenu({
+        open: false,
+        top: 0,
+        left: 0,
+        coordinates: [0, 0],
+      });
+      setOpenTargetFireRecommendation({
+        open: false,
+        top: 0,
+        left: 0,
+        targetId: "",
+      });
+      setOpenMultipleFeatureSelector({
+        open: false,
+        top: 0,
+        left: 0,
+        features: [],
+      });
+      if (selectedFeatures.length === 0) {
+        clearDragSelection();
+      } else {
+        setDragSelectedFeatures(selectedFeatures);
+      }
+      suppressNextMapClickRef.current = true;
+    };
+
+    dragBox.on("boxend", handleBoxEnd);
+
+    return () => {
+      theMap.removeInteraction(dragBox);
+    };
+  }, [theMap]);
+
+  useEffect(() => {
+    if (dragSelectedFeatures.length === 0 || !game.currentSideId) {
+      setSelectedDragRecommendationTargetId(null);
+      return;
+    }
+
+    const priorities = game.getFireRecommendationTargetPriorities(
+      game.currentSideId,
+      dragSelectedFeatures
+        .map((feature) => feature.get("id"))
+        .filter((id): id is string => typeof id === "string")
+    );
+
+    setSelectedDragRecommendationTargetId(priorities[0]?.targetId ?? null);
+  }, [dragSelectedFeatures, game, game.currentSideId]);
 
   function changeCursorType(cursorType: string = "") {
     if (theMap) {
@@ -813,6 +1190,89 @@ export default function ScenarioMap({
       featureType = "airbase";
     else if (game.currentScenario.getShip(featureId)) featureType = "ship";
     return featureType;
+  }
+
+  function getRecommendationTargetIdAtPixel(pixel: Pixel): string | null {
+    if (!game.currentSideId) {
+      return null;
+    }
+
+    const featuresAtPixel = getFeaturesAtPixel(pixel).filter((feature) =>
+      ["aircraft", "facility", "airbase", "ship"].includes(
+        feature.getProperties()?.type
+      )
+    );
+    if (featuresAtPixel.length !== 1) {
+      return null;
+    }
+
+    const targetId = featuresAtPixel[0].get("id");
+    const target =
+      game.currentScenario.getAircraft(targetId) ??
+      game.currentScenario.getFacility(targetId) ??
+      game.currentScenario.getShip(targetId) ??
+      game.currentScenario.getAirbase(targetId);
+    if (!target) {
+      return null;
+    }
+
+    return game
+      .getFocusFireHostileSideIds(game.currentSideId)
+      .has(target.sideId)
+      ? target.id
+      : null;
+  }
+
+  function getFeaturesInExtent(extent: number[]): Feature[] {
+    const selectedFeatures: Feature[] = [];
+    const includedFeatureTypes = [
+      "aircraft",
+      "facility",
+      "airbase",
+      "ship",
+      "referencePoint",
+    ];
+    const seenIds = new Set<string>();
+
+    theMap
+      .getLayers()
+      .getArray()
+      .filter(
+        (layer) =>
+          layer instanceof VectorLayer || layer instanceof BaseVectorLayer
+      )
+      .forEach((layer) => {
+        const source = layer.getSource() as VectorSource<Feature<Geometry>>;
+        source?.getFeatures().forEach((feature) => {
+          const featureType = feature.get("type");
+          const featureId = feature.get("id");
+          const geometry = feature.getGeometry();
+          if (
+            !featureId ||
+            !includedFeatureTypes.includes(featureType) ||
+            !geometry ||
+            !geometry.intersectsExtent(extent) ||
+            seenIds.has(featureId)
+          ) {
+            return;
+          }
+
+          seenIds.add(featureId);
+          selectedFeatures.push(feature as Feature);
+        });
+      });
+
+    return selectedFeatures;
+  }
+
+  function clearDragSelection() {
+    setDragSelectedFeatures([]);
+    setSelectedDragRecommendationTargetId(null);
+  }
+
+  function inspectDragSelectedFeature(feature: Feature<Geometry>) {
+    clearDragSelection();
+    handleSelectSingleFeature(feature);
   }
 
   function getMapClickContext(event: MapBrowserEvent<MouseEvent>): string {
@@ -1300,6 +1760,33 @@ export default function ScenarioMap({
     );
   }
 
+  function openBattleSpectator() {
+    const snapshot: BattleSpectatorSnapshot = game.getBattleSpectatorSnapshot();
+    if (snapshot.units.length === 0 && snapshot.weapons.length === 0) {
+      toastContext?.addToast(
+        "관전할 전투 자산이 없습니다. 시나리오를 먼저 불러오거나 유닛을 추가하세요.",
+        "error"
+      );
+      return;
+    }
+
+    const selectedTarget = game.getTargetById(game.selectedUnitId);
+    const startCenter =
+      selectedTarget &&
+      Number.isFinite(selectedTarget.longitude) &&
+      Number.isFinite(selectedTarget.latitude)
+        ? [selectedTarget.longitude, selectedTarget.latitude]
+        : typeof snapshot.centerLongitude === "number" &&
+            typeof snapshot.centerLatitude === "number"
+          ? [snapshot.centerLongitude, snapshot.centerLatitude]
+          : game.mapView.currentCameraCenter;
+
+    openFlightSimPage(startCenter, "drone", undefined, {
+      ...snapshot,
+      continueSimulation: !game.scenarioPaused,
+    });
+  }
+
   function getFeaturesAtPixel(pixel: Pixel): Feature[] {
     const selectedFeatures: Feature[] = [];
     const excludedFeatureTypes = [
@@ -1525,6 +2012,7 @@ export default function ScenarioMap({
   }
 
   function handleLoadRecording() {
+    clearRlCheckpointSpectatorSession();
     setGamePaused();
     const input = document.createElement("input");
     input.type = "file";
@@ -1554,6 +2042,7 @@ export default function ScenarioMap({
   }
 
   function handleLoadFixedTargetStrikeReplay() {
+    clearRlCheckpointSpectatorSession();
     setGamePaused();
     loadRecordingContent(fixedTargetStrikeRlDemo.recording, {
       replayMetrics: fixedTargetStrikeRlDemo.metrics,
@@ -1725,16 +2214,13 @@ export default function ScenarioMap({
     weaponLayer.refresh(observation.weapons);
     shipLayer.refresh(observation.ships);
     facilityLayer.refresh(observation.facilities);
+    airbasesLayer.refresh(observation.airbases);
     refreshRouteLayer(observation);
     if (featureLabelVisible) {
       featureLabelLayer.refreshSubset(observation.aircraft, "aircraft");
       featureLabelLayer.refreshSubset(observation.ships, "ship");
       featureLabelLayer.refreshSubset(observation.facilities, "facility");
-    }
-    if (airbasesLayer.featureCount !== observation.airbases.length) {
-      airbasesLayer.refresh(observation.airbases);
-      if (featureLabelVisible)
-        featureLabelLayer.refreshSubset(observation.airbases, "airbase");
+      featureLabelLayer.refreshSubset(observation.airbases, "airbase");
     }
     if (threatRangeVisible)
       threatRangeLayer.refresh([
@@ -2486,6 +2972,23 @@ export default function ScenarioMap({
     toastContext?.addToast(`임무를 삭제했습니다.`, "success");
   }
 
+  function openMissionCreator(
+    initialMissionType: "Patrol" | "Strike" = "Patrol",
+    initialTargetIds: string[] = []
+  ) {
+    setKeyboardShortcutsEnabled(false);
+    setMissionCreatorInitialMissionType(initialMissionType);
+    setMissionCreatorInitialTargetIds(initialTargetIds);
+    setMissionCreatorActive(true);
+  }
+
+  function closeMissionCreator() {
+    setKeyboardShortcutsEnabled(true);
+    setMissionCreatorInitialMissionType("Patrol");
+    setMissionCreatorInitialTargetIds([]);
+    setMissionCreatorActive(false);
+  }
+
   function openMissionEditor(selectedMissionId: string = "") {
     const currentSideId = game.currentScenario.getSide(game.currentSideId)?.id;
     if (
@@ -2953,6 +3456,82 @@ export default function ScenarioMap({
     setDrawerOpen(false);
   }
 
+  function buildSelectedCombatantSummary(
+    combatant: Aircraft | Airbase | Facility | Ship | Weapon,
+    type: SelectedCombatantSummary["type"]
+  ): SelectedCombatantSummary {
+    return {
+      type,
+      name: combatant.name,
+      className: getDisplayName(combatant.className),
+      sideName: game.currentScenario.getSideName(combatant.sideId),
+      sideColor: combatant.sideColor,
+      currentHp: combatant.currentHp,
+      maxHp: combatant.maxHp,
+      defense: combatant.defense,
+      attackPower:
+        combatant instanceof Weapon ? combatant.attackPower : undefined,
+    };
+  }
+
+  function resolveSelectedCombatantSummary(): SelectedCombatantSummary | null {
+    if (selectedAircraft) {
+      return buildSelectedCombatantSummary(selectedAircraft, "aircraft");
+    }
+    if (selectedShip) {
+      return buildSelectedCombatantSummary(selectedShip, "ship");
+    }
+    if (selectedFacility) {
+      return buildSelectedCombatantSummary(selectedFacility, "facility");
+    }
+    if (selectedAirbase) {
+      return buildSelectedCombatantSummary(selectedAirbase, "airbase");
+    }
+    if (selectedWeapon) {
+      return buildSelectedCombatantSummary(selectedWeapon, "weapon");
+    }
+    if (!game.selectedUnitId) {
+      return null;
+    }
+
+    const selectedAircraftFromMap = game.currentScenario.getAircraft(
+      game.selectedUnitId
+    );
+    if (selectedAircraftFromMap) {
+      return buildSelectedCombatantSummary(selectedAircraftFromMap, "aircraft");
+    }
+
+    const selectedShipFromMap = game.currentScenario.getShip(
+      game.selectedUnitId
+    );
+    if (selectedShipFromMap) {
+      return buildSelectedCombatantSummary(selectedShipFromMap, "ship");
+    }
+
+    const selectedFacilityFromMap = game.currentScenario.getFacility(
+      game.selectedUnitId
+    );
+    if (selectedFacilityFromMap) {
+      return buildSelectedCombatantSummary(selectedFacilityFromMap, "facility");
+    }
+
+    const selectedAirbaseFromMap = game.currentScenario.getAirbase(
+      game.selectedUnitId
+    );
+    if (selectedAirbaseFromMap) {
+      return buildSelectedCombatantSummary(selectedAirbaseFromMap, "airbase");
+    }
+
+    const selectedWeaponFromMap = game.currentScenario.getWeapon(
+      game.selectedUnitId
+    );
+    if (selectedWeaponFromMap) {
+      return buildSelectedCombatantSummary(selectedWeaponFromMap, "weapon");
+    }
+
+    return null;
+  }
+
   const selectedAirbase = openAirbaseCard.open
     ? game.currentScenario.getAirbase(openAirbaseCard.airbaseId)
     : undefined;
@@ -2976,6 +3555,15 @@ export default function ScenarioMap({
   const selectedWeapon = openWeaponCard.open
     ? game.currentScenario.getWeapon(openWeaponCard.weaponId)
     : undefined;
+  const dragSelectedTargetPriorities = game.currentSideId
+    ? game.getFireRecommendationTargetPriorities(
+        game.currentSideId,
+        dragSelectedFeatures
+          .map((feature) => feature.get("id"))
+          .filter((id): id is string => typeof id === "string")
+      )
+    : [];
+  const selectedCombatant = resolveSelectedCombatantSummary();
 
   // GUI START
   return (
@@ -3026,8 +3614,11 @@ export default function ScenarioMap({
         keyboardShortcutsEnabled={keyboardShortcutsEnabled}
         finishRouteDrawLine={finishRouteDrawLine}
         toggleMissionCreator={() => {
-          setKeyboardShortcutsEnabled(missionCreatorActive);
-          setMissionCreatorActive(!missionCreatorActive);
+          if (missionCreatorActive) {
+            closeMissionCreator();
+            return;
+          }
+          openMissionCreator();
         }}
         openSimulationLogs={openSimulationLogs}
         updateCurrentSimulationLogsToContext={
@@ -3058,6 +3649,7 @@ export default function ScenarioMap({
         toggleFocusFireMode={toggleFocusFireMode}
         armFocusFireObjectiveSelection={armFocusFireObjectiveSelection}
         clearFocusFireObjective={clearFocusFireObjective}
+        openBattleSpectator={openBattleSpectator}
         openFocusFireAirwatch={openFocusFireAirwatch}
       />
 
@@ -3076,10 +3668,36 @@ export default function ScenarioMap({
       <BottomInfoDisplay
         mobileView={mobileView}
         replayMetric={activeReplayMetric}
+        selectedCombatant={selectedCombatant}
       />
+
+      {dragSelectedFeatures.length > 0 && (
+        <DragSelectionCard
+          game={game}
+          sideId={game.currentSideId}
+          mobileView={mobileView}
+          features={dragSelectedFeatures}
+          priorities={dragSelectedTargetPriorities}
+          selectedTargetId={selectedDragRecommendationTargetId}
+          onSelectTarget={setSelectedDragRecommendationTargetId}
+          onCreateStrikeMission={() => {
+            openMissionCreator(
+              "Strike",
+              dragSelectedTargetPriorities.map((entry) => entry.targetId)
+            );
+            clearDragSelection();
+          }}
+          onInspectFeature={inspectDragSelectedFeature}
+          onClearSelection={clearDragSelection}
+        />
+      )}
 
       {missionCreatorActive && (
         <MissionCreatorCard
+          game={game}
+          sideId={game.currentSideId}
+          initialMissionType={missionCreatorInitialMissionType}
+          initialSelectedTargetIds={missionCreatorInitialTargetIds}
           aircraft={game.currentScenario.aircraft.filter(
             (aircraft) =>
               aircraft.sideId === game.currentSideId &&
@@ -3094,10 +3712,7 @@ export default function ScenarioMap({
           referencePoints={game.currentScenario.referencePoints.filter(
             (referencePoint) => referencePoint.sideId === game.currentSideId
           )}
-          handleCloseOnMap={() => {
-            setKeyboardShortcutsEnabled(true);
-            setMissionCreatorActive(false);
-          }}
+          handleCloseOnMap={closeMissionCreator}
           createPatrolMission={handleCreatePatrolMission}
           createStrikeMission={handleCreateStrikeMission}
         />
@@ -3110,6 +3725,8 @@ export default function ScenarioMap({
             game.currentScenario.getSide(game.currentSideId)?.id
         ).length > 0 && (
           <MissionEditorCard
+            game={game}
+            sideId={game.currentSideId}
             missions={game.currentScenario.missions.filter(
               (mission) =>
                 mission.sideId ===
@@ -3464,6 +4081,49 @@ export default function ScenarioMap({
           }}
         />
       )}
+      {openTargetFireRecommendation.open &&
+        (() => {
+          const target = game.getTargetById(
+            openTargetFireRecommendation.targetId
+          );
+          const recommendation = openTargetFireRecommendation.targetId
+            ? game.getFireRecommendationForTarget(
+                openTargetFireRecommendation.targetId,
+                game.currentSideId
+              )
+            : null;
+
+          if (
+            !target ||
+            !(
+              target instanceof Aircraft ||
+              target instanceof Facility ||
+              target instanceof Ship ||
+              target instanceof Airbase
+            )
+          ) {
+            return null;
+          }
+
+          return (
+            <TargetFireRecommendationCard
+              top={openTargetFireRecommendation.top}
+              left={openTargetFireRecommendation.left}
+              targetName={target.name}
+              targetLatitude={target.latitude}
+              targetLongitude={target.longitude}
+              recommendation={recommendation}
+              handleCloseOnMap={() => {
+                setOpenTargetFireRecommendation({
+                  open: false,
+                  top: 0,
+                  left: 0,
+                  targetId: "",
+                });
+              }}
+            />
+          );
+        })()}
       <SimulationOutcomeDialog
         open={isGameOver}
         summary={simulationOutcomeSummary}

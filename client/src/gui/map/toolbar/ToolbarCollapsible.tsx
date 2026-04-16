@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import Collapse from "@mui/material/Collapse";
+import Box from "@mui/material/Box";
 import {
   Button,
   Checkbox,
@@ -112,10 +113,20 @@ export default function ToolbarCollapsible(
     <>
       <ListItem
         sx={{
-          backgroundColor: colorPalette.white,
-          borderRadius: 1.5,
-          border: `1px solid ${colorPalette.darkGray}`,
-          boxShadow: "0 4px 12px rgba(28, 35, 24, 0.05)",
+          px: 1.2,
+          py: 0.8,
+          background: open
+            ? "linear-gradient(180deg, rgba(14, 39, 47, 0.98) 0%, rgba(9, 24, 30, 0.96) 100%)"
+            : "linear-gradient(180deg, rgba(10, 28, 35, 0.96) 0%, rgba(7, 20, 25, 0.94) 100%)",
+          borderRadius: 2,
+          border: open
+            ? "1px solid rgba(45, 214, 196, 0.26)"
+            : `1px solid ${colorPalette.darkGray}`,
+          boxShadow: open
+            ? "0 18px 34px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(134, 255, 242, 0.06)"
+            : "0 14px 26px rgba(0, 0, 0, 0.18)",
+          transition:
+            "background 160ms ease, border-color 160ms ease, box-shadow 160ms ease",
         }}
       >
         {/** Prepend Icon */}
@@ -127,7 +138,14 @@ export default function ToolbarCollapsible(
             <PrependIcon />
           </IconButton>
         )}
-        <ListItemText primary={props.title} />
+        <ListItemText
+          primary={props.title}
+          primaryTypographyProps={{
+            fontWeight: 700,
+            letterSpacing: "0.05em",
+            fontSize: 13,
+          }}
+        />
         {/** Append Icon */}
         {AppendIcon && (
           <Tooltip
@@ -258,7 +276,20 @@ export default function ToolbarCollapsible(
       </ListItem>
       {/** Collapse Content */}
       <Collapse in={open} timeout="auto" unmountOnExit>
-        {props.content}
+        <Box sx={{ px: 0.35, pt: 0.9 }}>
+          <Box
+            sx={{
+              p: 1.1,
+              borderRadius: 2,
+              background:
+                "linear-gradient(180deg, rgba(8, 22, 28, 0.94) 0%, rgba(5, 15, 19, 0.96) 100%)",
+              border: "1px solid rgba(45, 214, 196, 0.12)",
+              boxShadow: "0 16px 32px rgba(0, 0, 0, 0.16)",
+            }}
+          >
+            {props.content}
+          </Box>
+        </Box>
       </Collapse>
     </>
   );

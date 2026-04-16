@@ -1,6 +1,14 @@
 import json
 from typing import List, Optional
 from blade.utils.colors import convert_color_name_to_side_color, SIDE_COLOR
+from blade.units.combat_stats import (
+    apply_damage,
+    get_health_fraction,
+    resolve_attack_power,
+    resolve_current_hp,
+    resolve_defense,
+    resolve_max_hp,
+)
 
 
 class Weapon:
@@ -25,8 +33,12 @@ class Weapon:
         side_color: str | SIDE_COLOR | None = None,
         target_id: Optional[str] = None,
         lethality: float = 0.0,
+        attack_power: float | None = None,
         max_quantity: int = 0,
         current_quantity: int = 0,
+        max_hp: float | None = None,
+        current_hp: float | None = None,
+        defense: float | None = None,
     ):
         self.id = id
         self.name = name
@@ -43,13 +55,26 @@ class Weapon:
         self.range = range
         self.target_id = target_id
         self.lethality = lethality
+        self.attack_power = resolve_attack_power(attack_power, lethality)
         self.max_quantity = max_quantity
         self.current_quantity = current_quantity
         self.route = route if route is not None else []
         self.side_color = convert_color_name_to_side_color(side_color)
+        self.max_hp = resolve_max_hp("weapon", max_hp)
+        self.current_hp = resolve_current_hp(current_hp, self.max_hp)
+        self.defense = resolve_defense("weapon", defense)
 
     def get_engagement_range(self) -> float:
         return self.speed * (self.current_fuel / self.fuel_rate)
+
+    def get_health_fraction(self) -> float:
+        return get_health_fraction(self.current_hp, self.max_hp)
+
+    def apply_damage(self, raw_attack: float) -> float:
+        return apply_damage(self, raw_attack)
+
+    def is_destroyed(self) -> bool:
+        return self.current_hp <= 0
 
     def to_dict(self):
         return {
@@ -68,8 +93,12 @@ class Weapon:
             "range": self.range,
             "target_id": str(self.target_id),
             "lethality": self.lethality,
+            "attack_power": self.attack_power,
             "max_quantity": self.max_quantity,
             "current_quantity": self.current_quantity,
+            "max_hp": self.max_hp,
+            "current_hp": self.current_hp,
+            "defense": self.defense,
             "route": self.route,
             "side_color": (
                 self.side_color.value

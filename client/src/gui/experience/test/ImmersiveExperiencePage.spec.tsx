@@ -7,8 +7,16 @@ import {
   type ImmersiveExperienceRoute,
 } from "@/gui/experience/immersiveExperience";
 
+const bundleModelViewportMock = vi.fn(() => (
+  <div data-testid="bundle-model-viewport" />
+));
+let lastBundleModelViewportProps: unknown;
+
 vi.mock("@/gui/experience/BundleModelViewport", () => ({
-  default: () => <div data-testid="bundle-model-viewport" />,
+  default: (props: unknown) => {
+    lastBundleModelViewportProps = props;
+    return bundleModelViewportMock();
+  },
 }));
 
 vi.mock("@/gui/experience/ImmersiveAssetViewport", () => ({
@@ -33,6 +41,11 @@ function renderPage(route: ImmersiveExperienceRoute) {
 }
 
 describe("ImmersiveExperiencePage", () => {
+  beforeEach(() => {
+    bundleModelViewportMock.mockClear();
+    lastBundleModelViewportProps = undefined;
+  });
+
   test("hides guide panels by default and shows them on demand", async () => {
     const user = userEvent.setup();
     const route: ImmersiveExperienceRoute = {
@@ -88,5 +101,36 @@ describe("ImmersiveExperiencePage", () => {
     expect(
       screen.getByRole("button", { name: "가이드 보기" })
     ).toBeInTheDocument();
+  });
+
+  test("renders the immersive viewer as a clean 3D viewport without battle runtime", async () => {
+    const user = userEvent.setup();
+    const route: ImmersiveExperienceRoute = {
+      asset: createImmersiveExperienceDemoAsset("base"),
+      profile: "base",
+    };
+
+    renderPage(route);
+
+    expect(bundleModelViewportMock).toHaveBeenCalled();
+    expect(lastBundleModelViewportProps).toMatchObject({
+      mode: "immersive",
+      viewerChrome: "minimal",
+    });
+    expect(lastBundleModelViewportProps).not.toHaveProperty("simulation");
+
+    await user.click(screen.getByRole("button", { name: "기준만 보기" }));
+
+    expect(lastBundleModelViewportProps).toMatchObject({
+      viewerChrome: "minimal",
+    });
+    expect(lastBundleModelViewportProps).not.toHaveProperty("simulation");
+
+    await user.click(screen.getByRole("button", { name: /Drone Watch/ }));
+
+    expect(lastBundleModelViewportProps).toMatchObject({
+      viewerChrome: "minimal",
+    });
+    expect(lastBundleModelViewportProps).not.toHaveProperty("simulation");
   });
 });

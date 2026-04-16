@@ -1,7 +1,7 @@
 {
   "currentScenario": {
     "id": "focused-training-demo",
-    "name": "집중 영향권 데모",
+    "name": "가용화력자산",
     "startTime": 1770000000,
     "currentTime": 1770000000,
     "duration": 7200,
@@ -374,6 +374,8 @@
         "longitude": 127.113,
         "altitude": 0,
         "range": 42,
+        "heading": 350,
+        "detectionArcDegrees": 170,
         "sideColor": "blue",
         "weapons": [
           {
@@ -429,6 +431,8 @@
         "longitude": 127.161,
         "altitude": 0,
         "range": 42,
+        "heading": 8,
+        "detectionArcDegrees": 170,
         "sideColor": "blue",
         "weapons": [
           {
@@ -484,6 +488,8 @@
         "longitude": 127.239,
         "altitude": 0,
         "range": 60,
+        "heading": 22,
+        "detectionArcDegrees": 140,
         "sideColor": "blue",
         "weapons": [
           {
@@ -518,6 +524,8 @@
         "longitude": 127.246,
         "altitude": 0,
         "range": 30,
+        "heading": 18,
+        "detectionArcDegrees": 170,
         "sideColor": "blue",
         "weapons": [
           {

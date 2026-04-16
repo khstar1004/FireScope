@@ -2,7 +2,9 @@ export const RL_LAB_SUPPORTED_ALGORITHMS = ["ppo", "a2c", "sac", "ddpg", "td3"] 
 export type RlLabSupportedAlgorithm =
   (typeof RL_LAB_SUPPORTED_ALGORITHMS)[number];
 
-export interface RlLabTrainingRequestLike {
+export interface RlLabTrainingRequestLike<
+  TRewardConfig extends object = Record<string, number>,
+> {
   algorithms?: string[];
   timesteps?: number;
   maxEpisodeSteps?: number;
@@ -17,10 +19,12 @@ export interface RlLabTrainingRequestLike {
   allyIds?: string[];
   targetIds?: string[];
   highValueTargetIds?: string[];
-  rewardConfig?: Record<string, number>;
+  rewardConfig?: Partial<TRewardConfig>;
 }
 
-export interface RlLabTrainingFormLike {
+export interface RlLabTrainingFormLike<
+  TRewardConfig extends object = Record<string, number>,
+> {
   algorithms: string[];
   timesteps: number;
   maxEpisodeSteps: number;
@@ -36,7 +40,7 @@ export interface RlLabTrainingFormLike {
   targetIds: string;
   highValueTargetIds: string;
   scenarioText: string;
-  rewardConfig: Record<string, number>;
+  rewardConfig: TRewardConfig;
 }
 
 export function parseCommaSeparatedIds(value: string) {
@@ -89,9 +93,12 @@ export function normalizeAlgorithmIds(
       : [RL_LAB_SUPPORTED_ALGORITHMS[0]];
 }
 
-export function applyTrainingRequestToForm<T extends RlLabTrainingFormLike>(
+export function applyTrainingRequestToForm<
+  TRewardConfig extends object,
+  T extends RlLabTrainingFormLike<TRewardConfig>,
+>(
   baseForm: T,
-  request: RlLabTrainingRequestLike,
+  request: RlLabTrainingRequestLike<TRewardConfig>,
   scenarioText: string
 ) {
   return {

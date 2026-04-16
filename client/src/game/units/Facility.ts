@@ -1,6 +1,13 @@
 import Weapon from "@/game/units/Weapon";
 import { convertColorNameToSideColor, SIDE_COLOR } from "@/utils/colors";
 import { getFacilityDetectionArcDegrees } from "@/game/db/facilityThreatProfiles";
+import {
+  computeDamage,
+  getHealthFraction,
+  resolveCurrentHp,
+  resolveDefense,
+  resolveMaxHp,
+} from "@/game/units/combatStats";
 
 interface IFacility {
   id: string;
@@ -17,6 +24,9 @@ interface IFacility {
   sideColor?: string | SIDE_COLOR;
   weapons?: Weapon[];
   detectionArcDegrees?: number;
+  maxHp?: number;
+  currentHp?: number;
+  defense?: number;
 }
 
 export default class Facility {
@@ -34,6 +44,9 @@ export default class Facility {
   sideColor: SIDE_COLOR;
   weapons: Weapon[] = [];
   detectionArcDegrees: number;
+  maxHp: number;
+  currentHp: number;
+  defense: number;
 
   constructor(parameters: IFacility) {
     this.id = parameters.id;
@@ -52,6 +65,9 @@ export default class Facility {
     this.detectionArcDegrees =
       parameters.detectionArcDegrees ??
       getFacilityDetectionArcDegrees(parameters.className);
+    this.maxHp = resolveMaxHp("facility", parameters.maxHp);
+    this.currentHp = resolveCurrentHp(parameters.currentHp, this.maxHp);
+    this.defense = resolveDefense("facility", parameters.defense);
   }
 
   getTotalWeaponQuantity(): number {
@@ -86,5 +102,19 @@ export default class Facility {
 
   getDetectionHeading(): number {
     return this.heading;
+  }
+
+  getHealthFraction(): number {
+    return getHealthFraction(this.currentHp, this.maxHp);
+  }
+
+  applyDamage(rawAttackPower: number): number {
+    const damage = computeDamage(rawAttackPower, this.defense);
+    this.currentHp = Math.max(this.currentHp - damage, 0);
+    return damage;
+  }
+
+  isDestroyed(): boolean {
+    return this.currentHp <= 0;
   }
 }

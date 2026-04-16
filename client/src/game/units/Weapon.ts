@@ -1,4 +1,12 @@
 import { convertColorNameToSideColor, SIDE_COLOR } from "@/utils/colors";
+import {
+  computeDamage,
+  getHealthFraction,
+  resolveAttackPower,
+  resolveCurrentHp,
+  resolveDefense,
+  resolveMaxHp,
+} from "@/game/units/combatStats";
 
 interface IWeapon {
   id: string;
@@ -22,8 +30,12 @@ interface IWeapon {
   sideColor?: string | SIDE_COLOR;
   targetId: string | null;
   lethality: number;
+  attackPower?: number;
   maxQuantity: number;
   currentQuantity: number;
+  maxHp?: number;
+  currentHp?: number;
+  defense?: number;
 }
 
 export default class Weapon {
@@ -48,8 +60,12 @@ export default class Weapon {
   sideColor: SIDE_COLOR;
   targetId: string | null;
   lethality: number; // currently default -- need to reference from database
+  attackPower: number;
   maxQuantity: number;
   currentQuantity: number;
+  maxHp: number;
+  currentHp: number;
+  defense: number;
 
   constructor(parameters: IWeapon) {
     this.id = parameters.id;
@@ -73,11 +89,32 @@ export default class Weapon {
     this.sideColor = convertColorNameToSideColor(parameters.sideColor);
     this.targetId = parameters.targetId;
     this.lethality = parameters.lethality;
+    this.attackPower = resolveAttackPower(
+      parameters.attackPower,
+      parameters.lethality
+    );
     this.maxQuantity = parameters.maxQuantity;
     this.currentQuantity = parameters.currentQuantity;
+    this.maxHp = resolveMaxHp("weapon", parameters.maxHp);
+    this.currentHp = resolveCurrentHp(parameters.currentHp, this.maxHp);
+    this.defense = resolveDefense("weapon", parameters.defense);
   }
 
   getEngagementRange(): number {
     return this.speed * (this.currentFuel / this.fuelRate);
+  }
+
+  getHealthFraction(): number {
+    return getHealthFraction(this.currentHp, this.maxHp);
+  }
+
+  applyDamage(rawAttackPower: number): number {
+    const damage = computeDamage(rawAttackPower, this.defense);
+    this.currentHp = Math.max(this.currentHp - damage, 0);
+    return damage;
+  }
+
+  isDestroyed(): boolean {
+    return this.currentHp <= 0;
   }
 }

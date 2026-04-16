@@ -14,12 +14,68 @@ export enum SimulationLogType {
   PATROL_MISSION_SUCCESS = "PATROL_MISSION_SUCCESS",
 }
 
+export type SimulationLogEntityType =
+  | "aircraft"
+  | "facility"
+  | "ship"
+  | "airbase"
+  | "weapon"
+  | "referencePoint"
+  | "mission"
+  | "unknown";
+
+export type SimulationLogResultTag =
+  | "launch"
+  | "impact"
+  | "damage"
+  | "kill"
+  | "miss"
+  | "fuel_loss"
+  | "target_lost"
+  | "mission_success"
+  | "mission_abort"
+  | "rtb_start"
+  | "rtb_cancel"
+  | "objective_assigned"
+  | "objective_secured"
+  | "patrol_hold";
+
+export interface SimulationLogMetadata {
+  actorId?: string;
+  actorName?: string;
+  actorType?: SimulationLogEntityType;
+  launcherId?: string;
+  launcherName?: string;
+  launcherType?: SimulationLogEntityType;
+  weaponId?: string;
+  weaponName?: string;
+  weaponClassName?: string;
+  targetId?: string;
+  targetName?: string;
+  targetType?: SimulationLogEntityType;
+  missionId?: string;
+  missionName?: string;
+  objectiveId?: string;
+  objectiveName?: string;
+  destinationId?: string;
+  destinationName?: string;
+  resultTag?: SimulationLogResultTag;
+  actorScoreDelta?: number;
+  targetScoreDelta?: number;
+  scoreNetDelta?: number;
+  quantity?: number;
+  damage?: number;
+  remainingHp?: number;
+  maxHp?: number;
+}
+
 export interface SimulationLog {
   id: string;
   timestamp: number;
   type: SimulationLogType;
   sideId: string;
   message: string;
+  metadata?: SimulationLogMetadata;
 }
 
 export default class SimulationLogs {
@@ -30,7 +86,8 @@ export default class SimulationLogs {
     sideId: string,
     message: string,
     timestamp: number = Date.now(),
-    type: SimulationLogType = SimulationLogType.OTHER
+    type: SimulationLogType = SimulationLogType.OTHER,
+    metadata?: SimulationLogMetadata
   ) {
     const newLog: SimulationLog = {
       id: randomUUID(),
@@ -38,6 +95,8 @@ export default class SimulationLogs {
       type,
       sideId,
       message,
+      metadata:
+        metadata && Object.keys(metadata).length > 0 ? metadata : undefined,
     };
     this.logs.push(newLog);
     this.hasNewLogs = true;

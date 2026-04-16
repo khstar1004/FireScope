@@ -10,6 +10,7 @@ import {
   MenuItem,
   Tooltip,
   Typography,
+  useMediaQuery,
 } from "@mui/material";
 import { Menu } from "@/gui/shared/ui/MuiComponents";
 import { visuallyHidden } from "@mui/utils";
@@ -22,7 +23,7 @@ import List from "@mui/material/List";
 import Stack from "@mui/material/Stack";
 import { styled } from "@mui/material/styles";
 import Game from "@/game/Game";
-import { APP_DRAWER_WIDTH } from "@/utils/constants";
+import { APP_DISPLAY_NAME, APP_DRAWER_WIDTH } from "@/utils/constants";
 import ToolbarCollapsible from "@/gui/map/toolbar/ToolbarCollapsible";
 import CurrentActionContextDisplay from "@/gui/map/toolbar/CurrentActionContextDisplay";
 import MenuIcon from "@mui/icons-material/Menu";
@@ -51,6 +52,7 @@ import DocumentScannerOutlinedIcon from "@mui/icons-material/DocumentScannerOutl
 import AirlineStopsOutlinedIcon from "@mui/icons-material/AirlineStopsOutlined";
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import ViewInArOutlinedIcon from "@mui/icons-material/ViewInArOutlined";
 import {
   formatSecondsToString,
@@ -95,6 +97,8 @@ import {
   isTankFacilityClassName,
   ToolbarEntityType,
 } from "@/utils/assetTypeCatalog";
+import Dba from "@/game/db/Dba";
+import FireRecommendationPanel from "@/gui/fires/FireRecommendationPanel";
 
 interface ToolBarProps {
   mobileView: boolean;
@@ -158,6 +162,7 @@ interface ToolBarProps {
   toggleFocusFireMode: () => void;
   armFocusFireObjectiveSelection: () => void;
   clearFocusFireObjective: () => void;
+  openBattleSpectator: () => void;
   openFocusFireAirwatch: () => void;
 }
 
@@ -176,15 +181,16 @@ const toolbarDrawerStyle = {
     width: APP_DRAWER_WIDTH + 13,
     boxSizing: "border-box",
     overflow: "hidden",
-    boxShadow: "12px 0 24px rgba(28, 35, 24, 0.09)",
+    boxShadow: "18px 0 36px rgba(0, 0, 0, 0.42)",
   },
 };
 
 const toolbarStyle = {
-  backgroundColor: "rgba(247, 243, 234, 0.92)",
-  backdropFilter: "blur(14px)",
+  backgroundColor: "rgba(6, 22, 29, 0.78)",
+  backdropFilter: "blur(18px)",
   borderBottom: "1px solid",
-  borderBottomColor: COLOR_PALETTE.DARK_GRAY,
+  borderBottomColor: "rgba(45, 214, 196, 0.18)",
+  boxShadow: "0 18px 34px rgba(0, 0, 0, 0.24)",
 };
 
 interface CloudScenario {
@@ -208,9 +214,31 @@ interface QuickAddSection {
   items: QuickAddEntry[];
 }
 
+function buildSafeDownloadTimestamp() {
+  return getLocalDateTime().replace(/[:.]/g, "-");
+}
+
+function downloadTextFile(filename: string, content: string, mimeType: string) {
+  const dataStr =
+    `data:${mimeType};charset=utf-8,` + encodeURIComponent(content);
+  const downloadAnchorNode = document.createElement("a");
+  downloadAnchorNode.setAttribute("href", dataStr);
+  downloadAnchorNode.setAttribute("download", filename);
+  document.body.appendChild(downloadAnchorNode);
+  downloadAnchorNode.click();
+  downloadAnchorNode.remove();
+}
+
 export default function Toolbar(props: Readonly<ToolBarProps>) {
   // Hooks and State
   const { isAuthenticated, getAccessTokenSilently } = useAuth0();
+  const compactToolbar = useMediaQuery("(max-width:1280px)");
+  const ultraCompactToolbar = useMediaQuery("(max-width:960px)");
+  const showEntityShortcutStrip = !props.mobileView && !compactToolbar;
+  const showSideSelect = !ultraCompactToolbar;
+  const showExperienceShortcut = !ultraCompactToolbar;
+  const showRlLabShortcut = !ultraCompactToolbar;
+  const showHealthCheck = !compactToolbar;
   const [cloudScenarios, setCloudScenarios] = useState<CloudScenario[]>([]);
   const getCloudScenarios = async () => {
     if (!import.meta.env.VITE_ENV || import.meta.env.VITE_ENV === "standalone")
@@ -653,7 +681,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   };
 
   const loadPresetScenario = (presetScenarioName: string) => {
-    let scenarioJson: Object | null = null;
+    let scenarioJson: object | null = null;
     const strategicPreset = findStrategicScenarioPreset(presetScenarioName);
     switch (presetScenarioName) {
       case "blank_scenario":
@@ -687,7 +715,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
       try {
         props.pauseOnClick();
         setScenarioPaused(true);
-        let scenarioJsonWithNewId = JSON.parse(JSON.stringify(scenarioJson));
+        const scenarioJsonWithNewId = JSON.parse(JSON.stringify(scenarioJson));
         if (
           presetScenarioName === "blank_scenario" ||
           presetScenarioName === "SCS" ||
@@ -1048,66 +1076,74 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
 
   const experienceSections = [
     {
-      title: "항공 체험",
+      title: "항공 시뮬레이터",
       items: [
         {
           key: "experience-jet",
-          label: "전투기 3D 비행",
-          description: "현재 시점에서 제트 전투기 비행 체험",
+          label: "전투기 3D 시뮬레이터",
+          description: "현재 시점에서 제트 전투기 비행 시뮬레이션",
           entityType: "aircraft" as const,
           onClick: () => props.openFlightSimPage("jet"),
         },
         {
           key: "experience-drone",
-          label: "드론 3D 비행",
-          description: "저속·저고도 드론 시점 비행 체험",
+          label: "드론 3D 시뮬레이터",
+          description: "저속·저고도 드론 시점 비행 시뮬레이션",
           entityType: "aircraft" as const,
           onClick: () => props.openFlightSimPage("drone"),
         },
         {
           key: "experience-air-wing",
-          label: "헬기/항공자산 3D",
-          description: "전투기, Apache, Black Hawk, 드론 모델 전환 체험",
+          label: "항공자산 3D 시뮬레이터",
+          description: "전투기, Apache, Black Hawk, 드론 모델 전환 시뮬레이션",
           entityType: "aircraft" as const,
           onClick: () => props.openImmersiveExperiencePage("base"),
         },
       ],
     },
     {
-      title: "전장 체험",
+      title: "전장 시뮬레이터",
       items: [
         {
+          key: "experience-battle-spectator",
+          label: "전장 관전자 3D 시뮬레이터",
+          description: "현재 시나리오를 3D 지형 위에서 실시간 관전",
+          entityType: "facility" as const,
+          onClick: props.openBattleSpectator,
+        },
+        {
           key: "experience-ground",
-          label: "지상 기동 3D",
-          description: "전차·장갑차 계열 시점 데모",
+          label: "지상 기동 3D 시뮬레이터",
+          description: "전차·장갑차 계열 시점 전술 시뮬레이션",
           entityType: "facility" as const,
           onClick: () => props.openImmersiveExperiencePage("ground"),
         },
         {
           key: "experience-fires",
-          label: "화력 운용 3D",
-          description: "포병·미사일 발사축 체험",
+          label: "화력 운용 3D 시뮬레이터",
+          description: "포병·미사일 발사축 시뮬레이션",
           entityType: "facility" as const,
           onClick: () => props.openImmersiveExperiencePage("fires"),
         },
         {
           key: "experience-defense",
-          label: "방공 체계 3D",
-          description: "탐지·추적·요격 레이더 HUD 체험",
+          label: "방공 체계 3D 시뮬레이터",
+          description: "탐지·추적·요격 레이더 HUD 시뮬레이션",
           entityType: "facility" as const,
           onClick: () => props.openImmersiveExperiencePage("defense"),
         },
         {
           key: "experience-maritime",
-          label: "함정 운용 3D",
-          description: "구축함·항모·잠수함 모델을 바꿔보는 해상 전력 체험",
+          label: "함정 운용 3D 시뮬레이터",
+          description:
+            "구축함·항모·잠수함 모델을 바꿔보는 해상 전력 시뮬레이션",
           entityType: "ship" as const,
           onClick: () => props.openImmersiveExperiencePage("maritime"),
         },
         {
           key: "experience-base",
-          label: "기지 운영 3D",
-          description: "전투기·헬기·드론 모델을 바꿔보는 기지 운용 체험",
+          label: "기지 운영 3D 시뮬레이터",
+          description: "전투기·헬기·드론 모델을 바꿔보는 기지 운용 시뮬레이션",
           entityType: "airbase" as const,
           onClick: () => props.openImmersiveExperiencePage("base"),
         },
@@ -1116,43 +1152,503 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   ];
   const focusFireSummary = props.game.getFocusFireSummary();
   const focusFireInsight = buildFocusFireInsight(focusFireSummary);
+  const focusFireRecommendation = focusFireSummary.recommendation;
+  const focusFireRerankerState = props.game.getFocusFireRerankerState();
+  const focusFireRecommendationTelemetry =
+    props.game.getFocusFireRecommendationTelemetry(
+      props.game.currentSideId || undefined
+    );
+  const focusFireRecommendationTelemetryCount =
+    focusFireRecommendationTelemetry.length;
+  const focusFireFeedbackCount = focusFireRecommendationTelemetry.filter(
+    (entry) => entry.feedbackOptionLabel
+  ).length;
+  const focusFireTrainableCount = focusFireRecommendationTelemetry.filter(
+    (entry) =>
+      entry.options.length >= 2 &&
+      Boolean(
+        entry.feedbackOptionLabel ||
+          (!entry.rerankerApplied && entry.recommendedOptionLabel)
+      )
+  ).length;
+  const focusFireFeedbackOptionLabel =
+    focusFireRecommendation &&
+    focusFireSummary.objectiveLatitude != null &&
+    focusFireSummary.objectiveLongitude != null
+      ? props.game.getFocusFireRecommendationFeedbackLabel(
+          {
+            name: focusFireSummary.objectiveName ?? "집중포격 목표",
+            latitude: focusFireSummary.objectiveLatitude,
+            longitude: focusFireSummary.objectiveLongitude,
+          },
+          props.game.focusFireOperation.sideId,
+          focusFireRecommendation.primaryTargetId
+        )
+      : null;
   const showEmptyScenarioGuide = isScenarioEmptyForOnboarding(
     props.game.currentScenario
   );
+  const [focusFireDesiredEffectInput, setFocusFireDesiredEffectInput] =
+    useState("");
+  const [, setFocusFireAiRevision] = useState(0);
+
+  useEffect(() => {
+    setFocusFireDesiredEffectInput(
+      focusFireSummary.desiredEffectOverride != null
+        ? `${focusFireSummary.desiredEffectOverride}`
+        : ""
+    );
+  }, [focusFireSummary.desiredEffectOverride]);
+
+  const applyFocusFireDesiredEffectOverride = () => {
+    if (!focusFireSummary.enabled) {
+      toastContext?.addToast("집중포격 모드를 먼저 켜세요.", "error");
+      return;
+    }
+
+    const trimmedValue = focusFireDesiredEffectInput.trim();
+    if (!trimmedValue) {
+      props.game.setFocusFireDesiredEffectOverride(null);
+      setFocusFireDesiredEffectInput("");
+      toastContext?.addToast("요망 효과를 자동 산정값으로 되돌렸습니다.");
+      return;
+    }
+
+    const parsedValue = Number(trimmedValue);
+    if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+      toastContext?.addToast(
+        "요망 효과는 0보다 큰 숫자로 입력하세요.",
+        "error"
+      );
+      return;
+    }
+
+    const appliedValue =
+      props.game.setFocusFireDesiredEffectOverride(parsedValue);
+    if (appliedValue == null) {
+      toastContext?.addToast(
+        "요망 효과를 적용할 수 없습니다. 세력과 집중포격 상태를 확인하세요.",
+        "error"
+      );
+      return;
+    }
+
+    setFocusFireDesiredEffectInput(`${appliedValue}`);
+    toastContext?.addToast(
+      `요망 효과 ${appliedValue.toFixed(1)}을 반영했습니다.`
+    );
+  };
+
+  const resetFocusFireDesiredEffectOverride = () => {
+    props.game.setFocusFireDesiredEffectOverride(null);
+    setFocusFireDesiredEffectInput("");
+    toastContext?.addToast("요망 효과를 자동 산정값으로 전환했습니다.");
+  };
+
+  const bumpFocusFireAiRevision = () => {
+    setFocusFireAiRevision((previousRevision) => previousRevision + 1);
+  };
+
+  const handleFocusFireRerankerToggle = () => {
+    const enabled = props.game.setFocusFireRerankerEnabled(
+      !focusFireRerankerState.enabled
+    );
+    bumpFocusFireAiRevision();
+    toastContext?.addToast(`AI 재정렬: ${enabled ? "켜짐" : "꺼짐"}`);
+  };
+
+  const handleFocusFireRerankerTrain = () => {
+    if (focusFireTrainableCount === 0) {
+      toastContext?.addToast(
+        "AI 학습에는 운용자 피드백 또는 규칙 기반 추천 기록이 더 필요합니다.",
+        "error"
+      );
+      return;
+    }
+
+    const result = props.game.trainFocusFireRerankerModel();
+    if (result.summary.recordsUsed === 0) {
+      toastContext?.addToast(
+        "학습 가능한 기록이 없어 모델을 업데이트하지 않았습니다.",
+        "error"
+      );
+      return;
+    }
+    bumpFocusFireAiRevision();
+    toastContext?.addToast(
+      `AI 재정렬 모델을 학습했습니다. 비교 ${result.summary.comparisons}건, 기록 ${result.summary.recordsUsed}건, 피드백 ${result.summary.operatorFeedbackRecords}건, 신뢰도 ${Math.round(
+        props.game.getFocusFireRerankerState().confidenceScore * 100
+      )}%.`
+    );
+  };
+
+  const handleFocusFireRerankerReset = () => {
+    props.game.resetFocusFireRerankerModel();
+    bumpFocusFireAiRevision();
+    toastContext?.addToast("AI 재정렬 모델을 초기화했습니다.");
+  };
+
+  const handleExportFocusFireTelemetryJsonl = () => {
+    const content = props.game.exportFocusFireRecommendationTelemetryJsonl(
+      props.game.currentSideId || undefined
+    );
+    if (!content.trim()) {
+      toastContext?.addToast("내보낼 추천 데이터가 없습니다.", "error");
+      return;
+    }
+
+    downloadTextFile(
+      `focus_fire_recommendations_${buildSafeDownloadTimestamp()}.jsonl`,
+      content,
+      "text/plain"
+    );
+    toastContext?.addToast("추천 데이터 JSONL을 내보냈습니다.");
+  };
+
+  const handleExportFocusFireTelemetryCsv = () => {
+    const content = props.game.exportFocusFireRecommendationTelemetryCsv(
+      props.game.currentSideId || undefined
+    );
+    if (!content.trim()) {
+      toastContext?.addToast("내보낼 추천 데이터가 없습니다.", "error");
+      return;
+    }
+
+    downloadTextFile(
+      `focus_fire_recommendations_${buildSafeDownloadTimestamp()}.csv`,
+      content,
+      "text/csv"
+    );
+    toastContext?.addToast("추천 데이터 CSV를 내보냈습니다.");
+  };
+
+  const handleExportFocusFireRerankerModel = () => {
+    const content = props.game.exportFocusFireRerankerModel();
+    if (!content.trim()) {
+      toastContext?.addToast("내보낼 AI 모델이 없습니다.", "error");
+      return;
+    }
+
+    downloadTextFile(
+      `focus_fire_reranker_model_${buildSafeDownloadTimestamp()}.json`,
+      content,
+      "application/json"
+    );
+    toastContext?.addToast("집중포격 AI 모델 JSON을 내보냈습니다.");
+  };
+
+  const handleImportFocusFireRerankerModel = () => {
+    const input = document.createElement("input");
+    input.style.display = "none";
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = (event) => {
+      input.remove();
+      const file = (event.target as HTMLInputElement).files?.[0];
+      if (!file) {
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.readAsText(file, "UTF-8");
+      reader.onload = (readerEvent) => {
+        try {
+          const modelJson = readerEvent.target?.result as string;
+          const result = props.game.importFocusFireRerankerModel(modelJson);
+          bumpFocusFireAiRevision();
+          toastContext?.addToast(
+            `AI 모델 v${result.model.version} (${result.model.source})을 불러왔습니다.`,
+            "success"
+          );
+        } catch (_error) {
+          toastContext?.addToast(
+            "AI 모델 JSON 형식이 올바르지 않아 불러오지 못했습니다.",
+            "error"
+          );
+        }
+      };
+      reader.onerror = () => {
+        reader.abort();
+        toastContext?.addToast("AI 모델 파일을 읽지 못했습니다.", "error");
+      };
+    };
+    input.click();
+  };
+
+  const handleRecordFocusFireFeedback = (optionLabel: string) => {
+    if (
+      !focusFireRecommendation ||
+      focusFireSummary.objectiveLatitude == null ||
+      focusFireSummary.objectiveLongitude == null
+    ) {
+      toastContext?.addToast(
+        "현재 추천안이 없어 피드백을 기록할 수 없습니다.",
+        "error"
+      );
+      return;
+    }
+
+    const record = props.game.setFocusFireRecommendationFeedback(
+      optionLabel,
+      {
+        name: focusFireSummary.objectiveName ?? "집중포격 목표",
+        latitude: focusFireSummary.objectiveLatitude,
+        longitude: focusFireSummary.objectiveLongitude,
+      },
+      props.game.focusFireOperation.sideId,
+      focusFireRecommendation
+    );
+    if (!record) {
+      toastContext?.addToast("피드백 기록에 실패했습니다.", "error");
+      return;
+    }
+
+    bumpFocusFireAiRevision();
+    toastContext?.addToast(
+      `${optionLabel}을(를) 운용자 학습 기준으로 기록했습니다.`
+    );
+  };
 
   const focusFireSection = () => (
     <Stack spacing={1.2} sx={{ p: 1.5 }}>
-      <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-        <Chip
-          size="small"
-          color={focusFireSummary.active ? "warning" : "default"}
-          label={focusFireSummary.statusLabel}
-        />
-        <Chip
-          size="small"
-          variant="outlined"
-          label={`점령 ${focusFireSummary.captureProgress.toFixed(0)}%`}
-        />
-      </Stack>
+      <Box
+        sx={{
+          p: 1.2,
+          borderRadius: 2,
+          backgroundColor: "rgba(255,255,255,0.03)",
+          border: "1px solid rgba(45, 214, 196, 0.12)",
+        }}
+      >
+        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+          <Chip
+            size="small"
+            color={focusFireSummary.active ? "warning" : "default"}
+            label={focusFireSummary.statusLabel}
+          />
+          <Chip
+            size="small"
+            variant="outlined"
+            label={`점령 ${focusFireSummary.captureProgress.toFixed(0)}%`}
+          />
+        </Stack>
 
-      <Typography variant="body2" sx={{ color: "text.secondary" }}>
-        목표: {focusFireSummary.objectiveName ?? "미지정"}
-      </Typography>
-      <Typography variant="body2" sx={{ color: "text.secondary" }}>
-        화력 포대 {focusFireSummary.artilleryCount} / 기갑{" "}
-        {focusFireSummary.armorCount} / 항공 {focusFireSummary.aircraftCount}
-      </Typography>
-      <Typography variant="body2" sx={{ color: "text.secondary" }}>
-        비행 중 탄체: {focusFireSummary.weaponsInFlight}
-      </Typography>
+        <Typography variant="body2" sx={{ mt: 1, color: "text.secondary" }}>
+          목표: {focusFireSummary.objectiveName ?? "미지정"}
+        </Typography>
+        <Typography variant="body2" sx={{ mt: 0.45, color: "text.secondary" }}>
+          화력 포대 {focusFireSummary.artilleryCount} / 기갑{" "}
+          {focusFireSummary.armorCount} / 항공 {focusFireSummary.aircraftCount}
+        </Typography>
+        <Typography variant="body2" sx={{ mt: 0.45, color: "text.secondary" }}>
+          비행 중 탄체: {focusFireSummary.weaponsInFlight}
+        </Typography>
+      </Box>
 
       <Box
         sx={{
           p: 1.2,
           borderRadius: 2,
           background:
-            "linear-gradient(180deg, rgba(95, 112, 65, 0.12) 0%, rgba(173, 150, 105, 0.08) 100%)",
-          border: "1px solid rgba(95, 112, 65, 0.18)",
+            "linear-gradient(180deg, rgba(14, 40, 46, 0.98) 0%, rgba(8, 23, 28, 0.96) 100%)",
+          border: "1px solid rgba(45, 214, 196, 0.24)",
+          boxShadow:
+            "0 18px 34px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(134, 255, 242, 0.06)",
+        }}
+      >
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Typography sx={{ fontWeight: 700 }}>화력 추천</Typography>
+          <Chip
+            size="small"
+            variant="filled"
+            label={focusFireRecommendation ? "권장안 준비" : "분석 대기"}
+          />
+        </Stack>
+        <Stack
+          direction="row"
+          spacing={0.8}
+          sx={{ mt: 1, alignItems: "flex-start", flexWrap: "wrap" }}
+        >
+          <TextField
+            id="focus-fire-desired-effect-input"
+            size="small"
+            type="number"
+            label="요망 효과 입력"
+            value={focusFireDesiredEffectInput}
+            onChange={(event) =>
+              setFocusFireDesiredEffectInput(event.target.value)
+            }
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                applyFocusFireDesiredEffectOverride();
+              }
+            }}
+            inputProps={{ min: 0.1, step: 0.1 }}
+            disabled={!focusFireSummary.enabled}
+            sx={{
+              mb: 0,
+              minWidth: 140,
+              flex: 1,
+              bgcolor: "rgba(255,255,255,0.04)",
+            }}
+          />
+          <Button
+            size="small"
+            variant="contained"
+            onClick={applyFocusFireDesiredEffectOverride}
+            disabled={!focusFireSummary.enabled}
+          >
+            반영
+          </Button>
+          <Button
+            size="small"
+            variant="text"
+            onClick={resetFocusFireDesiredEffectOverride}
+            disabled={
+              !focusFireSummary.enabled &&
+              focusFireSummary.desiredEffectOverride == null
+            }
+          >
+            자동
+          </Button>
+        </Stack>
+        <Typography sx={{ mt: 0.7, fontSize: 12, color: "text.secondary" }}>
+          자동 산정값:{" "}
+          {focusFireRecommendation
+            ? focusFireRecommendation.desiredEffectEstimated.toFixed(1)
+            : "산출 대기"}{" "}
+          · 현재 기준:{" "}
+          {focusFireRecommendation?.desiredEffectIsUserDefined
+            ? "사용자 입력"
+            : "자동 산정"}
+        </Typography>
+        <Stack
+          direction="row"
+          spacing={0.8}
+          sx={{ mt: 1, alignItems: "center", flexWrap: "wrap" }}
+        >
+          <Chip
+            size="small"
+            color={focusFireRerankerState.enabled ? "success" : "default"}
+            label={
+              focusFireRerankerState.enabled ? "AI 재정렬 ON" : "AI 재정렬 OFF"
+            }
+          />
+          <Chip
+            size="small"
+            variant="outlined"
+            label={`데이터 ${focusFireRecommendationTelemetryCount}건`}
+          />
+          <Chip
+            size="small"
+            variant="outlined"
+            label={`피드백 ${focusFireFeedbackCount}건`}
+          />
+          <Chip
+            size="small"
+            variant="outlined"
+            label={`학습 가능 ${focusFireTrainableCount}건`}
+          />
+          <Chip
+            size="small"
+            variant="outlined"
+            label={`모델 ${focusFireRerankerState.model.source}`}
+          />
+          <Chip
+            size="small"
+            variant="outlined"
+            label={`신뢰도 ${Math.round(
+              focusFireRerankerState.confidenceScore * 100
+            )}%`}
+          />
+          <Chip
+            size="small"
+            variant="outlined"
+            label={`v${focusFireRerankerState.model.version} / 표본 ${focusFireRerankerState.model.sampleCount}`}
+          />
+          <Chip
+            size="small"
+            variant="outlined"
+            label={`운용자 ${focusFireRerankerState.model.operatorFeedbackCount} / 규칙 ${focusFireRerankerState.model.ruleSeedCount}`}
+          />
+        </Stack>
+        <Stack
+          direction="row"
+          spacing={0.8}
+          sx={{ mt: 1, alignItems: "flex-start", flexWrap: "wrap" }}
+        >
+          <Button
+            size="small"
+            variant="contained"
+            onClick={handleFocusFireRerankerToggle}
+          >
+            {focusFireRerankerState.enabled ? "AI 끄기" : "AI 켜기"}
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={handleFocusFireRerankerTrain}
+          >
+            AI 학습
+          </Button>
+          <Button
+            size="small"
+            variant="text"
+            onClick={handleFocusFireRerankerReset}
+          >
+            AI 초기화
+          </Button>
+        </Stack>
+        <Stack
+          direction="row"
+          spacing={0.8}
+          sx={{ mt: 0.6, alignItems: "flex-start", flexWrap: "wrap" }}
+        >
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={handleExportFocusFireRerankerModel}
+          >
+            모델 JSON
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={handleImportFocusFireRerankerModel}
+          >
+            모델 불러오기
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={handleExportFocusFireTelemetryJsonl}
+          >
+            JSONL
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={handleExportFocusFireTelemetryCsv}
+          >
+            CSV
+          </Button>
+        </Stack>
+        <FireRecommendationPanel
+          recommendation={focusFireRecommendation}
+          objectiveName={focusFireSummary.objectiveName}
+          objectiveLatitude={focusFireSummary.objectiveLatitude}
+          objectiveLongitude={focusFireSummary.objectiveLongitude}
+          feedbackOptionLabel={focusFireFeedbackOptionLabel}
+          onRecordFeedback={handleRecordFocusFireFeedback}
+        />
+      </Box>
+
+      <Box
+        sx={{
+          p: 1.2,
+          borderRadius: 2,
+          background:
+            "linear-gradient(180deg, rgba(10, 26, 34, 0.95) 0%, rgba(6, 17, 22, 0.92) 100%)",
+          border: "1px solid rgba(45, 214, 196, 0.16)",
         }}
       >
         <Stack direction="row" spacing={1} alignItems="center">
@@ -1345,7 +1841,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
 
   const ScenarioDb = [
     { name: "default_scenario", displayName: "기본 데모" },
-    { name: "focused_training_demo", displayName: "집중 영향권 데모" },
+    { name: "focused_training_demo", displayName: "가용화력자산" },
     { name: "army_demo", displayName: "전장 데모" },
     ...strategicScenarioPresets.map((scenario) => ({
       name: scenario.name,
@@ -1455,6 +1951,11 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
           sx={{
             justifyContent: "center",
             alignItems: "center",
+            px: 1,
+            py: 0.8,
+            borderRadius: 2,
+            backgroundColor: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(45, 214, 196, 0.12)",
           }}
         >
           <Chip
@@ -1471,7 +1972,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
             <IconButton onClick={props.loadRecordingOnClick}>
               <UploadFileOutlinedIcon
                 fontSize="medium"
-                sx={{ color: "#171717" }}
+                sx={{ color: "var(--fs-text)" }}
               />
             </IconButton>
           </Tooltip>
@@ -1482,8 +1983,8 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
           onClick={props.loadFixedTargetStrikeReplayOnClick}
           sx={{
             alignSelf: "center",
-            backgroundColor: "rgba(54, 92, 61, 0.12)",
-            color: "#23422d",
+            backgroundColor: "rgba(45, 214, 196, 0.92)",
+            color: "#031114",
             fontWeight: 700,
           }}
         />
@@ -1514,7 +2015,21 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
       (mission) => mission.sideId === currentSideId
     );
     if (!sideMissions || !Array.isArray(sideMissions) || !sideMissions.length) {
-      return <MenuItem disabled>표시할 항목이 없습니다.</MenuItem>;
+      return (
+        <Box
+          sx={{
+            px: 1.2,
+            py: 1,
+            borderRadius: 1.5,
+            backgroundColor: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(45, 214, 196, 0.1)",
+          }}
+        >
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            표시할 항목이 없습니다.
+          </Typography>
+        </Box>
+      );
     }
 
     //Return statement (core visuals)
@@ -1542,6 +2057,11 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
               }}
               key={mission.id}
               value={mission.name}
+              sx={{
+                borderRadius: 1.5,
+                border: "1px solid rgba(45, 214, 196, 0.1)",
+                backgroundColor: "rgba(255,255,255,0.03)",
+              }}
             >
               <ListItemText primary={mission.name} />
             </MenuItem>
@@ -1661,6 +2181,21 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   );
 
   const entityMenuButtons = () => {
+    const toolbarAssetIconButtonSx = {
+      mx: props.mobileView ? 0 : 0.15,
+      width: 34,
+      height: 34,
+      borderRadius: 1.5,
+      color: "var(--fs-text)",
+      backgroundColor: "rgba(255,255,255,0.06)",
+      border: "1px solid rgba(45, 214, 196, 0.12)",
+      boxShadow: "inset 0 1px 0 rgba(134, 255, 242, 0.04)",
+      "&:hover": {
+        backgroundColor: "rgba(45, 214, 196, 0.14)",
+        borderColor: "rgba(45, 214, 196, 0.24)",
+      },
+    };
+
     return (
       <Stack
         direction={"row"}
@@ -1668,7 +2203,14 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
         sx={
           props.mobileView
             ? { justifyContent: "center", flexWrap: "wrap" }
-            : null
+            : {
+                alignItems: "center",
+                px: 0.35,
+                py: 0.15,
+                borderRadius: 999,
+                border: "1px solid rgba(45, 214, 196, 0.12)",
+                backgroundColor: "rgba(255,255,255,0.03)",
+              }
         }
       >
         {/** Add Aircraft Menu/Button */}
@@ -1681,6 +2223,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
             aria-haspopup="true"
             aria-expanded={aircraftClassMenuOpen ? "true" : undefined}
             onClick={handleAircraftIconClick}
+            sx={toolbarAssetIconButtonSx}
           >
             <EntityIcon type="aircraft" />
           </IconButton>
@@ -1739,6 +2282,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
             aria-haspopup="true"
             aria-expanded={droneClassMenuOpen ? "true" : undefined}
             onClick={handleDroneIconClick}
+            sx={toolbarAssetIconButtonSx}
           >
             <EntityIcon type="drone" />
           </IconButton>
@@ -1797,6 +2341,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
             aria-haspopup="true"
             aria-expanded={airbaseClassMenuOpen ? "true" : undefined}
             onClick={handleAirbaseIconClick}
+            sx={toolbarAssetIconButtonSx}
           >
             <EntityIcon type="airbase" />
           </IconButton>
@@ -1854,6 +2399,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
             aria-haspopup="true"
             aria-expanded={samClassMenuOpen ? "true" : undefined}
             onClick={handleSamIconClick}
+            sx={toolbarAssetIconButtonSx}
           >
             <EntityIcon type="facility" />
           </IconButton>
@@ -1911,6 +2457,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
             aria-haspopup="true"
             aria-expanded={tankClassMenuOpen ? "true" : undefined}
             onClick={handleTankIconClick}
+            sx={toolbarAssetIconButtonSx}
           >
             <EntityIcon type="tank" />
           </IconButton>
@@ -1968,6 +2515,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
             aria-haspopup="true"
             aria-expanded={shipClassMenuOpen ? "true" : undefined}
             onClick={handleShipIconClick}
+            sx={toolbarAssetIconButtonSx}
           >
             <EntityIcon type="ship" />
           </IconButton>
@@ -2019,13 +2567,19 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
         </Menu>
         {/** Add Reference Point */}
         <Tooltip title="참조점 추가">
-          <IconButton onClick={handleReferencePointIconClick}>
+          <IconButton
+            onClick={handleReferencePointIconClick}
+            sx={toolbarAssetIconButtonSx}
+          >
             <EntityIcon type="referencePoint" />
           </IconButton>
         </Tooltip>
         {/** Unit Db Functions */}
         <Tooltip title="자료 도구">
-          <IconButton onClick={handleUnitDbToolsIconClick}>
+          <IconButton
+            onClick={handleUnitDbToolsIconClick}
+            sx={toolbarAssetIconButtonSx}
+          >
             <Storage />
           </IconButton>
         </Tooltip>
@@ -2046,21 +2600,73 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
           <MenuItem
             onClick={(_event: React.MouseEvent<HTMLElement>) => {
               const exportedUnitDb = unitDbContext.exportToJson();
-              const exportName = "firescope_units";
-              const dataStr =
-                "data:text/json;charset=utf-8," +
-                encodeURIComponent(exportedUnitDb);
-              const downloadAnchorNode = document.createElement("a");
-              downloadAnchorNode.setAttribute("href", dataStr);
-              downloadAnchorNode.setAttribute("download", exportName + ".json");
-              document.body.appendChild(downloadAnchorNode); // required for firefox
-              downloadAnchorNode.click();
-              downloadAnchorNode.remove();
+              downloadTextFile(
+                `firescope_units_${buildSafeDownloadTimestamp()}.json`,
+                exportedUnitDb,
+                "text/json"
+              );
               setUnitDbToolsIconAnchorEl(null);
             }}
             key={"export-unit-db"}
           >
             유닛 자료 저장
+          </MenuItem>
+          <MenuItem
+            onClick={(_event: React.MouseEvent<HTMLElement>) => {
+              const diagnostics = unitDbContext.buildDiagnosticsReport();
+              downloadTextFile(
+                `firescope_unit_db_diagnostics_${buildSafeDownloadTimestamp()}.json`,
+                JSON.stringify(diagnostics, null, 2),
+                "application/json"
+              );
+              toastContext?.addToast(
+                `검증 완료: 오류 ${diagnostics.summary.errorCount}건, 경고 ${diagnostics.summary.warningCount}건입니다.`,
+                diagnostics.summary.errorCount > 0 ? "warning" : "success",
+                7000
+              );
+              setUnitDbToolsIconAnchorEl(null);
+            }}
+            key={"validate-unit-db"}
+          >
+            유닛 자료 검증 리포트
+          </MenuItem>
+          <MenuItem
+            onClick={(_event: React.MouseEvent<HTMLElement>) => {
+              const parityReport = unitDbContext.buildPythonParityReport();
+              downloadTextFile(
+                `firescope_unit_db_ts_python_parity_${buildSafeDownloadTimestamp()}.json`,
+                JSON.stringify(parityReport, null, 2),
+                "application/json"
+              );
+              toastContext?.addToast(
+                `비교 완료: 오류 ${parityReport.summary.errorCount}건, 경고 ${parityReport.summary.warningCount}건입니다.`,
+                parityReport.summary.errorCount > 0 ? "warning" : "success",
+                7000
+              );
+              setUnitDbToolsIconAnchorEl(null);
+            }}
+            key={"validate-unit-db-parity"}
+          >
+            TS/Python 정합성 리포트
+          </MenuItem>
+          <MenuItem
+            onClick={(_event: React.MouseEvent<HTMLElement>) => {
+              const syncPlan = unitDbContext.buildPythonSyncPlan();
+              downloadTextFile(
+                `firescope_unit_db_ts_python_sync_plan_${buildSafeDownloadTimestamp()}.json`,
+                JSON.stringify(syncPlan, null, 2),
+                "application/json"
+              );
+              toastContext?.addToast(
+                `동기화 후보 ${syncPlan.summary.actionCount}건을 정리했습니다. 우선순위 높음 ${syncPlan.summary.highPriorityCount}건입니다.`,
+                syncPlan.summary.highPriorityCount > 0 ? "warning" : "success",
+                7000
+              );
+              setUnitDbToolsIconAnchorEl(null);
+            }}
+            key={"unit-db-sync-plan"}
+          >
+            TS/Python 동기화 후보
           </MenuItem>
           <MenuItem
             onClick={(_event: React.MouseEvent<HTMLElement>) => {
@@ -2077,14 +2683,26 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                   const reader = new FileReader();
                   reader.readAsText(file, "UTF-8");
                   reader.onload = (readerEvent) => {
-                    const unitDbString = readerEvent.target?.result as string;
-                    unitDbContext.importFromJson(unitDbString);
-                    toastContext?.addToast(
-                      "유닛 자료를 불러왔습니다.",
-                      "success"
-                    );
-                    setUnitDbContext(unitDbContext);
-                    setUnitDbToolsIconAnchorEl(null);
+                    try {
+                      const unitDbString = readerEvent.target?.result as string;
+                      const importedUnitDb = Dba.fromJson(unitDbString);
+                      const diagnostics =
+                        importedUnitDb.buildDiagnosticsReport();
+                      setUnitDbContext(importedUnitDb);
+                      toastContext?.addToast(
+                        `유닛 자료를 불러왔습니다. 오류 ${diagnostics.summary.errorCount}건, 경고 ${diagnostics.summary.warningCount}건입니다.`,
+                        diagnostics.summary.errorCount > 0
+                          ? "warning"
+                          : "success",
+                        7000
+                      );
+                      setUnitDbToolsIconAnchorEl(null);
+                    } catch (_error) {
+                      toastContext?.addToast(
+                        "자료 형식이 올바르지 않아 불러오지 못했습니다.",
+                        "error"
+                      );
+                    }
                   };
                   reader.onerror = () => {
                     reader.abort();
@@ -2123,7 +2741,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
           <IconButton onClick={handleGodModeToggle}>
             <GodModeIcon
               sx={{
-                color: props.game.godMode ? SIDE_COLOR.GREEN : SIDE_COLOR.BLACK,
+                color: props.game.godMode ? SIDE_COLOR.GREEN : "var(--fs-text)",
                 width: 24,
                 height: 24,
               }}
@@ -2135,7 +2753,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
           <IconButton onClick={props.openSimulationLogs}>
             <Message
               sx={{
-                color: SIDE_COLOR.BLACK,
+                color: "var(--fs-text)",
                 width: 24,
                 height: 24,
               }}
@@ -2160,7 +2778,21 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
       !props.featureEntitiesPlotted.length ||
       !plottedSideFeatures.length
     ) {
-      return <MenuItem disabled>표시할 항목이 없습니다.</MenuItem>;
+      return (
+        <Box
+          sx={{
+            px: 1.2,
+            py: 1,
+            borderRadius: 1.5,
+            backgroundColor: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(45, 214, 196, 0.1)",
+          }}
+        >
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            표시할 항목이 없습니다.
+          </Typography>
+        </Box>
+      );
     }
 
     return (
@@ -2222,7 +2854,12 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
             >
               <MenuItem
                 disableRipple
-                sx={{ cursor: "help" }}
+                sx={{
+                  cursor: "help",
+                  borderRadius: 1.5,
+                  border: "1px solid rgba(45, 214, 196, 0.1)",
+                  backgroundColor: "rgba(255,255,255,0.03)",
+                }}
                 key={feature.id}
                 value={feature.name}
               >
@@ -2256,7 +2893,11 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
         elevation={0}
         sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
       >
-        <MapToolbar variant="dense" sx={toolbarStyle} disableGutters>
+        <MapToolbar
+          variant="dense"
+          sx={{ ...toolbarStyle, overflow: "hidden", gap: 0.8 }}
+          disableGutters
+        >
           {props.drawerOpen ? (
             <Tooltip title="패널 닫기">
               <IconButton
@@ -2292,28 +2933,40 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
               </IconButton>
             </Tooltip>
           )}
-          <Stack direction={"row"} sx={{ alignItems: "center", gap: 1.25 }}>
+          <Stack
+            direction={"row"}
+            sx={{
+              alignItems: "center",
+              gap: compactToolbar ? 0.75 : 1.25,
+              minWidth: 0,
+            }}
+          >
             <Box
               sx={{
                 display: "flex",
                 alignItems: "center",
-                gap: 1.25,
+                gap: compactToolbar ? 0.75 : 1.25,
                 pr: 0.5,
+                minWidth: 0,
+                flexShrink: 1,
               }}
             >
               <Box
                 component="img"
                 src="/main-logo.svg"
-                alt="FireScope 로고"
+                alt={`${APP_DISPLAY_NAME} 로고`}
                 sx={{
-                  width: 38,
-                  height: 38,
+                  width: compactToolbar ? 34 : 38,
+                  height: compactToolbar ? 34 : 38,
                   borderRadius: 0.75,
                   objectFit: "cover",
-                  boxShadow: "0 4px 10px rgba(70, 85, 47, 0.16)",
+                  boxShadow: "0 0 18px rgba(45, 214, 196, 0.18)",
+                  flexShrink: 0,
                 }}
               />
-              <Box sx={{ display: "flex", flexDirection: "column" }}>
+              <Box
+                sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}
+              >
                 <Typography
                   variant="h6"
                   noWrap
@@ -2322,22 +2975,25 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                     fontWeight: 700,
                     color: COLOR_PALETTE.BLACK,
                     lineHeight: 1.05,
+                    fontSize: compactToolbar ? "1rem" : undefined,
                   }}
                 >
-                  FireScope
+                  {APP_DISPLAY_NAME}
                 </Typography>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: "rgba(28, 35, 24, 0.72)",
-                    letterSpacing: "0.06em",
-                  }}
-                >
-                  ArmyAicenter 제작
-                </Typography>
+                {!compactToolbar && (
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: "var(--fs-text-soft)",
+                      letterSpacing: "0.06em",
+                    }}
+                  >
+                    ArmyAicenter 제작
+                  </Typography>
+                )}
               </Box>
             </Box>
-            {!props.mobileView && (
+            {showEntityShortcutStrip && (
               <>
                 <Divider
                   orientation="vertical"
@@ -2350,89 +3006,152 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                 {entityMenuButtons()}
               </>
             )}
+            {(showEntityShortcutStrip || !ultraCompactToolbar) && (
+              <Divider
+                orientation="vertical"
+                variant="middle"
+                flexItem
+                sx={{
+                  borderColor: COLOR_PALETTE.DARK_GRAY,
+                  mr: compactToolbar ? 0.8 : 1.6,
+                }}
+              />
+            )}
+            <Box
+              sx={{
+                px: 0.45,
+                py: 0.35,
+                borderRadius: 999,
+                backgroundColor: quickAddMenuOpen
+                  ? "rgba(255, 255, 255, 0.14)"
+                  : "rgba(255, 255, 255, 0.1)",
+                border: quickAddMenuOpen
+                  ? "1px solid rgba(134, 255, 242, 0.26)"
+                  : "1px solid rgba(134, 255, 242, 0.14)",
+              }}
+            >
+              <Button
+                variant="contained"
+                onClick={handleQuickAddMenuToggle}
+                startIcon={<AddBoxIcon />}
+                endIcon={
+                  !ultraCompactToolbar ? <KeyboardArrowDownIcon /> : undefined
+                }
+                sx={{
+                  borderRadius: "999px",
+                  border: quickAddMenuOpen
+                    ? "1px solid rgba(134, 255, 242, 0.72)"
+                    : "1px solid rgba(134, 255, 242, 0.3)",
+                  backgroundColor: quickAddMenuOpen
+                    ? "rgba(134, 255, 242, 0.96)"
+                    : "rgba(53, 217, 198, 0.94)",
+                  color: "#031114",
+                  fontWeight: 800,
+                  letterSpacing: "0.04em",
+                  whiteSpace: "nowrap",
+                  px: ultraCompactToolbar ? 1.15 : 1.45,
+                  minWidth: ultraCompactToolbar ? "auto" : undefined,
+                  boxShadow: quickAddMenuOpen
+                    ? "0 0 0 1px rgba(134, 255, 242, 0.18), 0 0 24px rgba(53, 217, 198, 0.38)"
+                    : "0 0 0 1px rgba(53, 217, 198, 0.14), 0 12px 24px rgba(53, 217, 198, 0.2)",
+                  "&:hover": {
+                    backgroundColor: "rgba(134, 255, 242, 0.98)",
+                    boxShadow:
+                      "0 0 0 1px rgba(134, 255, 242, 0.18), 0 0 26px rgba(53, 217, 198, 0.44)",
+                  },
+                }}
+              >
+                {ultraCompactToolbar ? "자산" : "자산 종류"}
+              </Button>
+            </Box>
+            {quickAddMenu()}
+            {showSideSelect && (
+              <SideSelect
+                sides={props.game.currentScenario.sides}
+                currentSideId={selectedSideId}
+                onSideSelect={handleSideChange}
+                openSideEditor={props.handleOpenSideEditor}
+              />
+            )}
+            {showExperienceShortcut && (
+              <Button
+                variant="outlined"
+                onClick={props.openBattleSpectator}
+                startIcon={<VisibilityOutlinedIcon />}
+                sx={{
+                  ml: 1.2,
+                  borderRadius: "999px",
+                  borderColor: "rgba(45, 214, 196, 0.32)",
+                  color: "var(--fs-text)",
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                  backgroundColor: "rgba(255,255,255,0.04)",
+                  "&:hover": {
+                    borderColor: "var(--fs-accent)",
+                    backgroundColor: "rgba(45, 214, 196, 0.08)",
+                  },
+                }}
+              >
+                {compactToolbar ? "관전" : "전장 관전자 3D"}
+              </Button>
+            )}
+            {showExperienceShortcut && (
+              <Button
+                variant="contained"
+                onClick={handleExperienceMenuToggle}
+                startIcon={<ViewInArOutlinedIcon />}
+                endIcon={<KeyboardArrowDownIcon />}
+                sx={{
+                  ml: 1.2,
+                  borderRadius: "999px",
+                  backgroundColor: "var(--fs-accent)",
+                  color: "#031114",
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                  boxShadow: "none",
+                  "&:hover": {
+                    backgroundColor: "var(--fs-accent-strong)",
+                    color: "#031114",
+                    boxShadow: "none",
+                  },
+                }}
+              >
+                {compactToolbar ? "3D" : "3D 시뮬레이터"}
+              </Button>
+            )}
+            {experienceMenu()}
+            {showRlLabShortcut && (
+              <Button
+                variant="outlined"
+                onClick={props.openRlLabPage}
+                startIcon={<Storage />}
+                sx={{
+                  ml: 1.2,
+                  borderRadius: "999px",
+                  borderColor: "rgba(45, 214, 196, 0.28)",
+                  color: COLOR_PALETTE.BLACK,
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                  "&:hover": {
+                    borderColor: "var(--fs-accent)",
+                    backgroundColor: "rgba(45, 214, 196, 0.08)",
+                  },
+                }}
+              >
+                {compactToolbar ? "RL" : "강화학습 설계"}
+              </Button>
+            )}
+          </Stack>
+          <Box sx={{ flexGrow: 1 }} />
+          {showHealthCheck && <HealthCheck />}
+          {showHealthCheck && (
             <Divider
               orientation="vertical"
               variant="middle"
               flexItem
               sx={{ borderColor: COLOR_PALETTE.DARK_GRAY, mr: 1.6 }}
             />
-            <Button
-              variant="outlined"
-              onClick={handleQuickAddMenuToggle}
-              startIcon={<AddBoxIcon />}
-              endIcon={<KeyboardArrowDownIcon />}
-              sx={{
-                borderRadius: "999px",
-                borderColor: "rgba(70, 85, 47, 0.28)",
-                color: COLOR_PALETTE.BLACK,
-                fontWeight: 700,
-                whiteSpace: "nowrap",
-                "&:hover": {
-                  borderColor: "#5f7041",
-                  backgroundColor: "rgba(95, 112, 65, 0.08)",
-                },
-              }}
-            >
-              자산 종류
-            </Button>
-            {quickAddMenu()}
-            <SideSelect
-              sides={props.game.currentScenario.sides}
-              currentSideId={selectedSideId}
-              onSideSelect={handleSideChange}
-              openSideEditor={props.handleOpenSideEditor}
-            />
-            <Button
-              variant="contained"
-              onClick={handleExperienceMenuToggle}
-              startIcon={<ViewInArOutlinedIcon />}
-              endIcon={<KeyboardArrowDownIcon />}
-              sx={{
-                ml: 1.2,
-                borderRadius: "999px",
-                backgroundColor: "#5f7041",
-                color: COLOR_PALETTE.BLACK,
-                fontWeight: 700,
-                whiteSpace: "nowrap",
-                boxShadow: "none",
-                "&:hover": {
-                  backgroundColor: "#46552f",
-                  color: COLOR_PALETTE.WHITE,
-                  boxShadow: "none",
-                },
-              }}
-            >
-              3D 체험
-            </Button>
-            {experienceMenu()}
-            <Button
-              variant="outlined"
-              onClick={props.openRlLabPage}
-              startIcon={<Storage />}
-              sx={{
-                ml: 1.2,
-                borderRadius: "999px",
-                borderColor: "rgba(70, 85, 47, 0.28)",
-                color: COLOR_PALETTE.BLACK,
-                fontWeight: 700,
-                whiteSpace: "nowrap",
-                "&:hover": {
-                  borderColor: "#5f7041",
-                  backgroundColor: "rgba(95, 112, 65, 0.08)",
-                },
-              }}
-            >
-              RL Lab
-            </Button>
-          </Stack>
-          <Box sx={{ flexGrow: 1 }} />
-          <HealthCheck />
-          <Divider
-            orientation="vertical"
-            variant="middle"
-            flexItem
-            sx={{ borderColor: COLOR_PALETTE.DARK_GRAY, mr: 1.6 }}
-          />
+          )}
           <LoginLogout />
         </MapToolbar>
       </AppBar>
@@ -2465,56 +3184,35 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
           <Box sx={{ flexGrow: 1, overflowY: "auto", padding: 1 }}>
             {/** Scenario Section */}
             <Stack>
-              <Box sx={{ px: 1, pb: 1.5 }}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    gap: 1.5,
-                    alignItems: "flex-start",
-                    p: 1.5,
-                    borderRadius: 1.5,
-                    background:
-                      "linear-gradient(135deg, rgba(95,112,65,0.16) 0%, rgba(173,150,105,0.18) 100%)",
-                    border: "1px solid rgba(95, 112, 65, 0.2)",
-                  }}
-                >
-                  <Box
-                    component="img"
-                    src="/main-logo.svg"
-                    alt="FireScope 로고"
-                    sx={{
-                      minWidth: 42,
-                      width: 42,
-                      height: 42,
-                      borderRadius: 1,
-                      objectFit: "cover",
-                    }}
-                  />
-                  <Box>
-                    <Typography variant="h6" sx={{ lineHeight: 1.05 }}>
-                      FireScope
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ mt: 0.5, color: "text.secondary" }}
-                    >
-                      ArmyAicenter가 만든 간단한 작전 화면
-                    </Typography>
-                  </Box>
-                </Box>
-              </Box>
               {/** Scenario Name */}
-              <Stack direction={"row"} sx={{ pl: 2, mb: 1 }}>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              <Box
+                sx={{
+                  mx: 1,
+                  mb: 1,
+                  px: 1.2,
+                  py: 1.05,
+                  borderRadius: 2,
+                  backgroundColor: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(45, 214, 196, 0.12)",
+                }}
+              >
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
                   {props.game.currentScenario.name}
                 </Typography>
-              </Stack>
+              </Box>
               {/** Context Notification Text Section */}
               <Stack spacing={0.5} direction="column" sx={{ p: 0, mt: 0 }}>
                 <CurrentActionContextDisplay />
               </Stack>
               {/** Scenario Actions */}{" "}
-              <CardActions sx={{ display: "flex", justifyContent: "center" }}>
+              <CardActions
+                sx={{
+                  display: "flex",
+                  justifyContent: "center",
+                  px: 1,
+                  py: 0.5,
+                }}
+              >
                 <Stack
                   direction="row"
                   divider={<Divider orientation="vertical" flexItem />}
@@ -2522,13 +3220,19 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                   sx={{
                     justifyContent: "center",
                     alignItems: "center",
+                    width: "100%",
+                    px: 0.9,
+                    py: 0.35,
+                    borderRadius: 2,
+                    backgroundColor: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(45, 214, 196, 0.12)",
                   }}
                 >
                   <Tooltip title="새로 만들기">
                     <IconButton onClick={newScenario}>
                       <InsertDriveFileIcon
                         fontSize="medium"
-                        sx={{ color: "#000000" }}
+                        sx={{ color: "var(--fs-text)" }}
                       />
                     </IconButton>
                   </Tooltip>
@@ -2536,7 +3240,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                     <IconButton onClick={handleLoadScenarioIconClick}>
                       <UploadFileOutlinedIcon
                         fontSize="medium"
-                        sx={{ color: "#171717" }}
+                        sx={{ color: "var(--fs-text)" }}
                       />
                     </IconButton>
                   </Tooltip>
@@ -2554,8 +3258,8 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                         fontSize="medium"
                         sx={{
                           color: isAuthenticated
-                            ? "#171717"
-                            : COLOR_PALETTE.DARK_GRAY,
+                            ? "var(--fs-text)"
+                            : "rgba(221, 255, 250, 0.3)",
                         }}
                       />
                     </IconButton>
@@ -2575,8 +3279,8 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                           color:
                             isAuthenticated ||
                             import.meta.env.VITE_ENV !== "production"
-                              ? "#171717"
-                              : COLOR_PALETTE.DARK_GRAY,
+                              ? "var(--fs-text)"
+                              : "rgba(221, 255, 250, 0.3)",
                         }}
                       />
                     </IconButton>
@@ -2658,8 +3362,8 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                     p: 1.5,
                     borderRadius: 1.5,
                     background:
-                      "linear-gradient(180deg, rgba(95, 112, 65, 0.14) 0%, rgba(173, 150, 105, 0.12) 100%)",
-                    border: "1px solid rgba(95, 112, 65, 0.24)",
+                      "linear-gradient(180deg, rgba(10, 26, 34, 0.95) 0%, rgba(6, 17, 22, 0.92) 100%)",
+                    border: "1px solid rgba(45, 214, 196, 0.18)",
                   }}
                 >
                   <Stack spacing={1}>
@@ -2687,11 +3391,11 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                         variant="contained"
                         onClick={handleLoadScenarioIconClick}
                         sx={{
-                          backgroundColor: "#5f7041",
-                          color: COLOR_PALETTE.WHITE,
+                          backgroundColor: "var(--fs-accent)",
+                          color: "#031114",
                           boxShadow: "none",
                           "&:hover": {
-                            backgroundColor: "#46552f",
+                            backgroundColor: "var(--fs-accent-strong)",
                             boxShadow: "none",
                           },
                         }}
@@ -2705,7 +3409,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                           props.handleOpenSideEditor(selectedSideId || null)
                         }
                         sx={{
-                          borderColor: "rgba(70, 85, 47, 0.32)",
+                          borderColor: "rgba(45, 214, 196, 0.24)",
                           color: COLOR_PALETTE.BLACK,
                         }}
                       >
@@ -2715,7 +3419,14 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                   </Stack>
                 </Box>
               )}
-              <CardActions sx={{ display: "flex", justifyContent: "center" }}>
+              <CardActions
+                sx={{
+                  display: "flex",
+                  justifyContent: "center",
+                  px: 1,
+                  py: 0.5,
+                }}
+              >
                 <Stack
                   direction="row"
                   divider={<Divider orientation="vertical" flexItem />}
@@ -2723,6 +3434,12 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                   sx={{
                     justifyContent: "center",
                     alignItems: "center",
+                    width: "100%",
+                    px: 0.9,
+                    py: 0.35,
+                    borderRadius: 2,
+                    backgroundColor: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(45, 214, 196, 0.12)",
                   }}
                 >
                   <Tooltip title="1단계 진행">
@@ -2850,23 +3567,23 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
               flexShrink: 0,
               display: "flex",
               flexDirection: "column",
-              borderTop: "1px solid rgba(127, 135, 108, 0.45)",
+              borderTop: "1px solid rgba(45, 214, 196, 0.22)",
               background:
-                "linear-gradient(180deg, rgba(247,243,234,0.72) 0%, rgba(228,232,216,0.96) 100%)",
+                "linear-gradient(180deg, rgba(9, 22, 28, 0.96) 0%, rgba(5, 14, 18, 0.98) 100%)",
             }}
           >
             {/* Chatbot Label */}
             <Box
               sx={{
                 p: 1.5,
-                borderBottom: "1px solid rgba(127, 135, 108, 0.35)",
+                borderBottom: "1px solid rgba(45, 214, 196, 0.18)",
               }}
             >
               <Typography
                 variant="h5"
                 sx={{ textAlign: "center", fontWeight: 600 }}
               >
-                작전 도우미
+                AI지휘결심지원(ArmyGPT)
               </Typography>
               <Typography
                 variant="caption"
@@ -2877,7 +3594,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                   color: "text.secondary",
                 }}
               >
-                전력 요약, 핵심 위험, 임무 제안을 바로 정리합니다
+                생성형 AI 기반 작전·지휘결심 지원
               </Typography>
             </Box>
             {/* Message Display Area */}
@@ -2900,11 +3617,13 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                       sx={{
                         p: 1.5,
                         borderRadius: "3px",
-                        backgroundColor: isUser ? "#5F7041" : "#F7F3EA",
-                        color: isUser ? "#F7F3EA" : "#1C2318",
+                        backgroundColor: isUser
+                          ? "rgba(45, 214, 196, 0.9)"
+                          : "rgba(255,255,255,0.05)",
+                        color: isUser ? "#031114" : "var(--fs-text)",
                         border: isUser
-                          ? "1px solid rgba(70, 85, 47, 0.7)"
-                          : "1px solid rgba(127, 135, 108, 0.4)",
+                          ? "1px solid rgba(45, 214, 196, 0.72)"
+                          : "1px solid rgba(45, 214, 196, 0.16)",
                         maxWidth: "80%",
                         whiteSpace: "pre-wrap",
                       }}
@@ -2920,7 +3639,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
             <Stack
               direction="row"
               spacing={1}
-              sx={{ p: 1, borderTop: "1px solid rgba(127, 135, 108, 0.35)" }}
+              sx={{ p: 1, borderTop: "1px solid rgba(45, 214, 196, 0.18)" }}
             >
               <TextField
                 id="chatbot-input"
@@ -2935,7 +3654,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                 }}
                 onFocus={() => setIsChatInputFocused(true)}
                 onBlur={() => setIsChatInputFocused(false)}
-                sx={{ mb: 0, bgcolor: "#F7F3EA" }}
+                sx={{ mb: 0, bgcolor: "rgba(255,255,255,0.05)" }}
               />
               <IconButton
                 color="primary"
