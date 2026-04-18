@@ -1,5 +1,6 @@
 import { randomUUID } from "@/utils/generateUUID";
 import Aircraft from "@/game/units/Aircraft";
+import Army from "@/game/units/Army";
 import Facility from "@/game/units/Facility";
 import Scenario from "@/game/Scenario";
 
@@ -44,6 +45,13 @@ import {
   getFacilityDetectionArcDegrees,
   getFacilityThreatRange,
 } from "@/game/db/facilityThreatProfiles";
+import {
+  inferBattle3dProfileHint,
+  isGroundVisualProfileId,
+  resolveUnitVisualProfileId,
+  type Battle3dProfileHint,
+  type UnitVisualProfileId,
+} from "@/game/db/unitVisualProfiles";
 import { getDisplayName } from "@/utils/koreanCatalog";
 import {
   processFuelExhaustion,
@@ -147,15 +155,34 @@ export interface FocusFireWeaponTrack {
 
 export type BattleSpectatorEntityType =
   | "aircraft"
+  | "army"
   | "facility"
   | "airbase"
   | "ship";
+
+export interface BattleSpectatorPointSnapshot {
+  latitude: number;
+  longitude: number;
+  altitudeMeters: number;
+}
+
+export interface BattleSpectatorWeaponInventorySnapshot {
+  id: string;
+  name: string;
+  className: string;
+  quantity: number;
+  maxQuantity: number;
+  modelId?: UnitVisualProfileId;
+}
 
 export interface BattleSpectatorUnitSnapshot {
   id: string;
   name: string;
   className: string;
   entityType: BattleSpectatorEntityType;
+  modelId?: UnitVisualProfileId;
+  profileHint: Battle3dProfileHint;
+  groundUnit: boolean;
   sideId: string;
   sideName: string;
   sideColor: string;
@@ -166,6 +193,21 @@ export interface BattleSpectatorUnitSnapshot {
   speedKts: number;
   weaponCount: number;
   hpFraction: number;
+  damageFraction: number;
+  detectionRangeNm: number;
+  detectionArcDegrees: number;
+  detectionHeadingDeg: number;
+  engagementRangeNm: number;
+  currentFuel?: number;
+  maxFuel?: number;
+  fuelFraction?: number;
+  route: BattleSpectatorPointSnapshot[];
+  desiredRoute: BattleSpectatorPointSnapshot[];
+  weaponInventory: BattleSpectatorWeaponInventorySnapshot[];
+  aircraftCount?: number;
+  homeBaseId?: string;
+  rtb?: boolean;
+  statusFlags: string[];
   selected: boolean;
   targetId?: string;
 }
@@ -174,6 +216,7 @@ export interface BattleSpectatorWeaponSnapshot {
   id: string;
   name: string;
   className: string;
+  modelId?: UnitVisualProfileId;
   launcherId: string;
   launcherName: string;
   sideId: string;
@@ -187,6 +230,7 @@ export interface BattleSpectatorWeaponSnapshot {
   launchAltitudeMeters: number;
   headingDeg: number;
   speedKts: number;
+  hpFraction: number;
   targetId: string | null;
   targetLatitude?: number;
   targetLongitude?: number;
@@ -218,11 +262,13 @@ export interface BattleSpectatorEvent {
 }
 
 export interface BattleSpectatorSnapshot {
+  schemaVersion: number;
   scenarioId: string;
   scenarioName: string;
   currentTime: number;
   currentSideId: string;
   currentSideName: string;
+  selectedUnitId: string;
   centerLongitude: number | null;
   centerLatitude: number | null;
   units: BattleSpectatorUnitSnapshot[];
@@ -233,6 +279,7 @@ export interface BattleSpectatorSnapshot {
     facilities: number;
     airbases: number;
     ships: number;
+    groundUnits: number;
     weaponsInFlight: number;
     sides: number;
   };
@@ -245,7 +292,7 @@ interface FocusFireAnalysisTarget {
   className: string;
   latitude: number;
   longitude: number;
-  entityType: "aircraft" | "facility" | "airbase" | "ship";
+  entityType: "aircraft" | "army" | "facility" | "airbase" | "ship";
   weaponInventory: number;
 }
 
@@ -485,6 +532,7 @@ function getFocusFireAnalysisTargetBaseValue(target: FocusFireAnalysisTarget) {
       return 28;
     case "aircraft":
       return 20;
+    case "army":
     case "facility":
       if (isFiresFacilityClassName(target.className)) {
         return 22;
@@ -532,6 +580,14 @@ function getFocusFireAnalysisTargetCategoryLabel(
       return "기지";
     case "ship":
       return "함정";
+    case "army":
+      if (isFiresFacilityClassName(target.className)) {
+        return "화력 부대";
+      }
+      if (isTankFacilityClassName(target.className)) {
+        return "기갑 부대";
+      }
+      return "지상군";
     case "facility":
       if (isFiresFacilityClassName(target.className)) {
         return "화력 시설";
@@ -993,6 +1049,15 @@ function normalizeImportedFocusFireRerankerModel(
           ? "telemetry-tree-ensemble"
           : defaultModel.source,
     modelFamily: normalizedModelFamily,
+    origin:
+      importedRerankerModel.origin === "trained-in-app" ||
+      importedRerankerModel.origin === "imported-json"
+        ? importedRerankerModel.origin
+        : importedRerankerModel.origin === "built-in"
+          ? "built-in"
+          : importedRerankerModel.source === "default"
+            ? "built-in"
+            : "imported-json",
     sampleCount:
       typeof importedRerankerModel.sampleCount === "number" &&
       Number.isFinite(importedRerankerModel.sampleCount)
@@ -1105,6 +1170,7 @@ export default class Game {
 
     return (
       this.currentScenario.getAircraft(targetId) ??
+      this.currentScenario.getArmy(targetId) ??
       this.currentScenario.getFacility(targetId) ??
       this.currentScenario.getShip(targetId) ??
       this.currentScenario.getAirbase(targetId) ??
@@ -1131,9 +1197,12 @@ export default class Game {
 
   getFocusFireArtilleryFacilities(
     sideId = this.focusFireOperation.sideId
-  ): Facility[] {
+  ): Array<Army | Facility> {
     if (!sideId) return [];
-    return this.currentScenario.facilities.filter(
+    return [
+      ...this.currentScenario.facilities,
+      ...this.currentScenario.armies,
+    ].filter(
       (facility) =>
         facility.sideId === sideId &&
         isFiresFacilityClassName(facility.className) &&
@@ -1143,9 +1212,12 @@ export default class Game {
 
   getFocusFireArmorFacilities(
     sideId = this.focusFireOperation.sideId
-  ): Facility[] {
+  ): Array<Army | Facility> {
     if (!sideId) return [];
-    return this.currentScenario.facilities.filter(
+    return [
+      ...this.currentScenario.facilities,
+      ...this.currentScenario.armies,
+    ].filter(
       (facility) =>
         facility.sideId === sideId &&
         isTankFacilityClassName(facility.className)
@@ -1153,7 +1225,7 @@ export default class Game {
   }
 
   getFocusFireLaunchVariant(
-    platform: Aircraft | Facility
+    platform: Aircraft | Army | Facility
   ): FocusFireLaunchVariant {
     if (platform instanceof Aircraft) {
       return "aircraft";
@@ -1183,6 +1255,13 @@ export default class Game {
           isFiresFacilityClassName(facility.className) &&
           (facility.weapons.some((weapon) => weapon.currentQuantity > 0) ||
             launchedPlatformIds.has(facility.id))
+      ),
+      ...this.currentScenario.armies.filter(
+        (army) =>
+          army.sideId === sideId &&
+          isFiresFacilityClassName(army.className) &&
+          (army.weapons.some((weapon) => weapon.currentQuantity > 0) ||
+            launchedPlatformIds.has(army.id))
       ),
       ...this.currentScenario.aircraft.filter(
         (aircraft) =>
@@ -1219,6 +1298,7 @@ export default class Game {
       .map((weapon) => {
         const launcher =
           this.currentScenario.getAircraft(weapon.launcherId) ??
+          this.currentScenario.getArmy(weapon.launcherId) ??
           this.currentScenario.getFacility(weapon.launcherId);
         if (!launcher) {
           return null;
@@ -1244,10 +1324,188 @@ export default class Game {
       .filter((track): track is FocusFireWeaponTrack => track !== null);
   }
 
+  private buildBattleSpectatorPointSnapshot(
+    latitude: number,
+    longitude: number,
+    altitudeFeet = 0
+  ): BattleSpectatorPointSnapshot {
+    return {
+      latitude,
+      longitude,
+      altitudeMeters: getFocusFireAltitudeMeters(altitudeFeet),
+    };
+  }
+
+  private buildBattleSpectatorRouteSnapshot(
+    route: number[][] | undefined,
+    altitudeFeet = 0
+  ): BattleSpectatorPointSnapshot[] {
+    if (!Array.isArray(route)) {
+      return [];
+    }
+
+    return route
+      .map((point) => {
+        const [latitude, longitude] = point ?? [];
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+          return null;
+        }
+
+        return this.buildBattleSpectatorPointSnapshot(
+          latitude,
+          longitude,
+          altitudeFeet
+        );
+      })
+      .filter(
+        (point): point is BattleSpectatorPointSnapshot => point !== null
+      );
+  }
+
+  private resolveBattleSpectatorUnitModelId(
+    entity: Aircraft | Army | Facility | Airbase | Ship,
+    entityType: BattleSpectatorEntityType
+  ) {
+    const dbVisualProfileId =
+      entityType === "aircraft"
+        ? this.unitDba.findAircraftModel(entity.className)?.visualProfileId
+        : entityType === "facility" || entityType === "army"
+          ? this.unitDba.findFacilityModel(entity.className)?.visualProfileId
+          : entityType === "ship"
+            ? this.unitDba.findShipModel(entity.className)?.visualProfileId
+            : this.unitDba.findAirbaseModel(entity.name)?.visualProfileId;
+
+    return resolveUnitVisualProfileId({
+      entityType:
+        entityType === "airbase"
+          ? "airbase"
+          : entityType === "army"
+            ? "facility"
+            : entityType,
+      className: entity.className,
+      name: entity.name,
+      dbVisualProfileId,
+    });
+  }
+
+  private resolveBattleSpectatorWeaponModelId(weapon: Weapon) {
+    return resolveUnitVisualProfileId({
+      entityType: "weapon",
+      className: weapon.className,
+      name: weapon.name,
+      dbVisualProfileId: this.unitDba.findWeaponModel(weapon.className)
+        ?.visualProfileId,
+    });
+  }
+
+  private buildBattleSpectatorWeaponInventorySnapshot(
+    weapons: Weapon[]
+  ): BattleSpectatorWeaponInventorySnapshot[] {
+    const inventory = new Map<string, BattleSpectatorWeaponInventorySnapshot>();
+
+    weapons.forEach((weapon) => {
+      const key = weapon.className;
+      const existing = inventory.get(key);
+      if (existing) {
+        existing.quantity += weapon.currentQuantity;
+        existing.maxQuantity += weapon.maxQuantity;
+        return;
+      }
+
+      inventory.set(key, {
+        id: weapon.id,
+        name: weapon.name,
+        className: weapon.className,
+        quantity: weapon.currentQuantity,
+        maxQuantity: weapon.maxQuantity,
+        modelId: this.resolveBattleSpectatorWeaponModelId(weapon),
+      });
+    });
+
+    return [...inventory.values()].sort((left, right) => {
+      if (right.quantity !== left.quantity) {
+        return right.quantity - left.quantity;
+      }
+      return left.name.localeCompare(right.name, "ko-KR");
+    });
+  }
+
+  private buildBattleSpectatorStatusFlags(
+    entity: Aircraft | Army | Facility | Airbase | Ship,
+    options: {
+      entityType: BattleSpectatorEntityType;
+      hpFraction: number;
+      weaponCount: number;
+      selected: boolean;
+      targetId?: string;
+      fuelFraction?: number;
+      modelId?: UnitVisualProfileId;
+      profileHint: Battle3dProfileHint;
+    }
+  ) {
+    const flags: string[] = [];
+
+    if (
+      (options.entityType === "facility" || options.entityType === "army") &&
+      isGroundVisualProfileId(options.modelId)
+    ) {
+      flags.push("ground-unit");
+    }
+    if (options.profileHint === "defense") {
+      flags.push("air-defense");
+    }
+    if (options.profileHint === "fires") {
+      flags.push("fires");
+    }
+    if (options.hpFraction <= 0.3) {
+      flags.push("critical-damage");
+    } else if (options.hpFraction <= 0.65) {
+      flags.push("damaged");
+    }
+    if (
+      typeof options.fuelFraction === "number" &&
+      Number.isFinite(options.fuelFraction) &&
+      options.fuelFraction <= 0.2
+    ) {
+      flags.push("low-fuel");
+    }
+    if (options.weaponCount <= 0 && options.entityType !== "airbase") {
+      flags.push("empty-launcher");
+    }
+    if (
+      "rtb" in entity &&
+      typeof entity.rtb === "boolean" &&
+      entity.rtb
+    ) {
+      flags.push("rtb");
+    }
+    if (options.selected) {
+      flags.push("selected");
+    }
+    if (options.targetId) {
+      flags.push("engaged");
+    }
+    if (entity instanceof Airbase && options.hpFraction < 0.5) {
+      flags.push("runway-degraded");
+    }
+
+    return flags;
+  }
+
   private buildBattleSpectatorUnitSnapshot(
-    entity: Aircraft | Facility | Airbase | Ship,
+    entity: Aircraft | Army | Facility | Airbase | Ship,
     entityType: BattleSpectatorEntityType
   ): BattleSpectatorUnitSnapshot {
+    const modelId = this.resolveBattleSpectatorUnitModelId(entity, entityType);
+    const profileHint = inferBattle3dProfileHint(
+      entityType === "airbase"
+        ? "airbase"
+        : entityType === "army"
+          ? "facility"
+          : entityType,
+      entity.className,
+      entity.name
+    );
     const weaponCount =
       entity instanceof Airbase
         ? entity.aircraft.reduce(
@@ -1255,18 +1513,72 @@ export default class Game {
             0
           )
         : entity.getTotalWeaponQuantity();
+    const weaponInventory = this.buildBattleSpectatorWeaponInventorySnapshot(
+      entity instanceof Airbase
+        ? entity.aircraft.flatMap((aircraft) => aircraft.weapons)
+        : entity.weapons
+    );
     const targetId =
       "targetId" in entity &&
       typeof entity.targetId === "string" &&
       entity.targetId.length > 0
         ? entity.targetId
         : undefined;
+    const currentFuel =
+      "currentFuel" in entity && typeof entity.currentFuel === "number"
+        ? entity.currentFuel
+        : undefined;
+    const maxFuel =
+      "maxFuel" in entity && typeof entity.maxFuel === "number"
+        ? entity.maxFuel
+        : undefined;
+    const fuelFraction =
+      typeof currentFuel === "number" &&
+      typeof maxFuel === "number" &&
+      maxFuel > 0
+        ? currentFuel / maxFuel
+        : undefined;
+    const hpFraction = entity.getHealthFraction();
+    const selected = this.selectedUnitId === entity.id;
+    const detectionRangeNm =
+      entity instanceof Airbase
+        ? 0
+        : entity.getDetectionRange();
+    const detectionArcDegrees =
+      entity instanceof Airbase
+        ? 360
+        : entity.getDetectionArcDegrees();
+    const detectionHeadingDeg =
+      entity instanceof Airbase
+        ? 0
+        : entity.getDetectionHeading();
+    const engagementRangeNm =
+      entity instanceof Airbase
+        ? 0
+        : entity.getWeaponEngagementRange();
+    const route =
+      "route" in entity
+        ? this.buildBattleSpectatorRouteSnapshot(entity.route, entity.altitude)
+        : [];
+    const desiredRoute =
+      "desiredRoute" in entity
+        ? this.buildBattleSpectatorRouteSnapshot(
+            entity.desiredRoute,
+            entity.altitude
+          )
+        : [];
+    const groundUnit =
+      entityType === "army" ||
+      (entityType === "facility" && isGroundVisualProfileId(modelId));
 
     return {
       id: entity.id,
       name: entity.name,
       className: entity.className,
       entityType,
+      modelId,
+      profileHint,
+      groundUnit,
       sideId: entity.sideId,
       sideName: this.currentScenario.getSideName(entity.sideId),
       sideColor: `${entity.sideColor ?? this.currentScenario.getSideColor(entity.sideId)}`,
@@ -1276,8 +1588,41 @@ export default class Game {
       headingDeg: "heading" in entity ? (entity.heading ?? 0) : 0,
       speedKts: "speed" in entity ? (entity.speed ?? 0) : 0,
       weaponCount,
-      hpFraction: entity.getHealthFraction(),
-      selected: this.selectedUnitId === entity.id,
+      hpFraction,
+      damageFraction: 1 - hpFraction,
+      detectionRangeNm,
+      detectionArcDegrees,
+      detectionHeadingDeg,
+      engagementRangeNm,
+      currentFuel,
+      maxFuel,
+      fuelFraction,
+      route,
+      desiredRoute,
+      weaponInventory,
+      aircraftCount:
+        "aircraft" in entity && Array.isArray(entity.aircraft)
+          ? entity.aircraft.length
+          : undefined,
+      homeBaseId:
+        "homeBaseId" in entity && typeof entity.homeBaseId === "string"
+          ? entity.homeBaseId
+          : undefined,
+      rtb:
+        "rtb" in entity && typeof entity.rtb === "boolean"
+          ? entity.rtb
+          : undefined,
+      statusFlags: this.buildBattleSpectatorStatusFlags(entity, {
+        entityType,
+        hpFraction,
+        weaponCount,
+        selected,
+        targetId,
+        fuelFraction,
+        modelId,
+        profileHint,
+      }),
+      selected,
       targetId,
     };
   }
@@ -1294,6 +1639,9 @@ export default class Game {
     const units = [
       ...this.currentScenario.aircraft.map((entity) =>
         this.buildBattleSpectatorUnitSnapshot(entity, "aircraft")
+      ),
+      ...this.currentScenario.armies.map((entity) =>
+        this.buildBattleSpectatorUnitSnapshot(entity, "army")
       ),
       ...this.currentScenario.facilities.map((entity) =>
         this.buildBattleSpectatorUnitSnapshot(entity, "facility")
@@ -1313,9 +1661,11 @@ export default class Game {
         id: weapon.id,
         name: weapon.name,
         className: weapon.className,
+        modelId: this.resolveBattleSpectatorWeaponModelId(weapon),
         launcherId: weapon.launcherId,
         launcherName:
           this.currentScenario.getAircraft(weapon.launcherId)?.name ??
+          this.currentScenario.getArmy(weapon.launcherId)?.name ??
           this.currentScenario.getFacility(weapon.launcherId)?.name ??
           this.currentScenario.getShip(weapon.launcherId)?.name ??
           weapon.launcherId,
@@ -1332,6 +1682,7 @@ export default class Game {
         ),
         headingDeg: weapon.heading,
         speedKts: weapon.speed,
+        hpFraction: weapon.getHealthFraction(),
         targetId: weapon.targetId,
         targetLatitude: target?.latitude,
         targetLongitude: target?.longitude,
@@ -1388,11 +1739,13 @@ export default class Game {
       });
 
     return {
+      schemaVersion: 2,
       scenarioId: this.currentScenario.id,
       scenarioName: this.currentScenario.name,
       currentTime: this.currentScenario.currentTime,
       currentSideId: this.currentSideId,
       currentSideName: this.currentScenario.getSideName(this.currentSideId),
+      selectedUnitId: this.selectedUnitId,
       centerLongitude:
         typeof centerLongitude === "number" ? centerLongitude : null,
       centerLatitude:
@@ -1402,9 +1755,12 @@ export default class Game {
       recentEvents,
       stats: {
         aircraft: this.currentScenario.aircraft.length,
-        facilities: this.currentScenario.facilities.length,
+        facilities:
+          this.currentScenario.facilities.length +
+          this.currentScenario.armies.length,
         airbases: this.currentScenario.airbases.length,
         ships: this.currentScenario.ships.length,
+        groundUnits: units.filter((unit) => unit.groundUnit).length,
         weaponsInFlight: this.currentScenario.weapons.length,
         sides: this.currentScenario.sides.length,
       },
@@ -1433,7 +1789,8 @@ export default class Game {
     const hostileSideIds = this.getFocusFireHostileSideIds(sideId);
     let exposureScore = 0;
 
-    this.currentScenario.facilities.forEach((facility) => {
+    [...this.currentScenario.facilities, ...this.currentScenario.armies].forEach(
+      (facility) => {
       if (!hostileSideIds.has(facility.sideId)) {
         return;
       }
@@ -1462,7 +1819,8 @@ export default class Game {
       ) {
         exposureScore += 1 + Math.min(threatRange / 120, 1.5);
       }
-    });
+      }
+    );
 
     this.currentScenario.ships.forEach((ship) => {
       if (!hostileSideIds.has(ship.sideId)) {
@@ -1518,7 +1876,7 @@ export default class Game {
   }
 
   getFocusFireExecutionAssessment(
-    platform: Aircraft | Facility,
+    platform: Aircraft | Army | Facility,
     weapon: Weapon,
     objective: FocusFireObjectivePoint,
     sideId: string
@@ -2102,6 +2460,16 @@ export default class Game {
         longitude: aircraft.longitude,
         entityType: "aircraft" as const,
         weaponInventory: aircraft.getTotalWeaponQuantity(),
+      })),
+      ...this.currentScenario.armies.map((army) => ({
+        id: army.id,
+        name: army.name,
+        sideId: army.sideId,
+        className: army.className,
+        latitude: army.latitude,
+        longitude: army.longitude,
+        entityType: "army" as const,
+        weaponInventory: army.getTotalWeaponQuantity(),
       })),
       ...this.currentScenario.facilities.map((facility) => ({
         id: facility.id,
@@ -2763,6 +3131,7 @@ export default class Game {
       !target ||
       !(
         target instanceof Aircraft ||
+        target instanceof Army ||
         target instanceof Facility ||
         target instanceof Ship ||
         target instanceof Airbase
@@ -2803,8 +3172,9 @@ export default class Game {
             .filter((target): target is Target => target !== undefined)
         : this.currentScenario.getAllTargetsFromEnemySides(sideId)
     ).filter(
-      (target): target is Aircraft | Facility | Ship | Airbase =>
+      (target): target is Aircraft | Army | Facility | Ship | Airbase =>
         target instanceof Aircraft ||
+        target instanceof Army ||
         target instanceof Facility ||
         target instanceof Ship ||
         target instanceof Airbase
@@ -3066,7 +3436,7 @@ export default class Game {
   }
 
   launchAllWeaponsAtObjective(
-    origin: Aircraft | Facility,
+    origin: Aircraft | Army | Facility,
     objective: ReferencePoint
   ) {
     let launchedCount = 0;
@@ -3164,6 +3534,14 @@ export default class Game {
           });
         }
       });
+      this.currentScenario.armies.forEach((army) => {
+        if (army.sideId === sideId) {
+          army.sideColor = sideColor;
+          army.weapons.forEach((weapon) => {
+            weapon.sideColor = sideColor;
+          });
+        }
+      });
       this.currentScenario.aircraft.forEach((aircraft) => {
         if (aircraft.sideId === sideId) {
           aircraft.sideColor = sideColor;
@@ -3210,6 +3588,9 @@ export default class Game {
     );
     this.currentScenario.airbases = this.currentScenario.airbases.filter(
       (airbase) => airbase.sideId !== sideId
+    );
+    this.currentScenario.armies = this.currentScenario.armies.filter(
+      (army) => army.sideId !== sideId
     );
     this.currentScenario.facilities = this.currentScenario.facilities.filter(
       (facility) => facility.sideId !== sideId
@@ -3635,6 +4016,15 @@ export default class Game {
       );
   }
 
+  removeArmy(armyId: string) {
+    this.recordHistory();
+    this.currentScenario.armies = this.currentScenario.armies.filter(
+      (army) => army.id !== armyId
+    );
+    this.focusFireOperation.launchedPlatformIds =
+      this.focusFireOperation.launchedPlatformIds.filter((id) => id !== armyId);
+  }
+
   removeAircraft(aircraftId: string) {
     this.recordHistory();
     this.currentScenario.aircraft = this.currentScenario.aircraft.filter(
@@ -3682,6 +4072,50 @@ export default class Game {
     });
     this.currentScenario.facilities.push(facility);
     return facility;
+  }
+
+  addArmy(
+    armyName: string,
+    className: string,
+    latitude: number,
+    longitude: number,
+    speed?: number,
+    maxFuel?: number,
+    fuelRate?: number,
+    range?: number
+  ) {
+    if (!this.currentSideId) {
+      return;
+    }
+    this.recordHistory();
+    const army = new Army({
+      id: randomUUID(),
+      name: armyName,
+      sideId: this.currentSideId,
+      className,
+      latitude,
+      longitude,
+      altitude: 0.0,
+      heading: 0.0,
+      speed: speed ?? this.getDefaultFacilitySpeed(className),
+      currentFuel: maxFuel ?? 12000,
+      maxFuel: maxFuel ?? 12000,
+      fuelRate: fuelRate ?? 35,
+      range: range ?? getFacilityThreatRange(className),
+      route: [],
+      selected: false,
+      sideColor: this.currentScenario.getSideColor(this.currentSideId),
+      weapons: this.demoMode
+        ? this.getDefaultFacilityWeapons(
+            this.currentSideId,
+            this.currentScenario.getSideColor(this.currentSideId),
+            className
+          )
+        : [],
+      desiredRoute: [],
+    });
+    this.currentScenario.armies.push(army);
+    return army;
   }
 
   addShip(
@@ -3981,6 +4415,22 @@ export default class Game {
     }
   }
 
+  moveArmy(armyId: string, newLatitude: number, newLongitude: number) {
+    const army = this.currentScenario.getArmy(armyId);
+    if (army) {
+      army.desiredRoute.push([newLatitude, newLongitude]);
+      if (army.desiredRoute.length === 1) {
+        army.heading = getBearingBetweenTwoPoints(
+          army.latitude,
+          army.longitude,
+          newLatitude,
+          newLongitude
+        );
+      }
+      return army;
+    }
+  }
+
   moveFacility(
     facilityId: string,
     newLatitude: number,
@@ -4005,6 +4455,32 @@ export default class Game {
     }
   }
 
+  moveGroundUnit(
+    unitId: string,
+    newLatitude: number,
+    newLongitude: number,
+    replaceRoute: boolean = false
+  ) {
+    const army = this.currentScenario.getArmy(unitId);
+    if (army) {
+      if (replaceRoute) {
+        army.route = [];
+      }
+      army.route.push([newLatitude, newLongitude]);
+      if (army.route.length === 1) {
+        army.heading = getBearingBetweenTwoPoints(
+          army.latitude,
+          army.longitude,
+          newLatitude,
+          newLongitude
+        );
+      }
+      return army;
+    }
+
+    return this.moveFacility(unitId, newLatitude, newLongitude, replaceRoute);
+  }
+
   commitRoute(unitId: string) {
     const aircraft = this.currentScenario.getAircraft(unitId);
     if (aircraft) {
@@ -4019,6 +4495,13 @@ export default class Game {
       ship.route = ship.desiredRoute;
       ship.desiredRoute = [];
       return ship;
+    }
+    const army = this.currentScenario.getArmy(unitId);
+    if (army) {
+      this.recordHistory();
+      army.route = army.desiredRoute;
+      army.desiredRoute = [];
+      return army;
     }
   }
 
@@ -4047,6 +4530,13 @@ export default class Game {
       facility.latitude = newLatitude;
       facility.longitude = newLongitude;
       return facility;
+    }
+    const army = this.currentScenario.getArmy(unitId);
+    if (army) {
+      this.recordHistory();
+      army.latitude = newLatitude;
+      army.longitude = newLongitude;
+      return army;
     }
     const ship = this.currentScenario.getShip(unitId);
     if (ship) {
@@ -4121,6 +4611,7 @@ export default class Game {
     if (!autoAttack && weaponQuantity <= 0) return;
     const target =
       this.currentScenario.getAircraft(targetId) ??
+      this.currentScenario.getArmy(targetId) ??
       this.currentScenario.getFacility(targetId) ??
       this.currentScenario.getWeapon(targetId) ??
       this.currentScenario.getShip(targetId) ??
@@ -4182,6 +4673,7 @@ export default class Game {
     if (!autoAttack && weaponQuantity <= 0) return;
     const target =
       this.currentScenario.getAircraft(targetId) ??
+      this.currentScenario.getArmy(targetId) ??
       this.currentScenario.getFacility(targetId) ??
       this.currentScenario.getWeapon(targetId) ??
       this.currentScenario.getShip(targetId) ??
@@ -4225,6 +4717,57 @@ export default class Game {
       launchWeapon(
         this.currentScenario,
         ship,
+        target,
+        weapon,
+        weaponQuantity,
+        this.simulationLogs
+      );
+    }
+  }
+
+  handleArmyAttack(
+    armyId: string,
+    targetId: string,
+    weaponId: string,
+    weaponQuantity: number,
+    autoAttack: boolean = false
+  ) {
+    if (!autoAttack && weaponQuantity <= 0) return;
+    const target =
+      this.currentScenario.getAircraft(targetId) ??
+      this.currentScenario.getArmy(targetId) ??
+      this.currentScenario.getFacility(targetId) ??
+      this.currentScenario.getWeapon(targetId) ??
+      this.currentScenario.getShip(targetId) ??
+      this.currentScenario.getAirbase(targetId);
+    const army = this.currentScenario.getArmy(armyId);
+    if (autoAttack) {
+      if (target && army && target.sideId !== army.sideId && target.id !== army.id) {
+        this.recordHistory();
+        const weapons = army.weapons.filter(
+          (weapon) => weapon.currentQuantity > 0
+        );
+        if (weapons.length > 0) {
+          weapons.forEach((weapon) => {
+            launchWeapon(
+              this.currentScenario,
+              army,
+              target,
+              weapon,
+              weapon.currentQuantity,
+              this.simulationLogs
+            );
+          });
+        }
+      }
+      return;
+    }
+    const weapon = army?.weapons.find((candidate) => candidate.id === weaponId);
+    if (target && army && weapon && target.sideId !== army.sideId && target.id !== army.id) {
+      this.recordHistory();
+      launchWeapon(
+        this.currentScenario,
+        army,
         target,
         weapon,
         weaponQuantity,
@@ -4367,6 +4910,12 @@ export default class Game {
       currentSideId: this.currentSideId,
       selectedUnitId: this.selectedUnitId,
       mapView: this.mapView,
+      simulationLogs: this.simulationLogs.getLogs(
+        undefined,
+        undefined,
+        undefined,
+        "asc"
+      ),
       focusFireOperation: this.focusFireOperation,
       focusFireRecommendationTelemetry: this.focusFireRecommendationTelemetry,
       focusFireRerankerEnabled: this.focusFireRerankerEnabled,
@@ -4466,10 +5015,39 @@ export default class Game {
         defense: aircraft.defense,
       });
 
+    const buildArmy = (army: Army, armyWeapons: Weapon[]) =>
+      new Army({
+        id: army.id,
+        name: army.name,
+        sideId: army.sideId,
+        className: army.className,
+        latitude: army.latitude,
+        longitude: army.longitude,
+        altitude: army.altitude,
+        heading: army.heading,
+        speed: army.speed,
+        currentFuel: army.currentFuel,
+        maxFuel: army.maxFuel,
+        fuelRate: army.fuelRate,
+        range: army.range,
+        route: army.route ?? [],
+        selected: army.selected,
+        sideColor: army.sideColor,
+        weapons: armyWeapons,
+        desiredRoute: army.desiredRoute ?? [],
+        maxHp: army.maxHp,
+        currentHp: army.currentHp,
+        defense: army.defense,
+      });
+
     savedScenario.aircraft.forEach((aircraft: Aircraft) => {
       const aircraftWeapons: Weapon[] = aircraft.weapons?.map(buildWeapon);
       const newAircraft = buildAircraft(aircraft, aircraftWeapons);
       loadedScenario.aircraft.push(newAircraft);
+    });
+    savedScenario.armies?.forEach((army: Army) => {
+      const armyWeapons: Weapon[] = army.weapons?.map(buildWeapon);
+      loadedScenario.armies.push(buildArmy(army, armyWeapons));
     });
     savedScenario.airbases.forEach((airbase: Airbase) => {
       const airbaseAircraft: Aircraft[] = [];
@@ -4842,6 +5420,10 @@ export default class Game {
 
     this.focusFireRerankerEnabled =
       importObject.focusFireRerankerEnabled === true;
+
+    if (Array.isArray(importObject.simulationLogs)) {
+      this.simulationLogs.replaceLogs(importObject.simulationLogs);
+    }
   }
 
   toggleGodMode(enabled: boolean = !this.godMode) {
@@ -4853,7 +5435,8 @@ export default class Game {
   }
 
   facilityAutoDefense() {
-    this.currentScenario.facilities.forEach((facility) => {
+    [...this.currentScenario.facilities, ...this.currentScenario.armies].forEach(
+      (facility) => {
       if (
         this.currentScenario.checkSideDoctrine(
           facility.sideId,
@@ -4903,7 +5486,8 @@ export default class Game {
           }
         }
       });
-    });
+      }
+    );
   }
 
   shipAutoDefense() {
@@ -5350,7 +5934,7 @@ export default class Game {
           index,
           focusFireArmor.length
         );
-        this.moveFacility(facility.id, latitude, longitude, true);
+        this.moveGroundUnit(facility.id, latitude, longitude, true);
       }
     });
 
@@ -5444,6 +6028,12 @@ export default class Game {
         weapon.longitude = aircraft.longitude;
       });
     });
+    this.currentScenario.armies.forEach((army) => {
+      army.weapons.forEach((weapon) => {
+        weapon.latitude = army.latitude;
+        weapon.longitude = army.longitude;
+      });
+    });
     this.currentScenario.facilities.forEach((facility) => {
       facility.weapons.forEach((weapon) => {
         weapon.latitude = facility.latitude;
@@ -5461,6 +6051,7 @@ export default class Game {
   getStrikeMissionCurrentTarget(mission: StrikeMission) {
     for (const targetId of mission.assignedTargetIds) {
       const target =
+        this.currentScenario.getArmy(targetId) ??
         this.currentScenario.getFacility(targetId) ??
         this.currentScenario.getShip(targetId) ??
         this.currentScenario.getAirbase(targetId) ??
@@ -5616,7 +6207,8 @@ export default class Game {
   }
 
   updateAllFacilityPosition() {
-    this.currentScenario.facilities.forEach((facility) => {
+    [...this.currentScenario.facilities, ...this.currentScenario.armies].forEach(
+      (facility) => {
       if (facility.speed <= 0 || facility.route.length === 0) {
         return;
       }
@@ -5654,7 +6246,8 @@ export default class Game {
         nextWaypointLatitude,
         nextWaypointLongitude
       );
-    });
+      }
+    );
   }
 
   updateGameState() {
@@ -5690,6 +6283,7 @@ export default class Game {
         [
           ...this.currentScenario.aircraft.map((unit) => unit.sideId),
           ...this.currentScenario.ships.map((unit) => unit.sideId),
+          ...this.currentScenario.armies.map((unit) => unit.sideId),
           ...this.currentScenario.facilities.map((unit) => unit.sideId),
           ...this.currentScenario.airbases.map((unit) => unit.sideId),
         ].filter(Boolean)

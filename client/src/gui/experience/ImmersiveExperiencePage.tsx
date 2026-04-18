@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
@@ -7,7 +7,10 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import LaunchIcon from "@mui/icons-material/Launch";
 import MapOutlinedIcon from "@mui/icons-material/MapOutlined";
 import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
-import BundleModelViewport from "@/gui/experience/BundleModelViewport";
+import Game, { type BattleSpectatorSnapshot } from "@/game/Game";
+import BundleModelViewport, {
+  type BundleViewerComparisonSelection,
+} from "@/gui/experience/BundleModelViewport";
 import ImmersiveAssetViewport from "@/gui/experience/ImmersiveAssetViewport";
 import {
   AssetExperienceSummary,
@@ -18,6 +21,12 @@ import {
   getImmersiveExperienceModelOptions,
   selectImmersiveExperienceModel,
 } from "@/gui/experience/bundleModels";
+import { buildBundleViewerSceneProps } from "@/gui/experience/bundleSceneProps";
+import {
+  buildDigitalTwinLineup,
+  buildDigitalTwinSummary,
+} from "@/gui/experience/digitalTwinState";
+import { buildImmersiveLiveTwinRuntime } from "@/gui/experience/immersiveLiveTwin";
 import {
   buildImmersiveModeBrief,
   buildImmersiveOperationsDeck,
@@ -40,6 +49,7 @@ import { getDisplayName } from "@/utils/koreanCatalog";
 
 interface ImmersiveExperiencePageProps {
   route: ImmersiveExperienceRoute | null;
+  game?: Game;
   onBack: () => void;
   onBackToMap: () => void;
   openFlightSimPage: (center?: number[], craft?: string) => void;
@@ -55,7 +65,9 @@ interface ImmersiveExperiencePageProps {
 }
 
 function formatNumber(value: number | undefined, fractionDigits = 0) {
-  if (value === undefined) return "N/A";
+  if (value === undefined) {
+    return "N/A";
+  }
 
   return new Intl.NumberFormat("ko-KR", {
     maximumFractionDigits: fractionDigits,
@@ -68,7 +80,7 @@ function buildTelemetry(asset: AssetExperienceSummary) {
     {
       label: "분류",
       value: getDisplayName(asset.className),
-      hint: "현재 자산 분류",
+      hint: "현재 선택 자산 유형",
     },
     {
       label: "좌표",
@@ -87,7 +99,7 @@ function buildTelemetry(asset: AssetExperienceSummary) {
           ? `${formatNumber(asset.range)} NM`
           : asset.sideName,
       hint:
-        asset.range !== undefined ? "탐지 또는 교전 거리" : "작전 편성 세력",
+        asset.range !== undefined ? "탐지 또는 교전 기준 거리" : "현재 작전 편성",
     },
     {
       label: asset.speed !== undefined ? "속도" : "무장",
@@ -103,124 +115,60 @@ function buildTelemetry(asset: AssetExperienceSummary) {
 function buildFocusList(profile: ImmersiveExperienceProfile) {
   switch (profile) {
     case "ground":
-      return ["기동축 확인", "차체/포탑 실루엣 비교", "정면 교전 방향 체감"];
+      return ["차체 높이와 전폭", "포탑 회전축과 정면 노출각", "돌파축 또는 엄호축 시야"];
     case "fires":
-      return ["발사 축 추적", "포대/런처 배치 감각", "화력 집중 방향 확인"];
+      return ["발사 자세와 포구 방향", "포대 간 간격과 축 정렬", "살보 이후 착탄 연출 흐름"];
     case "defense":
-      return ["레이더 스윕 확인", "요격축 체감", "배터리 방어 범위 시각화"];
+      return ["레이더 감시 방향", "발사기 고각과 배치 간격", "계층 방어 반경과 빈 구역"];
     case "maritime":
-      return [
-        "해상 감시 축 확인",
-        "구축함·항모·잠수함 실루엣 비교",
-        "항주 방향과 전투단 역할 체감",
-      ];
+      return ["함형 실루엣과 갑판 구성", "전투단 간격과 호위 위치", "진행축 대비 무장 배치"];
     case "base":
-      return [
-        "기지 경보 확인",
-        "항공 자산 대기 배치 비교",
-        "격납, 관제, 출격 흐름 확인",
-      ];
+      return ["주기 라인 배치", "격납과 출격 동선", "기지 방호와 대응 자산 위치"];
   }
 }
 
-function buildModelDeckTitle(profile: ImmersiveExperienceProfile) {
-  switch (profile) {
-    case "maritime":
-      return "함정 모델 선택";
-    case "base":
-      return "기지 자산 선택";
-    case "ground":
-      return "지상 플랫폼 선택";
-    case "fires":
-      return "화력 플랫폼 선택";
-    case "defense":
-      return "방공 플랫폼 선택";
+function buildCompareSummary(
+  activeModel: BundleModelSelection | null,
+  comparisonModels: BundleModelSelection[]
+) {
+  if (!activeModel) {
+    return "연결된 3D 모델 없음";
   }
+
+  if (comparisonModels.length === 0) {
+    return `${activeModel.label} 단일 집중 감상`;
+  }
+
+  return `${activeModel.label} 기준으로 ${comparisonModels.length + 1}종 플랫폼 비교`;
 }
 
-function buildModelDeckDescription(profile: ImmersiveExperienceProfile) {
-  switch (profile) {
-    case "maritime":
-      return "구축함, 항모, 잠수함을 다중 선택해 전투단 구성을 비교합니다.";
-    case "base":
-      return "전투기, 헬기, 드론을 다중 선택해 기지 편성을 비교합니다.";
-    case "ground":
-      return "장갑차/지휘차/전차 모델을 고르고 기동 구성을 비교합니다.";
-    case "fires":
-      return "포병, 런처, 미사일 계열을 묶어서 화력 구성을 비교합니다.";
-    case "defense":
-      return "Patriot, NASAMS, THAAD 등 방공 체계를 함께 비교합니다.";
-  }
-}
-
-function buildComparisonDeckTitle(profile: ImmersiveExperienceProfile) {
-  switch (profile) {
-    case "maritime":
-      return "Task Group Gallery";
-    case "base":
-      return "Flight Line Gallery";
-    case "ground":
-      return "Platform Gallery";
-    case "fires":
-      return "Battery Gallery";
-    case "defense":
-      return "Defense Gallery";
-  }
-}
-
-function buildComparisonDeckDescription(profile: ImmersiveExperienceProfile) {
-  switch (profile) {
-    case "maritime":
-      return "선택한 함형을 한 번에 띄워서 함대 구성을 비교합니다.";
-    case "base":
-      return "선택한 항공자산을 한 번에 띄워서 기지 라인업을 비교합니다.";
-    case "ground":
-      return "선택한 지상 플랫폼을 한 번에 띄워서 차체 구성을 비교합니다.";
-    case "fires":
-      return "선택한 화력 플랫폼을 한 번에 띄워서 포대 구성을 비교합니다.";
-    case "defense":
-      return "선택한 방공 체계를 한 번에 띄워서 방어 계층을 비교합니다.";
-  }
-}
-
-function buildViewportControls(hasBundleModel: boolean) {
-  if (hasBundleModel) {
-    return [
-      "`Drag`: 3D 모델 회전",
-      "`Wheel`: 확대 / 축소",
-      "`모델 선택`: 기준 플랫폼 전환",
-      "`Mission Mode`: 작전 모드 변경",
-      "`비교 토글`: 다중 비교 라인업 구성",
-      "`브리프 시작 버튼`: 실제 3D 시뮬레이터 페이지 진입",
-      "`지도 복귀`: 메인 화면 복귀",
-    ];
-  }
-
+function buildStatusChips(
+  postureLabel: string,
+  operationLabel: string | undefined,
+  compareSummary: string,
+  liveSourceLabel?: string
+) {
   return [
-    "`Drag`: 궤도 회전",
-    "`Wheel`, `Q/E`: 확대 축소",
-    "`W/S`: 시점 상하 조정",
-    "`A/D`: 방위 회전",
-    "`Space`: 자동 모션 토글",
-    "`Enter`: 전술 액션 펄스",
-    "`R`: 시점 초기화",
+    operationLabel ?? "작전 모드",
+    `POSTURE ${postureLabel}`,
+    compareSummary,
+    liveSourceLabel ?? "SHOWCASE LINK",
   ];
 }
 
-function buildInitialSelectedModelIds(modelOptions: BundleModelSelection[]) {
-  return modelOptions.map((model) => model.id);
-}
-
 const EMPTY_MODEL_OPTIONS: BundleModelSelection[] = [];
+const MAX_VIEWPORT_COMPARISON_MODELS = 4;
 
 export default function ImmersiveExperiencePage({
   route,
+  game,
   onBack,
   onBackToMap,
   openFlightSimPage,
   openTacticalSimPage,
   backLabel = "쇼룸으로",
 }: Readonly<ImmersiveExperiencePageProps>) {
+  const liveSnapshotSignatureRef = useRef<string>("");
   const asset = route?.asset ?? null;
   const profile = route?.profile ?? null;
   const preferredModel =
@@ -238,20 +186,29 @@ export default function ImmersiveExperiencePage({
   const [selectedModelId, setSelectedModelId] = useState<string | null>(
     requestedModel?.id ?? preferredModel?.id ?? modelOptions[0]?.id ?? null
   );
-  const [selectedModelIds, setSelectedModelIds] = useState<string[]>(
-    buildInitialSelectedModelIds(modelOptions)
-  );
+  const [comparisonModelIds, setComparisonModelIds] = useState<string[]>([]);
   const [operationMode, setOperationMode] = useState<string>(
     profile ? getDefaultImmersiveOperationMode(profile) : "breakthrough"
   );
   const [showGuide, setShowGuide] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
+  const [showBackdrop, setShowBackdrop] = useState(false);
+  const [liveSnapshot, setLiveSnapshot] = useState<
+    BattleSpectatorSnapshot | undefined
+  >(() =>
+    typeof game?.getBattleSpectatorSnapshot === "function"
+      ? game.getBattleSpectatorSnapshot()
+      : undefined
+  );
 
   useEffect(() => {
     setSelectedModelId(
       requestedModel?.id ?? preferredModel?.id ?? modelOptions[0]?.id ?? null
     );
-    setSelectedModelIds(buildInitialSelectedModelIds(modelOptions));
+    setComparisonModelIds([]);
     setShowGuide(false);
+    setShowComparison(false);
+    setShowBackdrop(false);
     if (profile) {
       setOperationMode(getDefaultImmersiveOperationMode(profile));
     }
@@ -263,22 +220,159 @@ export default function ImmersiveExperiencePage({
     profile,
   ]);
 
-  const selectedModels = modelOptions.filter((model) =>
-    selectedModelIds.includes(model.id)
-  );
+  useEffect(() => {
+    setComparisonModelIds((current) =>
+      current.filter(
+        (modelId) =>
+          modelId !== selectedModelId &&
+          modelOptions.some((model) => model.id === modelId)
+      )
+    );
+  }, [modelOptions, selectedModelId]);
+
+  useEffect(() => {
+    liveSnapshotSignatureRef.current = "";
+    setLiveSnapshot(
+      typeof game?.getBattleSpectatorSnapshot === "function"
+        ? game.getBattleSpectatorSnapshot()
+        : undefined
+    );
+  }, [game, route?.asset.id]);
 
   const activeModel =
     modelOptions.find((model) => model.id === selectedModelId) ??
-    selectedModels[0] ??
     preferredModel ??
+    modelOptions[0] ??
     null;
+  const comparisonModels = modelOptions
+    .filter(
+      (model) =>
+        comparisonModelIds.includes(model.id) && model.id !== activeModel?.id
+    )
+    .slice(0, MAX_VIEWPORT_COMPARISON_MODELS);
+  const activeComparisonModels = showComparison ? comparisonModels : [];
+  const selectedModelsForDeck = activeModel
+    ? [activeModel, ...activeComparisonModels]
+    : activeComparisonModels;
+  const sceneProps = useMemo(
+    () =>
+      showBackdrop && asset && activeModel
+        ? buildBundleViewerSceneProps(asset, activeModel, "immersive")
+        : [],
+    [activeModel, asset, showBackdrop]
+  );
+  const comparisonSelections =
+    useMemo<BundleViewerComparisonSelection[]>(
+      () =>
+        activeComparisonModels.map((model) => ({
+          id: model.id,
+          bundle: model.bundle,
+          path: model.path,
+          label: model.label,
+        })),
+      [activeComparisonModels]
+    );
+  const syntheticDigitalTwinLineup = useMemo(
+    () =>
+      asset && profile
+        ? buildDigitalTwinLineup(
+            asset,
+            profile,
+            activeModel,
+            selectedModelsForDeck,
+            operationMode
+          )
+        : [],
+    [activeModel, asset, operationMode, profile, selectedModelsForDeck]
+  );
+  const syntheticDigitalTwinSummary = useMemo(
+    () =>
+      asset && profile
+        ? buildDigitalTwinSummary(asset, profile, syntheticDigitalTwinLineup)
+        : {
+            headline: "Digital Twin",
+            postureLabel: "AMBER",
+            readinessPct: 0,
+            logisticsPct: 0,
+            coveragePct: 0,
+            warning: "",
+          },
+    [asset, profile, syntheticDigitalTwinLineup]
+  );
+  const liveTwinRuntime = useMemo(
+    () =>
+      asset && profile
+        ? buildImmersiveLiveTwinRuntime(
+            liveSnapshot,
+            asset,
+            profile,
+            activeModel,
+            selectedModelsForDeck,
+            operationMode
+          )
+        : null,
+    [
+      activeModel,
+      asset,
+      liveSnapshot,
+      operationMode,
+      profile,
+      selectedModelsForDeck,
+    ]
+  );
+  const runtimeAsset = liveTwinRuntime?.focusAsset ?? asset;
+  const digitalTwinSummary =
+    liveTwinRuntime?.summary ?? syntheticDigitalTwinSummary;
+  const liveFeed = liveTwinRuntime?.feed ?? null;
 
   useEffect(() => {
-    void preloadBundleViewer(activeModel);
+    void preloadBundleViewer(activeModel, sceneProps, comparisonSelections);
     void preloadTacticalSim(activeModel);
-  }, [activeModel]);
+  }, [activeModel, comparisonSelections, sceneProps]);
 
-  if (!route) {
+  useEffect(() => {
+    if (!route || typeof game?.getBattleSpectatorSnapshot !== "function") {
+      return;
+    }
+
+    const syncLiveSnapshot = () => {
+      const nextSnapshot = game.getBattleSpectatorSnapshot();
+      const focusUnit =
+        nextSnapshot.units.find((unit) => unit.id === route.asset.id) ?? null;
+      const signature = JSON.stringify({
+        currentTime: nextSnapshot.currentTime,
+        selectedUnitId: nextSnapshot.selectedUnitId,
+        unitCount: nextSnapshot.units.length,
+        weaponCount: nextSnapshot.weapons.length,
+        recentEventId: nextSnapshot.recentEvents.at(-1)?.id ?? null,
+        focusUnit: focusUnit
+          ? [
+              focusUnit.id,
+              focusUnit.modelId ?? null,
+              Number(focusUnit.latitude.toFixed(4)),
+              Number(focusUnit.longitude.toFixed(4)),
+              Number(focusUnit.hpFraction.toFixed(3)),
+              focusUnit.weaponCount,
+            ]
+          : null,
+      });
+
+      if (signature === liveSnapshotSignatureRef.current) {
+        return;
+      }
+
+      liveSnapshotSignatureRef.current = signature;
+      setLiveSnapshot(nextSnapshot);
+    };
+
+    syncLiveSnapshot();
+    const intervalId = window.setInterval(syncLiveSnapshot, 250);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [game, route]);
+
+  if (!route || !asset || !profile) {
     return (
       <Box
         sx={{
@@ -311,68 +405,77 @@ export default function ImmersiveExperiencePage({
     );
   }
 
-  const resolvedAsset = route.asset;
-  const resolvedProfile = route.profile;
+  const resolvedAsset = asset;
+  const resolvedProfile = profile;
+  const resolvedRuntimeAsset = runtimeAsset ?? resolvedAsset;
   const theme = getExperienceTheme(resolvedProfile);
-  const telemetry = buildTelemetry(resolvedAsset);
+  const telemetry = buildTelemetry(resolvedRuntimeAsset);
   const operationOptions = getImmersiveOperationOptions(resolvedProfile);
+  const selectedOperationOption = operationOptions.find(
+    (option) => option.id === operationMode
+  );
   const operationsDeck = buildImmersiveOperationsDeck(
-    resolvedAsset,
+    resolvedRuntimeAsset,
     resolvedProfile,
     activeModel,
-    selectedModels,
+    selectedModelsForDeck,
     operationMode
   );
   const modeBrief = buildImmersiveModeBrief(
     resolvedProfile,
     operationMode,
-    selectedModels
+    selectedModelsForDeck
   );
   const missionPlan = buildExperienceMissionPlan(
     resolvedProfile,
     operationMode,
-    resolvedAsset,
+    resolvedRuntimeAsset,
     activeModel
   );
-  const viewportControls = buildViewportControls(Boolean(activeModel));
+  const focusList = buildFocusList(resolvedProfile);
+  const compareSummary = buildCompareSummary(activeModel, activeComparisonModels);
+  const statusChips = buildStatusChips(
+    digitalTwinSummary.postureLabel,
+    selectedOperationOption?.label,
+    compareSummary,
+    liveFeed?.sourceLabel
+  );
 
-  const handleToggleModel = (modelId: string) => {
-    const isSelected = selectedModelIds.includes(modelId);
-
-    if (isSelected) {
-      if (selectedModelIds.length === 1) {
-        return;
-      }
-
-      const nextIds = selectedModelIds.filter((id) => id !== modelId);
-      setSelectedModelIds(nextIds);
-
-      if (selectedModelId === modelId) {
-        setSelectedModelId(nextIds[0] ?? null);
-      }
-
-      return;
-    }
-
-    setSelectedModelIds([...selectedModelIds, modelId]);
+  const handleSelectModel = (modelId: string) => {
     setSelectedModelId(modelId);
+    setComparisonModelIds((current) => current.filter((id) => id !== modelId));
   };
 
-  const handleSelectAllModels = () => {
-    setSelectedModelIds(buildInitialSelectedModelIds(modelOptions));
-  };
-
-  const handleSelectPrimaryOnly = () => {
-    const targetId =
-      selectedModelId ?? preferredModel?.id ?? modelOptions[0]?.id ?? null;
-
-    if (!targetId) {
+  const handleToggleComparisonModel = (modelId: string) => {
+    if (modelId === activeModel?.id) {
       return;
     }
 
-    setSelectedModelIds([targetId]);
-    setSelectedModelId(targetId);
+    setComparisonModelIds((current) => {
+      if (current.includes(modelId)) {
+        return current.filter((id) => id !== modelId);
+      }
+
+      if (current.length >= MAX_VIEWPORT_COMPARISON_MODELS) {
+        return current;
+      }
+
+      return [...current, modelId];
+    });
+    setShowComparison(true);
   };
+
+  const handleFocusOnly = () => {
+    setComparisonModelIds([]);
+    setShowComparison(false);
+  };
+
+  const guideSectionSx = {
+    p: 2,
+    borderRadius: 3,
+    backgroundColor: "rgba(5, 12, 21, 0.58)",
+    border: "1px solid rgba(176, 220, 255, 0.12)",
+  } as const;
 
   return (
     <Box
@@ -382,24 +485,40 @@ export default function ImmersiveExperiencePage({
         overflow: "hidden",
         background: theme.background,
         color: "#eef7ff",
+        "--studio-accent": theme.accentColor,
+        "--studio-glow": theme.glowColor,
+        "&::before": {
+          content: '""',
+          position: "absolute",
+          inset: 0,
+          background:
+            "radial-gradient(circle at 18% 16%, rgba(255, 255, 255, 0.12), transparent 28%), radial-gradient(circle at 82% 12%, color-mix(in srgb, var(--studio-glow) 34%, transparent), transparent 22%), linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 32%, rgba(0, 0, 0, 0.2) 100%)",
+          pointerEvents: "none",
+          zIndex: 0,
+        },
       }}
     >
       {activeModel ? (
         <BundleModelViewport
           selection={activeModel}
-          assetName={resolvedAsset.name}
+          assetName={resolvedRuntimeAsset.name}
           accentColor={theme.accentColor}
           glowColor={theme.glowColor}
           mode="immersive"
           viewerChrome="minimal"
+          sceneProps={sceneProps}
+          comparisonSelections={comparisonSelections}
+          lineup={[]}
+          contextMode="focus"
+          showLineupMarkers={false}
           showBadge={false}
           sx={{ position: "absolute", inset: 0 }}
         />
       ) : (
         <ImmersiveAssetViewport
           profile={resolvedProfile}
-          assetKind={resolvedAsset.kind}
-          assetName={resolvedAsset.name}
+          assetKind={resolvedRuntimeAsset.kind}
+          assetName={resolvedRuntimeAsset.name}
           accentColor={theme.accentColor}
           glowColor={theme.glowColor}
         />
@@ -412,27 +531,30 @@ export default function ImmersiveExperiencePage({
           display: "grid",
           gridTemplateRows: "auto 1fr auto",
           height: "100%",
-          p: { xs: 2, md: 3 },
+          p: { xs: 1.5, md: 2.5 },
+          gap: { xs: 1.5, md: 2 },
           pointerEvents: "none",
         }}
       >
         <Box
           sx={{
             display: "flex",
-            flexDirection: { xs: "column", lg: "row" },
+            flexDirection: { xs: "column", xl: "row" },
             justifyContent: "space-between",
-            gap: 2,
+            alignItems: { xs: "stretch", xl: "flex-start" },
+            gap: 1.5,
           }}
         >
           <Stack
-            spacing={1.1}
+            spacing={1.15}
             sx={{
-              maxWidth: 640,
-              p: { xs: 2, md: 2.5 },
+              maxWidth: 760,
+              p: { xs: 1.6, md: 2.1 },
               borderRadius: 4,
               backdropFilter: "blur(16px)",
-              backgroundColor: "rgba(7, 14, 24, 0.54)",
-              border: "1px solid rgba(176, 220, 255, 0.14)",
+              backgroundColor: "rgba(6, 12, 20, 0.54)",
+              border: "1px solid rgba(176, 220, 255, 0.12)",
+              boxShadow: "0 18px 44px rgba(0, 0, 0, 0.22)",
               pointerEvents: "auto",
             }}
           >
@@ -454,52 +576,104 @@ export default function ImmersiveExperiencePage({
                 fontFamily: "AceCombat, Bahnschrift, sans-serif",
               }}
             >
-              {missionPlan.briefingTitle}
+              {theme.labTitle}
             </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 800 }}>
-              {resolvedAsset.name}
+            <Typography
+              sx={{
+                maxWidth: 640,
+                fontSize: 14,
+                color: "rgba(226, 240, 255, 0.78)",
+              }}
+            >
+              {theme.labDescription}
             </Typography>
-            {showGuide && (
-              <Typography sx={{ color: "rgba(226, 240, 255, 0.82)" }}>
-                {missionPlan.briefingSummary} 현재 선택은 `
-                {activeModel?.label ?? getDisplayName(resolvedAsset.className)}`
-                기준으로 실전 맵에 연결됩니다.
-              </Typography>
-            )}
-            {showGuide && (
-              <Typography sx={{ color: "rgba(226, 240, 255, 0.68)" }}>
-                지휘 의도: {missionPlan.commandersIntent}
+            <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap">
+              {statusChips.map((chip) => (
+                <Box
+                  key={chip}
+                  sx={{
+                    px: 1.1,
+                    py: 0.55,
+                    borderRadius: 999,
+                    backgroundColor: "rgba(255, 255, 255, 0.06)",
+                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontSize: 11,
+                      letterSpacing: "0.12em",
+                      color: chip.startsWith("POSTURE")
+                        ? theme.accentColor
+                        : "rgba(238, 247, 255, 0.82)",
+                    }}
+                  >
+                    {chip}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+            <Typography
+              sx={{
+                fontSize: 14,
+                fontWeight: 700,
+                color: "rgba(238, 247, 255, 0.92)",
+              }}
+            >
+              {modeBrief}
+            </Typography>
+            <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap">
+              {[
+                `RDY ${digitalTwinSummary.readinessPct}%`,
+                `LOG ${digitalTwinSummary.logisticsPct}%`,
+                `COV ${digitalTwinSummary.coveragePct}%`,
+              ].map((metric) => (
+                <Typography
+                  key={metric}
+                  sx={{
+                    fontSize: 12,
+                    letterSpacing: "0.12em",
+                    color: theme.accentColor,
+                  }}
+                >
+                  {metric}
+                </Typography>
+              ))}
+            </Stack>
+            {liveFeed && (
+              <Typography
+                sx={{
+                  fontSize: 12,
+                  color: "rgba(226, 240, 255, 0.7)",
+                }}
+              >
+                {liveFeed.timeLabel} · {liveFeed.eventHeadline}
               </Typography>
             )}
           </Stack>
 
           <Stack
             direction="row"
-            spacing={1.1}
+            spacing={1}
             useFlexGap
             flexWrap="wrap"
-            sx={{ pointerEvents: "auto" }}
+            sx={{ pointerEvents: "auto", alignSelf: { xl: "flex-start" } }}
           >
             <Button
-              variant="outlined"
-              startIcon={<ArrowBackIcon />}
-              onClick={onBack}
-            >
-              {backLabel}
-            </Button>
-            <Button
               variant="contained"
-              startIcon={<LaunchIcon />}
               onClick={() =>
-                openTacticalSimPage(resolvedAsset, resolvedProfile, {
+                openTacticalSimPage(resolvedRuntimeAsset, resolvedProfile, {
                   modelId: activeModel?.id,
                   operationMode,
                 })
               }
               sx={{
                 backgroundColor: theme.accentColor,
-                color: "#08111b",
-                fontWeight: 800,
+                color: "#07111b",
+                fontWeight: 900,
+                "&:hover": {
+                  backgroundColor: theme.glowColor,
+                },
               }}
             >
               {missionPlan.launchLabel}
@@ -511,14 +685,21 @@ export default function ImmersiveExperiencePage({
               sx={
                 showGuide
                   ? {
-                      backgroundColor: "rgba(238, 247, 255, 0.14)",
+                      backgroundColor: "rgba(255, 255, 255, 0.14)",
                       color: "#eef7ff",
-                      borderColor: "rgba(176, 220, 255, 0.22)",
+                      borderColor: "rgba(176, 220, 255, 0.2)",
                     }
                   : undefined
               }
             >
-              {showGuide ? "가이드 숨기기" : "가이드 보기"}
+              {showGuide ? "브리프 닫기" : "브리프 열기"}
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<ArrowBackIcon />}
+              onClick={onBack}
+            >
+              {backLabel}
             </Button>
             <Button
               variant="outlined"
@@ -527,18 +708,23 @@ export default function ImmersiveExperiencePage({
             >
               지도 복귀
             </Button>
-            {resolvedAsset.kind === "aircraft" && (
+            {resolvedRuntimeAsset.kind === "aircraft" && (
               <Button
                 variant="outlined"
                 startIcon={<LaunchIcon />}
                 onClick={() =>
                   openFlightSimPage(
-                    [resolvedAsset.longitude, resolvedAsset.latitude],
-                    inferAircraftExperienceCraft(resolvedAsset.className)
+                    [
+                      resolvedRuntimeAsset.longitude,
+                      resolvedRuntimeAsset.latitude,
+                    ],
+                    inferAircraftExperienceCraft(
+                      resolvedRuntimeAsset.className
+                    )
                   )
                 }
               >
-                항공 시뮬레이터 열기
+                항공 시뮬레이터
               </Button>
             )}
           </Stack>
@@ -546,569 +732,200 @@ export default function ImmersiveExperiencePage({
 
         <Box
           sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", xl: "320px 1fr 300px" },
-            alignItems: "start",
-            gap: 2,
-            mt: 2,
+            display: "flex",
+            justifyContent: { xs: "stretch", lg: "flex-end" },
+            alignItems: "flex-start",
+            minHeight: 0,
           }}
         >
-          <Stack spacing={1.6} sx={{ pointerEvents: "auto" }}>
-            {showGuide && (
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: 3,
-                  backgroundColor: "rgba(6, 12, 22, 0.56)",
-                  border: "1px solid rgba(176, 220, 255, 0.12)",
-                }}
-              >
+          {showGuide && (
+            <Stack
+              spacing={1.2}
+              sx={{
+                width: { xs: "100%", lg: 380 },
+                maxHeight: "100%",
+                overflowY: "auto",
+                p: 0.3,
+                pointerEvents: "auto",
+              }}
+            >
+              <Box sx={guideSectionSx}>
                 <Typography
                   variant="overline"
                   sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
                 >
-                  Core Loop
+                  Mission Deck
+                </Typography>
+                <Typography sx={{ mt: 0.65, fontWeight: 900 }}>
+                  {missionPlan.briefingTitle}
+                </Typography>
+                <Typography
+                  sx={{
+                    mt: 0.5,
+                    fontSize: 13,
+                    color: "rgba(226, 240, 255, 0.74)",
+                  }}
+                >
+                  {missionPlan.briefingSummary}
+                </Typography>
+                <Typography
+                  sx={{
+                    mt: 0.75,
+                    fontSize: 13,
+                    color: "rgba(226, 240, 255, 0.84)",
+                  }}
+                >
+                  {missionPlan.commandersIntent}
+                </Typography>
+              </Box>
+
+              <Box sx={guideSectionSx}>
+                <Typography
+                  variant="overline"
+                  sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
+                >
+                  Focus Notes
                 </Typography>
                 <Stack spacing={0.8} sx={{ mt: 1 }}>
-                  {missionPlan.coreLoops.map((item) => (
+                  {focusList.map((item) => (
+                    <Box
+                      key={item}
+                      sx={{
+                        p: 1,
+                        borderRadius: 2,
+                        backgroundColor: "rgba(255, 255, 255, 0.04)",
+                        border: "1px solid rgba(255, 255, 255, 0.06)",
+                      }}
+                    >
+                      <Typography sx={{ fontWeight: 800 }}>{item}</Typography>
+                    </Box>
+                  ))}
+                  {missionPlan.coreLoops.slice(0, 3).map((item) => (
                     <Typography
                       key={item}
-                      sx={{ color: "rgba(226, 240, 255, 0.78)" }}
+                      sx={{
+                        fontSize: 12,
+                        color: "rgba(226, 240, 255, 0.68)",
+                      }}
                     >
                       {item}
                     </Typography>
                   ))}
                 </Stack>
               </Box>
-            )}
-            {showGuide && (
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: 3,
-                  backgroundColor: "rgba(6, 12, 22, 0.56)",
-                  border: "1px solid rgba(176, 220, 255, 0.12)",
-                }}
-              >
-                <Typography
-                  variant="overline"
-                  sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
-                >
-                  Page Identity
-                </Typography>
-                <Stack spacing={0.9} sx={{ mt: 1 }}>
-                  <Typography>운용 역할: {missionPlan.operatorRole}</Typography>
-                  <Typography>화면 성격: {missionPlan.pageIdentity}</Typography>
-                  <Typography>환경: {missionPlan.environmentLabel}</Typography>
-                  <Typography>HUD: {missionPlan.hudModeLabel}</Typography>
-                  {activeModel && (
-                    <Typography>3D 모델: {activeModel.label}</Typography>
-                  )}
-                  <Typography>세력: {resolvedAsset.sideName}</Typography>
-                </Stack>
-              </Box>
-            )}
-            <Box
-              sx={{
-                p: 2,
-                borderRadius: 3,
-                backgroundColor: "rgba(6, 12, 22, 0.56)",
-                border: "1px solid rgba(176, 220, 255, 0.12)",
-              }}
-            >
-              <Typography
-                variant="overline"
-                sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
-              >
-                {buildModelDeckTitle(resolvedProfile)}
-              </Typography>
-              {showGuide && (
-                <Typography
-                  sx={{
-                    mt: 0.6,
-                    mb: 1.2,
-                    fontSize: 13,
-                    color: "rgba(226, 240, 255, 0.72)",
-                  }}
-                >
-                  {buildModelDeckDescription(resolvedProfile)}
-                </Typography>
-              )}
-              <Stack
-                direction="row"
-                spacing={0.8}
-                useFlexGap
-                flexWrap="wrap"
-                sx={{ mb: 1.2 }}
-              >
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={handleSelectAllModels}
-                  sx={{ borderColor: "rgba(176, 220, 255, 0.2)" }}
-                >
-                  전체 선택
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={handleSelectPrimaryOnly}
-                  disabled={!activeModel}
-                  sx={{ borderColor: "rgba(176, 220, 255, 0.2)" }}
-                >
-                  기준만 보기
-                </Button>
-                <Typography
-                  sx={{
-                    ml: "auto",
-                    alignSelf: "center",
-                    fontSize: 12,
-                    color: "rgba(226, 240, 255, 0.72)",
-                  }}
-                >
-                  {selectedModels.length} / {modelOptions.length} 선택
-                </Typography>
-              </Stack>
-              <Stack
-                spacing={1}
-                sx={{
-                  maxHeight: { xs: 260, xl: 340 },
-                  overflowY: "auto",
-                  pr: 0.4,
-                }}
-              >
-                {modelOptions.map((model) => {
-                  const isActive = model.id === activeModel?.id;
-                  const isSelected = selectedModelIds.includes(model.id);
 
-                  return (
+              <Box sx={guideSectionSx}>
+                <Typography
+                  variant="overline"
+                  sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
+                >
+                  Telemetry
+                </Typography>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                    gap: 1,
+                    mt: 1,
+                  }}
+                >
+                  {telemetry.map((item) => (
                     <Box
-                      key={model.id}
+                      key={item.label}
                       sx={{
-                        p: 0.8,
-                        borderRadius: 2.4,
-                        backgroundColor: isSelected
-                          ? "rgba(13, 24, 38, 0.82)"
-                          : "rgba(9, 17, 28, 0.5)",
-                        border: isActive
-                          ? `1px solid ${theme.accentColor}`
-                          : "1px solid rgba(176, 220, 255, 0.12)",
+                        p: 1,
+                        borderRadius: 2,
+                        backgroundColor: "rgba(255, 255, 255, 0.04)",
+                        border: "1px solid rgba(255, 255, 255, 0.06)",
                       }}
                     >
-                      <Stack direction="row" spacing={0.8}>
-                        <Button
-                          variant={isActive ? "contained" : "outlined"}
-                          onClick={() => setSelectedModelId(model.id)}
-                          sx={{
-                            flex: 1,
-                            justifyContent: "flex-start",
-                            alignItems: "flex-start",
-                            textAlign: "left",
-                            textTransform: "none",
-                            px: 1.2,
-                            py: 1.05,
-                            borderColor: "rgba(176, 220, 255, 0.2)",
-                            backgroundColor: isActive
-                              ? theme.accentColor
-                              : "rgba(9, 17, 28, 0.35)",
-                            color: isActive ? "#07111b" : "#eef7ff",
-                            "&:hover": {
-                              backgroundColor: isActive
-                                ? theme.glowColor
-                                : "rgba(17, 29, 44, 0.78)",
-                              borderColor: theme.accentColor,
-                            },
-                          }}
-                        >
-                          <Stack
-                            spacing={0.35}
-                            sx={{ alignItems: "flex-start" }}
-                          >
-                            <Typography sx={{ fontWeight: 800 }}>
-                              {model.label}
-                            </Typography>
-                            <Typography
-                              sx={{
-                                fontSize: 12,
-                                color: isActive
-                                  ? "rgba(7, 17, 27, 0.74)"
-                                  : "rgba(226, 240, 255, 0.72)",
-                              }}
-                            >
-                              {model.note}
-                            </Typography>
-                          </Stack>
-                        </Button>
-                        <Button
-                          size="small"
-                          variant={isSelected ? "contained" : "outlined"}
-                          onClick={() => handleToggleModel(model.id)}
-                          sx={{
-                            minWidth: 76,
-                            flexShrink: 0,
-                            borderColor: "rgba(176, 220, 255, 0.2)",
-                            backgroundColor: isSelected
-                              ? theme.glowColor
-                              : "transparent",
-                            color: isSelected ? "#08111b" : "#eef7ff",
-                            fontWeight: 700,
-                          }}
-                        >
-                          {isSelected ? "선택됨" : "비교"}
-                        </Button>
-                      </Stack>
-                    </Box>
-                  );
-                })}
-              </Stack>
-            </Box>
-          </Stack>
-
-          {showGuide && (
-            <Stack spacing={1.6} sx={{ pointerEvents: "auto" }}>
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: 3,
-                  backgroundColor: "rgba(6, 12, 22, 0.56)",
-                  border: "1px solid rgba(176, 220, 255, 0.12)",
-                }}
-              >
-                <Typography
-                  variant="overline"
-                  sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
-                >
-                  Operation Strategy
-                </Typography>
-                <Typography
-                  sx={{
-                    mt: 0.8,
-                    fontWeight: 800,
-                    color: "rgba(238, 247, 255, 0.92)",
-                  }}
-                >
-                  {missionPlan.operationalContext}
-                </Typography>
-                <Typography
-                  sx={{
-                    mt: 0.7,
-                    fontSize: 13,
-                    color: "rgba(226, 240, 255, 0.74)",
-                  }}
-                >
-                  {missionPlan.commandersIntent}
-                </Typography>
-                <Stack spacing={0.7} sx={{ mt: 1.2 }}>
-                  {missionPlan.riskControls.map((risk) => (
-                    <Typography
-                      key={risk}
-                      sx={{ fontSize: 12, color: "rgba(226, 240, 255, 0.66)" }}
-                    >
-                      {risk}
-                    </Typography>
-                  ))}
-                </Stack>
-              </Box>
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: 3,
-                  backgroundColor: "rgba(6, 12, 22, 0.56)",
-                  border: "1px solid rgba(176, 220, 255, 0.12)",
-                }}
-              >
-                <Typography
-                  variant="overline"
-                  sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
-                >
-                  Mission Phases
-                </Typography>
-                <Typography
-                  sx={{
-                    mt: 0.6,
-                    mb: 1.2,
-                    fontSize: 13,
-                    color: "rgba(226, 240, 255, 0.72)",
-                  }}
-                >
-                  페이지마다 같은 HUD를 쓰지 않도록, 시작부터 자유 시뮬레이션
-                  전환까지의 흐름을 단계별로 고정합니다.
-                </Typography>
-                <Stack spacing={1.1}>
-                  {missionPlan.missionPhases.map((phase, index) => (
-                    <Box
-                      key={phase.id}
-                      sx={{
-                        p: 1.2,
-                        borderRadius: 2.4,
-                        backgroundColor: "rgba(9, 17, 28, 0.58)",
-                        border: "1px solid rgba(176, 220, 255, 0.12)",
-                      }}
-                    >
-                      <Stack
-                        direction="row"
-                        spacing={1}
-                        alignItems="center"
-                        justifyContent="space-between"
-                      >
-                        <Typography sx={{ fontWeight: 800 }}>
-                          {index + 1}. {phase.title}
-                        </Typography>
-                        <Typography
-                          sx={{
-                            px: 1,
-                            py: 0.35,
-                            borderRadius: 999,
-                            fontSize: 11,
-                            fontWeight: 800,
-                            backgroundColor: "rgba(255, 255, 255, 0.08)",
-                            color: theme.accentColor,
-                          }}
-                        >
-                          {phase.cameraCue.toUpperCase()}
-                        </Typography>
-                      </Stack>
-                      <Typography sx={{ mt: 0.7, fontSize: 13 }}>
-                        {phase.objective}
-                      </Typography>
                       <Typography
                         sx={{
-                          mt: 0.5,
-                          fontSize: 12,
-                          color: "rgba(226, 240, 255, 0.7)",
-                        }}
-                      >
-                        {phase.instruction}
-                      </Typography>
-                      <Typography
-                        sx={{
-                          mt: 0.45,
-                          fontSize: 12,
-                          color: "rgba(226, 240, 255, 0.62)",
-                        }}
-                      >
-                        {phase.successHint}
-                      </Typography>
-                    </Box>
-                  ))}
-                </Stack>
-              </Box>
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: 3,
-                  backgroundColor: "rgba(6, 12, 22, 0.56)",
-                  border: "1px solid rgba(176, 220, 255, 0.12)",
-                }}
-              >
-                <Typography
-                  variant="overline"
-                  sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
-                >
-                  Demo Timeline
-                </Typography>
-                <Typography
-                  sx={{
-                    mt: 0.6,
-                    mb: 1.2,
-                    fontSize: 13,
-                    color: "rgba(226, 240, 255, 0.72)",
-                  }}
-                >
-                  실제 전술 페이지에서 그대로 재현할 수 있는 시연 순서입니다.
-                </Typography>
-                <Stack spacing={1}>
-                  {missionPlan.demoTimeline.map((beat, index) => (
-                    <Box
-                      key={beat.id}
-                      sx={{
-                        p: 1.1,
-                        borderRadius: 2.2,
-                        backgroundColor: "rgba(9, 17, 28, 0.58)",
-                        border: "1px solid rgba(176, 220, 255, 0.12)",
-                      }}
-                    >
-                      <Typography sx={{ fontWeight: 800 }}>
-                        {index + 1}. {beat.title}
-                      </Typography>
-                      <Typography
-                        sx={{
-                          mt: 0.45,
-                          fontSize: 12,
-                          color: "rgba(226, 240, 255, 0.7)",
-                        }}
-                      >
-                        {beat.description}
-                      </Typography>
-                    </Box>
-                  ))}
-                </Stack>
-              </Box>
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: 3,
-                  backgroundColor: "rgba(6, 12, 22, 0.56)",
-                  border: "1px solid rgba(176, 220, 255, 0.12)",
-                }}
-              >
-                <Typography
-                  variant="overline"
-                  sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
-                >
-                  Interface Layout
-                </Typography>
-                <Stack spacing={1.15} sx={{ mt: 1.1 }}>
-                  {missionPlan.interfaceBlocks.map((item) => (
-                    <Box key={item.title}>
-                      <Typography
-                        sx={{
-                          fontSize: 11,
+                          fontSize: 10,
                           letterSpacing: "0.12em",
                           color: theme.accentColor,
                         }}
                       >
-                        {item.title}
+                        {item.label}
                       </Typography>
-                      <Typography sx={{ mt: 0.3, fontWeight: 800 }}>
-                        {missionPlan.title}
+                      <Typography sx={{ mt: 0.4, fontWeight: 800 }}>
+                        {item.value}
                       </Typography>
                       <Typography
                         sx={{
                           mt: 0.35,
-                          fontSize: 12,
-                          color: "rgba(226, 240, 255, 0.7)",
+                          fontSize: 11,
+                          color: "rgba(226, 240, 255, 0.62)",
                         }}
                       >
-                        {item.description}
+                        {item.hint}
                       </Typography>
                     </Box>
                   ))}
-                </Stack>
-              </Box>
-            </Stack>
-          )}
-
-          <Stack spacing={1.6} sx={{ pointerEvents: "auto" }}>
-            <Box
-              sx={{
-                p: 2,
-                borderRadius: 3,
-                alignSelf: "start",
-                backgroundColor: "rgba(6, 12, 22, 0.56)",
-                border: "1px solid rgba(176, 220, 255, 0.12)",
-              }}
-            >
-              <Typography
-                variant="overline"
-                sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
-              >
-                Mission Mode
-              </Typography>
-              {showGuide && (
+                </Box>
                 <Typography
                   sx={{
-                    mt: 0.7,
-                    fontSize: 13,
-                    color: "rgba(226, 240, 255, 0.72)",
-                  }}
-                >
-                  {missionPlan.missionStatement}
-                </Typography>
-              )}
-              {showGuide && (
-                <Typography
-                  sx={{
-                    mt: 0.8,
+                    mt: 1,
                     fontSize: 12,
-                    color: "rgba(226, 240, 255, 0.62)",
+                    color: "rgba(226, 240, 255, 0.68)",
                   }}
                 >
-                  {modeBrief}
+                  {digitalTwinSummary.warning}
                 </Typography>
-              )}
-              <Stack spacing={0.9} sx={{ mt: 1.2 }}>
-                {operationOptions.map((option) => {
-                  const isActive = option.id === operationMode;
+              </Box>
 
-                  return (
-                    <Button
-                      key={option.id}
-                      variant={isActive ? "contained" : "outlined"}
-                      onClick={() => setOperationMode(option.id)}
-                      sx={{
-                        justifyContent: "flex-start",
-                        textAlign: "left",
-                        textTransform: "none",
-                        px: 1.2,
-                        py: 1,
-                        borderColor: "rgba(176, 220, 255, 0.2)",
-                        backgroundColor: isActive
-                          ? theme.accentColor
-                          : "rgba(9, 17, 28, 0.35)",
-                        color: isActive ? "#07111b" : "#eef7ff",
-                        "&:hover": {
-                          backgroundColor: isActive
-                            ? theme.glowColor
-                            : "rgba(17, 29, 44, 0.78)",
-                          borderColor: theme.accentColor,
-                        },
-                      }}
-                    >
-                      <Stack spacing={0.25} sx={{ alignItems: "flex-start" }}>
-                        <Typography sx={{ fontWeight: 800 }}>
-                          {option.label}
-                        </Typography>
-                        <Typography
-                          sx={{
-                            fontSize: 12,
-                            color: isActive
-                              ? "rgba(7, 17, 27, 0.74)"
-                              : "rgba(226, 240, 255, 0.72)",
-                          }}
-                        >
-                          {option.note}
-                        </Typography>
-                      </Stack>
-                    </Button>
-                  );
-                })}
-              </Stack>
-            </Box>
-            {showGuide && (
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: 3,
-                  backgroundColor: "rgba(6, 12, 22, 0.56)",
-                  border: "1px solid rgba(176, 220, 255, 0.12)",
-                }}
-              >
+              {liveFeed && (
+                <Box sx={guideSectionSx}>
+                  <Typography
+                    variant="overline"
+                    sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
+                  >
+                    Live Feed
+                  </Typography>
+                  <Typography sx={{ mt: 0.7, fontWeight: 900 }}>
+                    {liveFeed.eventHeadline}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      mt: 0.35,
+                      fontSize: 12,
+                      color: "rgba(226, 240, 255, 0.68)",
+                    }}
+                  >
+                    {liveFeed.timeLabel} · {liveFeed.targetLabel}
+                  </Typography>
+                  <Stack spacing={0.7} sx={{ mt: 1 }}>
+                    {liveFeed.eventItems.map((item) => (
+                      <Typography
+                        key={item}
+                        sx={{
+                          fontSize: 12,
+                          color: "rgba(226, 240, 255, 0.72)",
+                        }}
+                      >
+                        {item}
+                      </Typography>
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+
+              <Box sx={guideSectionSx}>
                 <Typography
                   variant="overline"
                   sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
                 >
-                  TODO List
+                  Launch Checklist
                 </Typography>
-                <Typography
-                  sx={{
-                    mt: 0.6,
-                    mb: 1.1,
-                    fontSize: 13,
-                    color: "rgba(226, 240, 255, 0.72)",
-                  }}
-                >
-                  시연 전에 먼저 맞춰야 할 체크포인트입니다.
-                </Typography>
-                <Stack spacing={0.95}>
+                <Stack spacing={0.8} sx={{ mt: 1 }}>
                   {missionPlan.readinessChecklist.map((task) => (
                     <Box
                       key={task.title}
                       sx={{
                         p: 1,
                         borderRadius: 2,
-                        backgroundColor: "rgba(9, 17, 28, 0.52)",
-                        border: "1px solid rgba(176, 220, 255, 0.1)",
+                        backgroundColor: "rgba(255, 255, 255, 0.04)",
+                        border: "1px solid rgba(255, 255, 255, 0.06)",
                       }}
                     >
                       <Typography sx={{ fontWeight: 800 }}>
@@ -1116,7 +933,7 @@ export default function ImmersiveExperiencePage({
                       </Typography>
                       <Typography
                         sx={{
-                          mt: 0.35,
+                          mt: 0.3,
                           fontSize: 12,
                           color: "rgba(226, 240, 255, 0.68)",
                         }}
@@ -1127,170 +944,384 @@ export default function ImmersiveExperiencePage({
                   ))}
                 </Stack>
               </Box>
-            )}
-            {showGuide && (
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: 3,
-                  alignSelf: "start",
-                  backgroundColor: "rgba(6, 12, 22, 0.56)",
-                  border: "1px solid rgba(176, 220, 255, 0.12)",
-                }}
-              >
+
+              <Box sx={guideSectionSx}>
                 <Typography
                   variant="overline"
                   sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
                 >
-                  Controls
+                  작전 단계
                 </Typography>
-                <Stack
-                  spacing={0.85}
-                  sx={{ mt: 1, color: "rgba(226, 240, 255, 0.82)" }}
-                >
-                  {viewportControls.map((control) => (
-                    <Typography key={control}>{control}</Typography>
-                  ))}
-                </Stack>
-              </Box>
-            )}
-            {showGuide && (
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: 3,
-                  alignSelf: "start",
-                  backgroundColor: "rgba(6, 12, 22, 0.56)",
-                  border: "1px solid rgba(176, 220, 255, 0.12)",
-                }}
-              >
-                <Typography
-                  variant="overline"
-                  sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
-                >
-                  Selection Snapshot
-                </Typography>
-                <Stack spacing={0.8} sx={{ mt: 1 }}>
-                  <Box
-                    sx={{
-                      p: 1,
-                      borderRadius: 2,
-                      backgroundColor: "rgba(9, 17, 28, 0.48)",
-                      border: "1px solid rgba(176, 220, 255, 0.08)",
-                    }}
-                  >
-                    <Typography sx={{ fontWeight: 700 }}>
-                      자유 시뮬레이션 전환
-                    </Typography>
-                    <Typography
-                      sx={{
-                        mt: 0.25,
-                        fontSize: 12,
-                        color: "rgba(226, 240, 255, 0.68)",
-                      }}
-                    >
-                      {missionPlan.freePlayLabel}
-                    </Typography>
-                  </Box>
-                  {operationsDeck.map((item) => (
+                <Stack spacing={0.75} sx={{ mt: 1 }}>
+                  {missionPlan.missionPhases.map((phase, index) => (
                     <Box
-                      key={item.label}
+                      key={phase.id}
                       sx={{
                         p: 1,
                         borderRadius: 2,
-                        backgroundColor: "rgba(9, 17, 28, 0.48)",
-                        border: "1px solid rgba(176, 220, 255, 0.08)",
+                        backgroundColor: "rgba(255, 255, 255, 0.04)",
+                        border: "1px solid rgba(255, 255, 255, 0.06)",
                       }}
                     >
-                      <Typography sx={{ fontWeight: 700 }}>
-                        {item.label}
+                      <Typography sx={{ fontWeight: 800 }}>
+                        {index + 1}. {phase.title}
                       </Typography>
                       <Typography
                         sx={{
-                          mt: 0.25,
+                          mt: 0.3,
                           fontSize: 12,
                           color: "rgba(226, 240, 255, 0.68)",
                         }}
                       >
-                        {item.value}
-                      </Typography>
-                    </Box>
-                  ))}
-                  {selectedModels.map((model) => (
-                    <Box
-                      key={model.id}
-                      sx={{
-                        p: 1,
-                        borderRadius: 2,
-                        backgroundColor: "rgba(9, 17, 28, 0.48)",
-                        border: "1px solid rgba(176, 220, 255, 0.08)",
-                      }}
-                    >
-                      <Typography sx={{ fontWeight: 700 }}>
-                        {model.label}
-                      </Typography>
-                      <Typography
-                        sx={{
-                          mt: 0.25,
-                          fontSize: 12,
-                          color: "rgba(226, 240, 255, 0.68)",
-                        }}
-                      >
-                        {model.note}
+                        {phase.instruction}
                       </Typography>
                     </Box>
                   ))}
                 </Stack>
               </Box>
-            )}
-          </Stack>
+            </Stack>
+          )}
         </Box>
 
         <Box
           sx={{
-            display: "grid",
-            gridTemplateColumns: {
-              xs: "repeat(2, minmax(0, 1fr))",
-              lg: "repeat(5, minmax(0, 1fr))",
-            },
-            gap: 1.4,
-            pb: { xs: 1, md: 0 },
+            pointerEvents: "auto",
+            p: { xs: 1.4, md: 1.8 },
+            borderRadius: 4,
+            backdropFilter: "blur(18px)",
+            background:
+              "linear-gradient(180deg, rgba(5, 12, 21, 0.48), rgba(5, 12, 21, 0.72))",
+            border: "1px solid rgba(176, 220, 255, 0.12)",
+            boxShadow: "0 18px 44px rgba(0, 0, 0, 0.24)",
           }}
         >
-          {telemetry.map((item) => (
+          <Stack spacing={1.4}>
+            <Stack
+              direction={{ xs: "column", xl: "row" }}
+              spacing={1.6}
+              justifyContent="space-between"
+            >
+              <Box sx={{ minWidth: 0 }}>
+                <Typography
+                  variant="overline"
+                  sx={{
+                    color: theme.accentColor,
+                    letterSpacing: "0.18em",
+                  }}
+                >
+                  Model Focus
+                </Typography>
+                <Typography
+                  variant="h4"
+                  sx={{
+                    mt: 0.25,
+                    fontWeight: 900,
+                    lineHeight: 1,
+                    fontFamily: "AceCombat, Bahnschrift, sans-serif",
+                  }}
+                >
+                  {activeModel?.label ?? resolvedRuntimeAsset.name}
+                </Typography>
+                <Typography
+                  sx={{
+                    mt: 0.45,
+                    color: "rgba(226, 240, 255, 0.78)",
+                  }}
+                >
+                  {activeModel?.note ?? resolvedRuntimeAsset.className}
+                </Typography>
+                <Typography
+                  sx={{
+                    mt: 0.35,
+                    fontSize: 12,
+                    color: "rgba(226, 240, 255, 0.66)",
+                  }}
+                >
+                  {compareSummary}
+                </Typography>
+              </Box>
+
+              <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap">
+                <Button
+                  variant={showComparison ? "contained" : "outlined"}
+                  onClick={() => setShowComparison((current) => !current)}
+                  sx={
+                    showComparison
+                      ? {
+                          backgroundColor: "rgba(255, 255, 255, 0.14)",
+                          color: "#eef7ff",
+                          borderColor: "rgba(176, 220, 255, 0.2)",
+                        }
+                      : undefined
+                  }
+                >
+                  {showComparison ? "비교 숨기기" : "비교 열기"}
+                </Button>
+                <Button
+                  variant={showBackdrop ? "contained" : "outlined"}
+                  onClick={() => setShowBackdrop((current) => !current)}
+                  sx={
+                    showBackdrop
+                      ? {
+                          backgroundColor: "rgba(255, 255, 255, 0.14)",
+                          color: "#eef7ff",
+                          borderColor: "rgba(176, 220, 255, 0.2)",
+                        }
+                      : undefined
+                  }
+                >
+                  {showBackdrop ? "무대 배경 끄기" : "무대 배경 켜기"}
+                </Button>
+                <Button variant="outlined" onClick={handleFocusOnly}>
+                  기준만 보기
+                </Button>
+              </Stack>
+            </Stack>
+
             <Box
-              key={item.label}
               sx={{
-                p: 1.8,
-                borderRadius: 3,
-                backdropFilter: "blur(14px)",
-                backgroundColor: "rgba(6, 12, 22, 0.56)",
-                border: "1px solid rgba(176, 220, 255, 0.12)",
-                pointerEvents: "auto",
+                display: "grid",
+                gridTemplateColumns: {
+                  xs: "repeat(2, minmax(0, 1fr))",
+                  lg: "repeat(4, minmax(0, 1fr))",
+                },
+                gap: 1,
               }}
             >
+              {operationsDeck.map((item) => (
+                <Box
+                  key={item.label}
+                  sx={{
+                    p: 1.1,
+                    borderRadius: 2.5,
+                    backgroundColor: "rgba(255, 255, 255, 0.04)",
+                    border: "1px solid rgba(255, 255, 255, 0.06)",
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontSize: 10,
+                      letterSpacing: "0.14em",
+                      color: theme.accentColor,
+                    }}
+                  >
+                    {item.label}
+                  </Typography>
+                  <Typography sx={{ mt: 0.45, fontWeight: 800 }}>
+                    {item.value}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      mt: 0.3,
+                      fontSize: 11,
+                      color: "rgba(226, 240, 255, 0.62)",
+                    }}
+                  >
+                    {item.hint}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+
+            <Box>
               <Typography
                 variant="overline"
                 sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
               >
-                {item.label}
+                Mission Mode
               </Typography>
-              <Typography sx={{ mt: 0.5, fontWeight: 800 }}>
-                {item.value}
-              </Typography>
-              {showGuide && (
-                <Typography
-                  sx={{
-                    mt: 0.6,
-                    fontSize: 13,
-                    color: "rgba(226, 240, 255, 0.7)",
-                  }}
-                >
-                  {item.hint}
-                </Typography>
-              )}
+              <Stack
+                direction="row"
+                spacing={0.8}
+                useFlexGap
+                flexWrap="wrap"
+                sx={{ mt: 0.8 }}
+              >
+                {operationOptions.map((option) => {
+                  const isActive = option.id === operationMode;
+
+                  return (
+                    <Button
+                      key={option.id}
+                      variant={isActive ? "contained" : "outlined"}
+                      onClick={() => setOperationMode(option.id)}
+                      sx={{
+                        justifyContent: "flex-start",
+                        textTransform: "none",
+                        px: 1.2,
+                        py: 0.9,
+                        borderColor: "rgba(176, 220, 255, 0.16)",
+                        backgroundColor: isActive
+                          ? theme.accentColor
+                          : "rgba(255, 255, 255, 0.04)",
+                        color: isActive ? "#07111b" : "#eef7ff",
+                        "&:hover": {
+                          backgroundColor: isActive
+                            ? theme.glowColor
+                            : "rgba(255, 255, 255, 0.08)",
+                          borderColor: theme.accentColor,
+                        },
+                      }}
+                    >
+                      <Stack spacing={0.2} sx={{ alignItems: "flex-start" }}>
+                        <Typography sx={{ fontWeight: 800 }}>
+                          {option.label}
+                        </Typography>
+                        <Typography
+                          sx={{
+                            fontSize: 11,
+                            color: isActive
+                              ? "rgba(7, 17, 27, 0.72)"
+                              : "rgba(226, 240, 255, 0.68)",
+                          }}
+                        >
+                          {option.note}
+                        </Typography>
+                      </Stack>
+                    </Button>
+                  );
+                })}
+              </Stack>
             </Box>
-          ))}
+
+            <Box>
+              <Typography
+                variant="overline"
+                sx={{ color: theme.accentColor, letterSpacing: "0.16em" }}
+              >
+                Model Deck
+              </Typography>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridAutoFlow: "column",
+                  gridAutoColumns: {
+                    xs: "minmax(224px, 1fr)",
+                    md: "minmax(260px, 1fr)",
+                  },
+                  gap: 1,
+                  mt: 0.8,
+                  overflowX: "auto",
+                  pb: 0.35,
+                }}
+              >
+                {modelOptions.map((model) => {
+                  const isActive = model.id === activeModel?.id;
+                  const isCompared = comparisonModelIds.includes(model.id);
+
+                  return (
+                    <Box
+                      key={model.id}
+                      sx={{
+                        p: 1.1,
+                        borderRadius: 2.5,
+                        backgroundColor: isActive
+                          ? "rgba(12, 23, 36, 0.88)"
+                          : "rgba(255, 255, 255, 0.04)",
+                        border: isActive
+                          ? `1px solid ${theme.accentColor}`
+                          : isCompared
+                            ? "1px solid rgba(176, 220, 255, 0.22)"
+                            : "1px solid rgba(255, 255, 255, 0.06)",
+                      }}
+                    >
+                      <Button
+                        fullWidth
+                        variant="text"
+                        onClick={() => handleSelectModel(model.id)}
+                        sx={{
+                          justifyContent: "flex-start",
+                          alignItems: "flex-start",
+                          textAlign: "left",
+                          textTransform: "none",
+                          p: 0,
+                          color: "#eef7ff",
+                        }}
+                      >
+                        <Stack spacing={0.35} sx={{ alignItems: "flex-start" }}>
+                          <Typography sx={{ fontWeight: 800 }}>
+                            {model.label}
+                          </Typography>
+                          <Typography
+                            sx={{
+                              fontSize: 12,
+                              color: "rgba(226, 240, 255, 0.7)",
+                            }}
+                          >
+                            {model.note}
+                          </Typography>
+                        </Stack>
+                      </Button>
+                      <Stack
+                        direction="row"
+                        spacing={0.8}
+                        useFlexGap
+                        flexWrap="wrap"
+                        sx={{ mt: 1 }}
+                      >
+                        <Box
+                          sx={{
+                            px: 0.9,
+                            py: 0.35,
+                            borderRadius: 999,
+                            fontSize: 11,
+                            letterSpacing: "0.08em",
+                            backgroundColor: "rgba(255, 255, 255, 0.06)",
+                            color: isActive
+                              ? theme.accentColor
+                              : "rgba(226, 240, 255, 0.7)",
+                          }}
+                        >
+                          {isActive ? "PRIMARY" : "DECK"}
+                        </Box>
+                        {!isActive && (
+                          <Button
+                            size="small"
+                            variant={isCompared ? "contained" : "outlined"}
+                            aria-label={`${
+                              isCompared ? "비교 해제" : "비교 추가"
+                            } ${model.label}`}
+                            onClick={() =>
+                              handleToggleComparisonModel(model.id)
+                            }
+                            sx={
+                              isCompared
+                                ? {
+                                    minWidth: 0,
+                                    px: 1,
+                                    backgroundColor: "rgba(255, 255, 255, 0.14)",
+                                    color: "#eef7ff",
+                                  }
+                                : {
+                                    minWidth: 0,
+                                    px: 1,
+                                    color: "#eef7ff",
+                                  }
+                            }
+                          >
+                            {isCompared ? "비교 해제" : "비교 추가"}
+                          </Button>
+                        )}
+                      </Stack>
+                    </Box>
+                  );
+                })}
+              </Box>
+            </Box>
+
+            {showComparison && (
+              <Typography
+                sx={{
+                  fontSize: 12,
+                  color: "rgba(226, 240, 255, 0.64)",
+                }}
+              >
+                비교 모드에서는 선택한 기준 모델 외 최대{" "}
+                {MAX_VIEWPORT_COMPARISON_MODELS}개 플랫폼만 같은 시야에 올립니다.
+                무대 배경은 필요할 때만 켜서 모델 시야를 유지합니다.
+              </Typography>
+            )}
+          </Stack>
         </Box>
       </Box>
     </Box>

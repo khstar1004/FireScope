@@ -4,14 +4,20 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { Theme } from "@mui/material/styles";
 import type { SxProps } from "@mui/system";
-import type { BundleModelSelection } from "@/gui/experience/bundleModels";
+import type {
+  BundleModelBundle,
+  BundleModelSelection,
+} from "@/gui/experience/bundleModels";
+import type { BundleViewerSceneProp } from "@/gui/experience/bundleSceneProps";
+import type { DigitalTwinLineupEntry } from "@/gui/experience/digitalTwinState";
 import type { AssetExperienceKind } from "@/gui/experience/assetExperience";
 import type { ImmersiveExperienceProfile } from "@/gui/experience/immersiveExperience";
 import { preloadBundleViewer } from "@/gui/experience/modelPreload";
 
-const BUNDLE_VIEWER_REVISION = "20260415-immersive-runtime-sync";
+const BUNDLE_VIEWER_REVISION = "20260418-detail-grid-airbase-pass";
 
 export type BundleViewerChrome = "default" | "minimal";
+export type BundleViewerContextMode = "default" | "focus";
 
 export interface BundleModelViewportSimulation {
   profile: ImmersiveExperienceProfile;
@@ -27,6 +33,29 @@ export interface BundleModelViewportSimulation {
   compareCount?: number;
 }
 
+export interface BundleViewerComparisonSelection {
+  id: string;
+  bundle: BundleModelBundle;
+  path: string;
+  label: string;
+}
+
+export interface BundleViewerLineupEntry
+  extends Pick<
+    DigitalTwinLineupEntry,
+    | "id"
+    | "label"
+    | "section"
+    | "role"
+    | "task"
+    | "status"
+    | "readinessPct"
+    | "fuelPct"
+    | "ordnancePct"
+    | "coveragePct"
+    | "primary"
+  > {}
+
 interface BundleModelViewportProps {
   selection: BundleModelSelection;
   assetName: string;
@@ -35,6 +64,11 @@ interface BundleModelViewportProps {
   mode?: "detail" | "immersive";
   simulation?: BundleModelViewportSimulation | null;
   viewerChrome?: BundleViewerChrome;
+  sceneProps?: BundleViewerSceneProp[];
+  comparisonSelections?: BundleViewerComparisonSelection[];
+  lineup?: BundleViewerLineupEntry[];
+  contextMode?: BundleViewerContextMode;
+  showLineupMarkers?: boolean;
   sx?: SxProps<Theme>;
   showBadge?: boolean;
   loading?: "eager" | "lazy";
@@ -59,7 +93,12 @@ export function buildViewerSrc(
   glowColor: string,
   mode: "detail" | "immersive",
   simulation?: BundleModelViewportSimulation | null,
-  viewerChrome: BundleViewerChrome = "default"
+  viewerChrome: BundleViewerChrome = "default",
+  sceneProps: BundleViewerSceneProp[] = [],
+  comparisonSelections: BundleViewerComparisonSelection[] = [],
+  lineup: BundleViewerLineupEntry[] = [],
+  contextMode: BundleViewerContextMode = "default",
+  showLineupMarkers = true
 ) {
   const params = new URLSearchParams();
   params.set("model", selection.path);
@@ -74,6 +113,21 @@ export function buildViewerSrc(
   params.set("modelId", simulation?.modelId ?? selection.id);
   if (viewerChrome === "minimal") {
     params.set("chrome", viewerChrome);
+  }
+  if (contextMode === "focus") {
+    params.set("context", contextMode);
+  }
+  if (!showLineupMarkers) {
+    params.set("lineupMarkers", "0");
+  }
+  if (sceneProps.length > 0) {
+    params.set("sceneProps", JSON.stringify(sceneProps));
+  }
+  if (comparisonSelections.length > 0) {
+    params.set("compareModels", JSON.stringify(comparisonSelections));
+  }
+  if (lineup.length > 0) {
+    params.set("lineup", JSON.stringify(lineup));
   }
 
   if (mode === "immersive" && simulation) {
@@ -100,10 +154,19 @@ export default function BundleModelViewport({
   mode = "detail",
   simulation,
   viewerChrome = "default",
+  sceneProps = [],
+  comparisonSelections = [],
+  lineup = [],
+  contextMode = "default",
+  showLineupMarkers = true,
   sx,
   showBadge = true,
   loading = "eager",
 }: Readonly<BundleModelViewportProps>) {
+  const scenePropPaths = sceneProps.map((prop) => prop.path).join("|");
+  const comparisonPaths = comparisonSelections
+    .map((selection) => selection.path)
+    .join("|");
   const src = buildViewerSrc(
     selection,
     assetName,
@@ -111,12 +174,17 @@ export default function BundleModelViewport({
     glowColor,
     mode,
     simulation,
-    viewerChrome
+    viewerChrome,
+    sceneProps,
+    comparisonSelections,
+    lineup,
+    contextMode,
+    showLineupMarkers
   );
 
   useEffect(() => {
-    void preloadBundleViewer(selection);
-  }, [selection.path]);
+    void preloadBundleViewer(selection, sceneProps, comparisonSelections);
+  }, [comparisonPaths, scenePropPaths, selection.path]);
 
   return (
     <Box

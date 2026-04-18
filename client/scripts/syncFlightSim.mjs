@@ -132,14 +132,14 @@ const syncedIndexHtml = rewriteFlightSimPublicPaths(
 );
 writeFileSync(syncedIndexPath, syncedIndexHtml);
 
-for (const cssFilePath of collectFilesByExtension(
-  path.join(flightSimPublicDir, "assets"),
-  ".css"
-)) {
-  writeFileSync(
-    cssFilePath,
-    rewriteFlightSimPublicPaths(readFileSync(cssFilePath, "utf8"))
-  );
+const syncedAssetsDir = path.join(flightSimPublicDir, "assets");
+if (existsSync(syncedAssetsDir)) {
+  for (const cssFilePath of collectFilesByExtension(syncedAssetsDir, ".css")) {
+    writeFileSync(
+      cssFilePath,
+      rewriteFlightSimPublicPaths(readFileSync(cssFilePath, "utf8"))
+    );
+  }
 }
 
 const vworldApiKey =

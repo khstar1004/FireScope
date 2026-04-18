@@ -68,6 +68,9 @@ import blankScenarioJson from "@/scenarios/blank_scenario.json";
 import defaultScenarioJson from "@/scenarios/default_scenario.json";
 import armyDemoScenarioJson from "@/scenarios/army_demo_1.json";
 import focusedTrainingDemoJson from "@/scenarios/focused_training_demo.json";
+import focusFireEconomyDemo from "@/scenarios/focusFireEconomyDemo";
+import rlFirstSuccessDemoJson from "@/scenarios/rl_first_success_demo.json";
+import rlBattleOptimizationDemoJson from "@/scenarios/rl_battle_optimization_demo.json";
 import {
   findStrategicScenarioPreset,
   strategicScenarioPresets,
@@ -99,6 +102,16 @@ import {
   ToolbarEntityType,
 } from "@/utils/assetTypeCatalog";
 import Dba from "@/game/db/Dba";
+import AssetPlacementPreviewDialog from "@/gui/map/toolbar/AssetPlacementPreviewDialog";
+import {
+  buildAssetPlacementPreview,
+  type AssetPlacementPreview,
+} from "@/gui/map/toolbar/assetPlacementPreview";
+import {
+  buildBaseSelectionAirbaseOptions,
+  buildPriorityQuickAddAirbaseOptions,
+  PRIORITY_ARTILLERY_BASE_OPTIONS,
+} from "@/gui/map/toolbar/baseSelectionCatalog";
 
 interface ToolBarProps {
   mobileView: boolean;
@@ -206,6 +219,7 @@ interface QuickAddEntry {
   entityType: ToolbarEntityType;
   unitType?: "aircraft" | "airbase" | "facility" | "ship";
   value?: string;
+  displayName?: string;
   description: string;
   onClick?: () => void;
 }
@@ -317,6 +331,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
         : [props.scenarioCurrentSideId]),
       "aircraft",
       "airbase",
+      "army",
       "ship",
       "facility",
       "referencePoint",
@@ -501,6 +516,8 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   const [selectedShipUnitClass, setSelectedShipUnitClass] = useState<string>(
     shipDb[0]?.className ?? ""
   );
+  const [assetPlacementPreview, setAssetPlacementPreview] =
+    useState<AssetPlacementPreview | null>(null);
   const [shipIconAnchorEl, setShipIconAnchorEl] = useState<null | HTMLElement>(
     null
   );
@@ -568,6 +585,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
       const nonSideFilters = [
         "aircraft",
         "airbase",
+        "army",
         "ship",
         "facility",
         "referencePoint",
@@ -701,6 +719,18 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
         scenarioJson = focusedTrainingDemoJson;
         handleLoadScenarioIconClose();
         break;
+      case "focus_fire_economy_demo":
+        scenarioJson = focusFireEconomyDemo;
+        handleLoadScenarioIconClose();
+        break;
+      case "rl_first_success_demo":
+        scenarioJson = rlFirstSuccessDemoJson;
+        handleLoadScenarioIconClose();
+        break;
+      case "rl_battle_optimization_demo":
+        scenarioJson = rlBattleOptimizationDemoJson;
+        handleLoadScenarioIconClose();
+        break;
       case "_upload":
         handleLoadScenarioIconClose();
         uploadScenario();
@@ -721,7 +751,10 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
           presetScenarioName === "blank_scenario" ||
           presetScenarioName === "SCS" ||
           presetScenarioName === "default_scenario" ||
+          presetScenarioName === "rl_first_success_demo" ||
+          presetScenarioName === "rl_battle_optimization_demo" ||
           presetScenarioName === "focused_training_demo" ||
+          presetScenarioName === "focus_fire_economy_demo" ||
           strategicPreset?.regenerateScenarioId
         ) {
           if (scenarioJsonWithNewId.currentScenario?.id) {
@@ -852,18 +885,50 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
 
   const handleUnitClassSelect = (
     unitType: "aircraft" | "airbase" | "facility" | "ship",
-    unitClassName: string
+    unitClassName: string,
+    displayName?: string
   ) => {
-    switch (unitType) {
+    const placementLabels = {
+      aircraft: "항공기",
+      airbase: "기지",
+      facility: "지상 무기체계",
+      ship: "함정",
+    } satisfies Record<typeof unitType, string>;
+
+    if (!canOpenPlacementMenu(placementLabels[unitType])) {
+      return;
+    }
+
+    setAssetPlacementPreview(
+      buildAssetPlacementPreview(
+        unitDbContext,
+        props.game.currentScenario.getSideName(props.game.currentSideId),
+        unitType,
+        unitClassName,
+        { displayName }
+      )
+    );
+  };
+
+  const handleAssetPlacementPreviewClose = () => {
+    setAssetPlacementPreview(null);
+  };
+
+  const handleAssetPlacementPreviewConfirm = () => {
+    if (!assetPlacementPreview) {
+      return;
+    }
+
+    switch (assetPlacementPreview.unitType) {
       case "aircraft":
-        setSelectedAircraftUnitClass(unitClassName);
-        props.addAircraftOnClick(unitClassName);
+        setSelectedAircraftUnitClass(assetPlacementPreview.unitClassName);
+        props.addAircraftOnClick(assetPlacementPreview.unitClassName);
         break;
       case "airbase": {
-        setSelectedAirbaseUnitClass(unitClassName);
-        const airbaseTemplate = unitDbContext
-          .getAirbaseDb()
-          .find((airbase) => airbase.name === unitClassName);
+        setSelectedAirbaseUnitClass(assetPlacementPreview.unitClassName);
+        const airbaseTemplate = unitDbContext.findAirbaseModel(
+          assetPlacementPreview.unitClassName
+        );
         props.addAirbaseOnClick([0, 0], airbaseTemplate?.name, [
           airbaseTemplate?.longitude ?? 0,
           airbaseTemplate?.latitude ?? 0,
@@ -871,16 +936,18 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
         break;
       }
       case "facility":
-        setSelectedSamUnitClass(unitClassName);
-        props.addFacilityOnClick(unitClassName);
+        setSelectedSamUnitClass(assetPlacementPreview.unitClassName);
+        props.addFacilityOnClick(assetPlacementPreview.unitClassName);
         break;
       case "ship":
-        setSelectedShipUnitClass(unitClassName);
-        props.addShipOnClick(unitClassName);
+        setSelectedShipUnitClass(assetPlacementPreview.unitClassName);
+        props.addShipOnClick(assetPlacementPreview.unitClassName);
         break;
       default:
         break;
     }
+
+    setAssetPlacementPreview(null);
   };
 
   const buildQuickAddSections = (): QuickAddSection[] => {
@@ -900,8 +967,6 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
     const hostileDefensePattern = /S-400|S-300|S-500|Buk|Tor|Pantsir|HQ-/i;
     const koreanShipPattern =
       /Jeongjo|Sejong|Chungmugong|Daegu|Incheon|Dokdo|Yoon Youngha/i;
-    const koreaAirbasePattern =
-      /Seoul Air Base|Seosan Air Base|Cheongju Air Base|Sacheon Air Base|Osan Air Base|Kunsan Air Base/i;
 
     const toAircraftEntry = (
       className: string,
@@ -935,17 +1000,6 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
       entityType: "ship",
       unitType: "ship",
       value: className,
-      description,
-    });
-    const toAirbaseEntry = (
-      name: string,
-      description: string
-    ): QuickAddEntry => ({
-      key: `airbase-${name}`,
-      label: getDisplayName(name),
-      entityType: "airbase",
-      unitType: "airbase",
-      value: name,
       description,
     });
 
@@ -1047,20 +1101,8 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
       {
         title: "기지 / 유틸",
         items: [
-          ...airbaseDb
-            .filter(
-              (airbase) =>
-                koreaAirbasePattern.test(airbase.name) ||
-                /Al Udeid|Andersen|Kadena|Osan|Kunsan/i.test(airbase.name)
-            )
-            .map((airbase) =>
-              toAirbaseEntry(
-                airbase.name,
-                koreaAirbasePattern.test(airbase.name)
-                  ? "주요 한국 공군기지 배치"
-                  : "전진/해외 기지 배치"
-              )
-            ),
+          ...PRIORITY_ARTILLERY_BASE_OPTIONS,
+          ...buildPriorityQuickAddAirbaseOptions(airbaseDb),
           {
             key: "reference-point",
             label: "참조점",
@@ -1209,7 +1251,12 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
           border: "1px solid rgba(45, 214, 196, 0.16)",
         }}
       >
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: "wrap" }}>
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          sx={{ flexWrap: "wrap" }}
+        >
           <Typography sx={{ fontWeight: 700 }}>작전 패널</Typography>
           <Chip
             size="small"
@@ -1218,7 +1265,8 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
           />
         </Stack>
         <Typography sx={{ mt: 0.8, fontSize: 12.5, color: "text.secondary" }}>
-          상세 화력 추천, AI 학습, 데이터 내보내기는 우하단 작전 패널에서 다룹니다.
+          상세 화력 추천, AI 학습, 데이터 내보내기는 우하단 작전 패널에서
+          다룹니다.
         </Typography>
         <Typography sx={{ mt: 0.7, fontSize: 12.5, color: "text.secondary" }}>
           {focusFireInsight.intensityLabel} · {focusFireInsight.dominantAxis}
@@ -1369,7 +1417,8 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   if (
     props.keyboardShortcutsEnabled &&
     !scenarioEditNameAnchorEl &&
-    !isChatInputFocused
+    !isChatInputFocused &&
+    !assetPlacementPreview
   ) {
     document.onkeydown = keyboardEventHandler;
   } else {
@@ -1378,7 +1427,13 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
 
   const ScenarioDb = [
     { name: "default_scenario", displayName: "기본 데모" },
+    { name: "rl_first_success_demo", displayName: "RL 첫 체감 데모" },
+    {
+      name: "rl_battle_optimization_demo",
+      displayName: "RL 전투·배치 최적화 데모",
+    },
     { name: "focused_training_demo", displayName: "가용화력자산" },
+    { name: "focus_fire_economy_demo", displayName: "화력 배치 경제성 비교" },
     { name: "army_demo", displayName: "전장 데모" },
     ...strategicScenarioPresets.map((scenario) => ({
       name: scenario.name,
@@ -1609,6 +1664,8 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   };
 
   const quickAddSections = buildQuickAddSections();
+  const baseSelectionAirbaseOptions =
+    buildBaseSelectionAirbaseOptions(airbaseDb);
 
   const quickAddMenu = () => (
     <Menu
@@ -1649,7 +1706,11 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                 if (item.onClick) {
                   item.onClick();
                 } else if (item.unitType && item.value) {
-                  handleUnitClassSelect(item.unitType, item.value);
+                  handleUnitClassSelect(
+                    item.unitType,
+                    item.value,
+                    item.displayName
+                  );
                 }
                 handleQuickAddMenuClose();
               }}
@@ -1869,7 +1930,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
           ))}
         </Menu>
         {/** Add Airbase Menu/Button */}
-        <Tooltip title="기지 추가">
+        <Tooltip title="기지/포병 프리셋 추가">
           <IconButton
             id="add-airbase-icon-button"
             aria-controls={
@@ -1891,7 +1952,15 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
           anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
           transformOrigin={{ vertical: "top", horizontal: "right" }}
           slotProps={{
-            root: { sx: { ".MuiList-root": { padding: 0 } } },
+            root: {
+              sx: {
+                ".MuiList-root": {
+                  padding: 0,
+                  minWidth: 360,
+                  maxHeight: 520,
+                },
+              },
+            },
             list: {
               "aria-labelledby": "add-airbase-icon-button",
             },
@@ -1908,23 +1977,70 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
             }}
           >
             <Typography variant="body2" sx={{ fontWeight: "bold" }}>
-              기지 선택
+              기지/포병 선택
             </Typography>
             <IconButton onClick={handleAirbaseClose}>
               <ClearIcon sx={{ fontSize: 15, color: "red" }} />
             </IconButton>
           </Stack>
-          {unitDbContext.getAirbaseDb().map((airbase) => (
+          <ListSubheader
+            sx={{
+              backgroundColor: COLOR_PALETTE.LIGHT_GRAY,
+              color: COLOR_PALETTE.BLACK,
+              fontWeight: 700,
+              lineHeight: 2.2,
+            }}
+          >
+            포병 우선
+          </ListSubheader>
+          {PRIORITY_ARTILLERY_BASE_OPTIONS.map((item) => (
             <MenuItem
               onClick={(_event: React.MouseEvent<HTMLElement>) => {
-                handleUnitClassSelect("airbase", airbase.name);
+                handleUnitClassSelect(
+                  item.unitType,
+                  item.value,
+                  item.displayName
+                );
                 handleAirbaseClose();
               }}
-              selected={airbase.name === selectedAirbaseUnitClass}
-              key={airbase.name}
-              value={airbase.name}
+              key={item.key}
+              value={item.value}
             >
-              {getDisplayName(airbase.name)}
+              <ListItemIcon>
+                <EntityIcon type={item.entityType} />
+              </ListItemIcon>
+              <ListItemText primary={item.label} secondary={item.description} />
+            </MenuItem>
+          ))}
+          <Divider />
+          <ListSubheader
+            sx={{
+              backgroundColor: COLOR_PALETTE.LIGHT_GRAY,
+              color: COLOR_PALETTE.BLACK,
+              fontWeight: 700,
+              lineHeight: 2.2,
+            }}
+          >
+            공군기지
+          </ListSubheader>
+          {baseSelectionAirbaseOptions.map((item) => (
+            <MenuItem
+              onClick={(_event: React.MouseEvent<HTMLElement>) => {
+                handleUnitClassSelect(
+                  item.unitType,
+                  item.value,
+                  item.displayName
+                );
+                handleAirbaseClose();
+              }}
+              selected={item.value === selectedAirbaseUnitClass}
+              key={item.key}
+              value={item.value}
+            >
+              <ListItemIcon>
+                <EntityIcon type={item.entityType} />
+              </ListItemIcon>
+              <ListItemText primary={item.label} secondary={item.description} />
             </MenuItem>
           ))}
         </Menu>
@@ -2345,6 +2461,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                 [
                   "airbase",
                   "aircraft",
+                  "army",
                   "ship",
                   "facility",
                   "referencePoint",
@@ -3053,6 +3170,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                   options: [
                     { label: "항공기", value: "aircraft" },
                     { label: "기지", value: "airbase" },
+                    { label: "지상군", value: "army" },
                     { label: "지상 무기체계", value: "facility" },
                     { label: "함정", value: "ship" },
                     { label: "참조점", value: "referencePoint" },
@@ -3204,6 +3322,12 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
           </Box>
         </Container>
       </Drawer>
+      <AssetPlacementPreviewDialog
+        open={Boolean(assetPlacementPreview)}
+        preview={assetPlacementPreview}
+        onClose={handleAssetPlacementPreviewClose}
+        onConfirm={handleAssetPlacementPreviewConfirm}
+      />
     </>
   );
 }

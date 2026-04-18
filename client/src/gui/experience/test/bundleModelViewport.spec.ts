@@ -1,8 +1,11 @@
 import {
   buildViewerSrc,
+  type BundleViewerComparisonSelection,
+  type BundleViewerLineupEntry,
   type BundleModelViewportSimulation,
 } from "@/gui/experience/BundleModelViewport";
 import type { BundleModelSelection } from "@/gui/experience/bundleModels";
+import type { BundleViewerSceneProp } from "@/gui/experience/bundleSceneProps";
 
 const selection: BundleModelSelection = {
   id: "artillery-k9",
@@ -92,5 +95,97 @@ describe("BundleModelViewport", () => {
 
     expect(url.searchParams.get("chrome")).toBe("minimal");
     expect(url.searchParams.get("profile")).toBeNull();
+  });
+
+  test("serializes scene props for enhanced base showrooms", () => {
+    const sceneProps: BundleViewerSceneProp[] = [
+      {
+        id: "infra-hangar",
+        path: "/3d-bundles/infrastructure/models/aircraft_hangar.glb",
+        position: [-4, 0, -4],
+        targetSize: 3.5,
+      },
+    ];
+    const src = buildViewerSrc(
+      selection,
+      "Osan Air Base",
+      "#72f0d0",
+      "#8dd9ff",
+      "immersive",
+      null,
+      "minimal",
+      sceneProps
+    );
+    const url = new URL(src, "https://firescope.local");
+
+    expect(JSON.parse(url.searchParams.get("sceneProps") ?? "[]")).toEqual(
+      sceneProps
+    );
+  });
+
+  test("serializes comparison models for immersive lineup rendering", () => {
+    const comparisonSelections: BundleViewerComparisonSelection[] = [
+      {
+        id: "tank-k2",
+        bundle: "tank",
+        path: "/3d-bundles/tank/models/k2_black_panther_tank.glb",
+        label: "K2 Black Panther",
+      },
+      {
+        id: "tank-k21",
+        bundle: "tank",
+        path: "/3d-bundles/tank/models/k21_armored_warfare.glb",
+        label: "K21 IFV",
+      },
+    ];
+    const src = buildViewerSrc(
+      selection,
+      "Mechanized Brigade",
+      "#72f0d0",
+      "#8dd9ff",
+      "immersive",
+      null,
+      "minimal",
+      [],
+      comparisonSelections
+    );
+    const url = new URL(src, "https://firescope.local");
+
+    expect(JSON.parse(url.searchParams.get("compareModels") ?? "[]")).toEqual(
+      comparisonSelections
+    );
+  });
+
+  test("serializes digital twin lineup entries for viewer overlays", () => {
+    const lineup: BundleViewerLineupEntry[] = [
+      {
+        id: "aircraft-f15-strike",
+        label: "F-15 Strike Eagle",
+        section: "ALERT",
+        role: "출격 편대",
+        task: "Scramble 주기 편성",
+        status: "즉응 출격",
+        readinessPct: 92,
+        fuelPct: 88,
+        ordnancePct: 94,
+        coveragePct: 90,
+        primary: true,
+      },
+    ];
+    const src = buildViewerSrc(
+      selection,
+      "Seoul Air Base",
+      "#72f0d0",
+      "#8dd9ff",
+      "immersive",
+      null,
+      "minimal",
+      [],
+      [],
+      lineup
+    );
+    const url = new URL(src, "https://firescope.local");
+
+    expect(JSON.parse(url.searchParams.get("lineup") ?? "[]")).toEqual(lineup);
   });
 });

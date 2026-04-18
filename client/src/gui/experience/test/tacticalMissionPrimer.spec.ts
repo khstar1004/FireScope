@@ -30,10 +30,10 @@ describe("tacticalMissionPrimer", () => {
     expect(primer.designIntent).toContain("방공 통제관");
     expect(primer.battlespaceSummary).toContain("센서 반경");
     expect(primer.threatSummary).toContain("공중 3개");
-    expect(primer.quickStartSteps[0]).toContain("임무 시작");
+    expect(primer.quickStartSteps[0]).toContain("모델 집중");
     expect(primer.decisionChecklist).toHaveLength(3);
     expect(primer.phaseChecklist[0]).toContain("센서 탐색");
     expect(primer.successCriteria[0]).toContain("레이더 기반");
-    expect(primer.mapHints[0]).toContain("마우스 휠");
+    expect(primer.mapHints[0]).toContain("중앙 표식");
   });
 });

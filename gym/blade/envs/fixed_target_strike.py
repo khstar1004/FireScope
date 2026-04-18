@@ -138,6 +138,7 @@ class FixedTargetStrikeEnv(gym.Env):
         self._initial_ally_weapon_totals: dict[str, int] = {}
         self._previous_ally_target_assignments: dict[str, str] = {}
         self._episode_step = 0
+        self._episode_has_launch = False
         self._get_reward_callable()
 
     def reset(self, seed: int | None = None, options: dict | None = None):
@@ -165,6 +166,7 @@ class FixedTargetStrikeEnv(gym.Env):
             for ally in self._resolve_allies(scenario)
         }
         self._previous_ally_target_assignments = {}
+        self._episode_has_launch = False
         self._validate_target_margin_constraints()
         self._apply_controllable_doctrine()
 
@@ -191,6 +193,8 @@ class FixedTargetStrikeEnv(gym.Env):
             )
 
         self._apply_controllable_doctrine()
+        if self._should_apply_guided_launch_bootstrap():
+            action_array = self._apply_guided_launch_bootstrap(action_array)
 
         scenario = self.game.current_scenario
         pre_alive_ally_ids = self._get_alive_ally_ids()
@@ -200,6 +204,8 @@ class FixedTargetStrikeEnv(gym.Env):
         )
 
         launch_events, ally_target_selections = self._apply_actions(action_array)
+        if len(launch_events) > 0:
+            self._episode_has_launch = True
 
         _, _, _, engine_truncated, _ = self.game.step(action=[])
 
@@ -321,6 +327,74 @@ class FixedTargetStrikeEnv(gym.Env):
         }
         self._previous_ally_target_assignments = dict(ally_target_assignments)
         return observation, reward, terminated, truncated, info
+
+    def _should_apply_guided_launch_bootstrap(self) -> bool:
+        return (
+            self.config.guided_launch_bootstrap_steps > 0
+            and not self._episode_has_launch
+            and self._episode_step < self.config.guided_launch_bootstrap_steps
+        )
+
+    def _apply_guided_launch_bootstrap(self, action: np.ndarray) -> np.ndarray:
+        guided_action = np.array(action, dtype=np.float32, copy=True)
+        ally_action_block_size = self.config.max_targets + ALLY_ACTION_CONTROL_COUNT
+
+        for ally_index, ally_id in enumerate(self._ally_catalog):
+            ally = self.game.current_scenario.get_aircraft(ally_id)
+            if ally is None:
+                continue
+
+            target_slot, target = self._select_guided_bootstrap_target(ally)
+            if target_slot is None or target is None:
+                continue
+
+            ally_action_start = ally_index * ally_action_block_size
+            guided_action[
+                ally_action_start : ally_action_start + self.config.max_targets
+            ] = 0.0
+            guided_action[ally_action_start + target_slot] = 1.0
+
+            control_start = ally_action_start + self.config.max_targets
+            can_fire = self._can_aircraft_fire_at_target(ally, target)
+            guided_action[control_start] = 0.95 if can_fire else 0.5
+            guided_action[control_start + 1] = 0.5
+            guided_action[control_start + 2] = self._get_guided_bearing_scalar(
+                ally, target
+            )
+
+        return guided_action
+
+    def _select_guided_bootstrap_target(
+        self, ally: Aircraft
+    ) -> tuple[int | None, FixedTarget | None]:
+        best_slot: int | None = None
+        best_target: FixedTarget | None = None
+        best_key: tuple[float, float, int] | None = None
+
+        for target_slot, target_id in enumerate(self._target_catalog):
+            target = self.game.current_scenario.get_target(target_id)
+            if not isinstance(target, (Facility, Airbase, Ship)):
+                continue
+
+            can_fire_score = 0.0 if self._can_aircraft_fire_at_target(ally, target) else 1.0
+            launch_eta = float(self._estimate_launch_eta_seconds(ally, target))
+            distance_nm = float(self._distance_units_nm(ally, target))
+            key = (can_fire_score, launch_eta, distance_nm)
+            if best_key is None or key < best_key:
+                best_key = key
+                best_slot = target_slot
+                best_target = target
+
+        return best_slot, best_target
+
+    def _get_guided_bearing_scalar(self, ally: Aircraft, target: FixedTarget) -> float:
+        bearing_deg = get_bearing_between_two_points(
+            target.latitude,
+            target.longitude,
+            ally.latitude,
+            ally.longitude,
+        )
+        return float(np.clip(bearing_deg / 360.0, 0.0, 1.0))
 
     def _resolve_side_id(
         self,

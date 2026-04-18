@@ -1,5 +1,6 @@
 export interface IAircraftModel {
   className: string;
+  visualProfileId?: string;
   speed: number;
   maxFuel: number;
   fuelRate: number;

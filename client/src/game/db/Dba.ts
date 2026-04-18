@@ -71,6 +71,26 @@ export default class Dba {
     return this.weaponDb;
   }
 
+  findAircraftModel(className: string) {
+    return this.aircraftDb.find((aircraft) => aircraft.className === className);
+  }
+
+  findAirbaseModel(name: string) {
+    return this.airbaseDb.find((airbase) => airbase.name === name);
+  }
+
+  findFacilityModel(className: string) {
+    return this.facilityDb.find((facility) => facility.className === className);
+  }
+
+  findShipModel(className: string) {
+    return this.shipDb.find((ship) => ship.className === className);
+  }
+
+  findWeaponModel(className: string) {
+    return this.weaponDb.find((weapon) => weapon.className === className);
+  }
+
   exportToJson() {
     return JSON.stringify(this.toSnapshot(), null, 2);
   }
@@ -145,13 +165,16 @@ export default class Dba {
   private static normalizeAirbaseDb(importAirbaseDb: unknown[]) {
     const finalImportedAirbaseDb: IAirbaseModel[] = [];
     importAirbaseDb.forEach((candidate) => {
-      const { name, latitude, longitude, country } = candidate as Record<
+      const { name, latitude, longitude, country, visualProfileId } =
+        candidate as Record<
         string,
         unknown
       >;
       if (!(name && latitude != null && longitude != null && country)) return;
       finalImportedAirbaseDb.push({
         name: `${name}`,
+        visualProfileId:
+          typeof visualProfileId === "string" ? visualProfileId : undefined,
         latitude: Number(latitude),
         longitude: Number(longitude),
         country: `${country}`,
@@ -168,8 +191,16 @@ export default class Dba {
   private static normalizeAircraftDb(importAircraftDb: unknown[]) {
     const finalImportedAircraftDb: IAircraftModel[] = [];
     importAircraftDb.forEach((candidate) => {
-      const { className, speed, maxFuel, fuelRate, range, dataSource, units } =
-        candidate as Record<string, any>;
+      const {
+        className,
+        speed,
+        maxFuel,
+        fuelRate,
+        range,
+        dataSource,
+        units,
+        visualProfileId,
+      } = candidate as Record<string, any>;
       if (
         !(
           className &&
@@ -184,6 +215,8 @@ export default class Dba {
 
       finalImportedAircraftDb.push({
         className,
+        visualProfileId:
+          typeof visualProfileId === "string" ? visualProfileId : undefined,
         speed,
         maxFuel,
         fuelRate,
@@ -214,11 +247,19 @@ export default class Dba {
   private static normalizeFacilityDb(importFacilityDb: unknown[]) {
     const finalImportedFacilityDb: IFacilityModel[] = [];
     importFacilityDb.forEach((candidate) => {
-      const { className, range, detectionArcDegrees, sourceUrl, sourceNote } =
-        candidate as Record<string, unknown>;
+      const {
+        className,
+        range,
+        detectionArcDegrees,
+        sourceUrl,
+        sourceNote,
+        visualProfileId,
+      } = candidate as Record<string, unknown>;
       if (!(className && range != null)) return;
       finalImportedFacilityDb.push({
         className: `${className}`,
+        visualProfileId:
+          typeof visualProfileId === "string" ? visualProfileId : undefined,
         range: Number(range),
         detectionArcDegrees:
           typeof detectionArcDegrees === "number"
@@ -240,8 +281,16 @@ export default class Dba {
   private static normalizeShipDb(importShipDb: unknown[]) {
     const finalImportedShipDb: IShipModel[] = [];
     importShipDb.forEach((candidate) => {
-      const { className, speed, maxFuel, fuelRate, range, dataSource, units } =
-        candidate as Record<string, any>;
+      const {
+        className,
+        speed,
+        maxFuel,
+        fuelRate,
+        range,
+        dataSource,
+        units,
+        visualProfileId,
+      } = candidate as Record<string, any>;
       if (
         !(
           className &&
@@ -256,6 +305,8 @@ export default class Dba {
 
       const model: IShipModel = {
         className,
+        visualProfileId:
+          typeof visualProfileId === "string" ? visualProfileId : undefined,
         speed,
         maxFuel,
         fuelRate,
@@ -293,8 +344,14 @@ export default class Dba {
   private static normalizeWeaponDb(importWeaponDb: unknown[]) {
     const finalImportedWeaponDb: IWeaponModel[] = [];
     importWeaponDb.forEach((candidate) => {
-      const { className, speed, maxFuel, fuelRate, lethality } =
-        candidate as Record<string, unknown>;
+      const {
+        className,
+        speed,
+        maxFuel,
+        fuelRate,
+        lethality,
+        visualProfileId,
+      } = candidate as Record<string, unknown>;
       if (
         !(
           className &&
@@ -309,6 +366,8 @@ export default class Dba {
 
       finalImportedWeaponDb.push({
         className: `${className}`,
+        visualProfileId:
+          typeof visualProfileId === "string" ? visualProfileId : undefined,
         speed: Number(speed),
         maxFuel: Number(maxFuel),
         fuelRate: Number(fuelRate),

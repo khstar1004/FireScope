@@ -116,6 +116,886 @@ export default function SimulationOutcomeDialog({
     return null;
   }
 
+  if (summary.reportMode === "bda" && summary.bdaReport) {
+    const bdaReport = summary.bdaReport;
+    const benchmarkRuns = bdaReport.benchmark?.runs ?? [];
+    const briefingText = condenseText(
+      narrative,
+      summary.fallbackSummary,
+      156
+    );
+
+    return (
+      <Dialog
+        open={open}
+        onClose={onClose}
+        fullWidth
+        maxWidth="lg"
+        aria-labelledby="simulation-outcome-dialog-title"
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            overflow: "hidden",
+            background: (theme) =>
+              `linear-gradient(180deg, ${alpha(theme.palette.background.paper, 0.98)} 0%, ${alpha("#031114", 0.99)} 100%)`,
+          },
+        }}
+      >
+        <DialogTitle
+          id="simulation-outcome-dialog-title"
+          component="div"
+          sx={{
+            px: { xs: 1.8, sm: 2.2 },
+            py: 1.45,
+            borderBottom: (theme) =>
+              `1px solid ${alpha(theme.palette.primary.main, 0.16)}`,
+            background: (theme) =>
+              `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.1)} 0%, ${alpha(theme.palette.background.paper, 0)} 76%)`,
+          }}
+        >
+          <Typography
+            component="span"
+            sx={{
+              display: "block",
+              fontSize: 11,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "text.secondary",
+            }}
+          >
+            BDA Assessment
+          </Typography>
+          <Typography
+            component="span"
+            variant="h5"
+            sx={{ mt: 0.25, display: "block" }}
+          >
+            전과 분석 보고서
+          </Typography>
+          <Typography
+            component="span"
+            sx={{ mt: 0.35, display: "block", color: "text.secondary" }}
+          >
+            {summary.scenarioName}
+          </Typography>
+        </DialogTitle>
+
+        <DialogContent
+          dividers
+          sx={{
+            px: { xs: 1.3, sm: 2 },
+            py: 1.35,
+            borderColor: (theme) => alpha(theme.palette.primary.main, 0.12),
+          }}
+        >
+          <Stack spacing={1.05}>
+            <Box
+              sx={{
+                position: "relative",
+                p: { xs: 1, sm: 1.2 },
+                borderRadius: 3,
+                border: (theme) =>
+                  `1px solid ${alpha(theme.palette.warning.main, 0.24)}`,
+                background: (theme) =>
+                  `linear-gradient(150deg, ${alpha(theme.palette.warning.main, 0.12)} 0%, ${alpha(theme.palette.background.paper, 0.26)} 54%, ${alpha(theme.palette.primary.main, 0.08)} 100%)`,
+                boxShadow: (theme) =>
+                  `0 0 0 1px ${alpha(theme.palette.warning.main, 0.05)} inset`,
+                "&::before": {
+                  content: '""',
+                  position: "absolute",
+                  inset: 0,
+                  pointerEvents: "none",
+                  borderRadius: 3,
+                  background: (theme) =>
+                    `repeating-linear-gradient(180deg, transparent 0, transparent 18px, ${alpha(theme.palette.warning.main, 0.02)} 18px, ${alpha(theme.palette.warning.main, 0.02)} 19px)`,
+                },
+              }}
+            >
+              <Stack
+                direction="row"
+                spacing={0.55}
+                sx={{ flexWrap: "wrap", position: "relative", zIndex: 1 }}
+              >
+                <Chip
+                  size="small"
+                  color="warning"
+                  label={bdaReport.operationLabel}
+                  sx={{ fontWeight: 800 }}
+                />
+                <Chip
+                  size="small"
+                  color={bdaReport.deploymentAssessmentLabel === "최적 편성" ? "success" : "default"}
+                  variant={bdaReport.deploymentAssessmentLabel === "최적 편성" ? "filled" : "outlined"}
+                  label={bdaReport.deploymentAssessmentLabel}
+                />
+                <Chip size="small" variant="outlined" label={bdaReport.modeReasonLabel} />
+                <Chip size="small" variant="outlined" label={summary.endReason} />
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={`경제성 ${bdaReport.economicScore}`}
+                />
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={`종료 ${summary.endedAtLabel}`}
+                />
+              </Stack>
+
+              <Box
+                sx={{
+                  mt: 0.9,
+                  display: "grid",
+                  gap: 0.9,
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    md: "minmax(0, 1.45fr) minmax(260px, 0.9fr)",
+                  },
+                  position: "relative",
+                  zIndex: 1,
+                }}
+              >
+                <Box
+                  sx={{
+                    p: 1,
+                    borderRadius: 2.4,
+                    border: (theme) =>
+                      `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
+                    background: (theme) =>
+                      `linear-gradient(180deg, ${alpha(theme.palette.background.paper, 0.28)} 0%, ${alpha(theme.palette.background.paper, 0.12)} 100%)`,
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontSize: 10.5,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      color: "text.secondary",
+                    }}
+                  >
+                    Battle Damage Assessment
+                  </Typography>
+                  <Typography
+                    sx={{
+                      mt: 0.45,
+                      fontSize: 34,
+                      fontWeight: 900,
+                      lineHeight: 1.03,
+                      color:
+                        bdaReport.assessedEffectLabel === "결정적 효과"
+                          ? "warning.light"
+                          : "primary.light",
+                    }}
+                  >
+                    {bdaReport.assessedEffectLabel}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      mt: 0.55,
+                      fontSize: 16.5,
+                      fontWeight: 700,
+                      lineHeight: 1.35,
+                    }}
+                  >
+                    {bdaReport.objectiveName
+                      ? `목표 ${bdaReport.objectiveName}`
+                      : bdaReport.targetSummary}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      mt: 0.28,
+                      fontSize: 12.5,
+                      color: "text.secondary",
+                    }}
+                  >
+                    {bdaReport.actorName
+                      ? `${bdaReport.actorName} 화력 평가`
+                      : bdaReport.modeReasonLabel}
+                  </Typography>
+
+                  <Stack
+                    direction="row"
+                    spacing={0.55}
+                    sx={{ mt: 0.85, flexWrap: "wrap" }}
+                  >
+                    <Chip size="small" variant="outlined" label={bdaReport.objectiveStatusLabel} />
+                    <Chip size="small" variant="outlined" label={bdaReport.damageLevelLabel} />
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={`신뢰도 ${bdaReport.assessmentConfidenceLabel}`}
+                    />
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={`템포 ${bdaReport.tempoLabel}`}
+                    />
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={`비용 ${bdaReport.costScore}`}
+                    />
+                    <Chip size="small" variant="outlined" label={bdaReport.assetMixSummary} />
+                  </Stack>
+
+                  <Typography
+                    sx={{
+                      mt: 0.9,
+                      fontSize: 13.2,
+                      fontWeight: 700,
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    {bdaReport.operatingPicture}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      mt: 0.55,
+                      fontSize: 13,
+                      color: "text.secondary",
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    {briefingText}
+                  </Typography>
+                </Box>
+
+                <Box
+                  sx={{
+                    p: 1,
+                    borderRadius: 2.8,
+                    border: (theme) =>
+                      `1px solid ${alpha(theme.palette.warning.main, 0.24)}`,
+                    background: (theme) =>
+                      `radial-gradient(circle at 50% 12%, ${alpha(theme.palette.warning.main, 0.2)} 0%, ${alpha(theme.palette.background.paper, 0.5)} 48%, ${alpha(theme.palette.background.paper, 0.64)} 100%)`,
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    textAlign: "center",
+                    boxShadow: (theme) =>
+                      `0 0 28px ${alpha(theme.palette.warning.main, 0.12)}`,
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontSize: 10.5,
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      color: "text.secondary",
+                    }}
+                  >
+                    BDA Ready
+                  </Typography>
+                  <Typography
+                    sx={{
+                      mt: 0.5,
+                      fontSize: 42,
+                      fontWeight: 900,
+                      lineHeight: 1.02,
+                      color: "warning.light",
+                    }}
+                  >
+                    {bdaReport.assessedEffectScore}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      mt: 0.25,
+                      fontSize: 12.5,
+                      color: "text.secondary",
+                    }}
+                  >
+                    효과 판정 점수
+                  </Typography>
+
+                  <Box
+                    sx={{
+                      mt: 0.85,
+                      display: "grid",
+                      gap: 0.55,
+                      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        p: 0.8,
+                        borderRadius: 2,
+                        backgroundColor: (theme) =>
+                          alpha(theme.palette.background.paper, 0.42),
+                      }}
+                    >
+                      <Typography sx={{ fontSize: 11, color: "text.secondary" }}>
+                        분석 신뢰도
+                      </Typography>
+                      <Typography sx={{ mt: 0.2, fontWeight: 800 }}>
+                        {bdaReport.assessmentConfidenceLabel}
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        p: 0.8,
+                        borderRadius: 2,
+                        backgroundColor: (theme) =>
+                          alpha(theme.palette.background.paper, 0.42),
+                      }}
+                    >
+                      <Typography sx={{ fontSize: 11, color: "text.secondary" }}>
+                        화력 효율
+                      </Typography>
+                      <Typography sx={{ mt: 0.2, fontWeight: 800 }}>
+                        {bdaReport.resourceEfficiencyLabel}
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  <Typography
+                    sx={{
+                      mt: 0.75,
+                      fontSize: 11.25,
+                      color: "text.secondary",
+                      letterSpacing: "0.03em",
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    {bdaReport.deploymentFootprintLabel} · {bdaReport.targetSummary}
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+
+            <Box
+              sx={{
+                display: "grid",
+                gap: 0.75,
+                gridTemplateColumns: {
+                  xs: "repeat(2, minmax(0, 1fr))",
+                  lg: "repeat(6, minmax(0, 1fr))",
+                },
+              }}
+            >
+              <Box
+                sx={{
+                  p: 0.9,
+                  borderRadius: 2.4,
+                  backgroundColor: (theme) =>
+                    alpha(theme.palette.primary.main, 0.05),
+                  border: (theme) =>
+                    `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
+                }}
+              >
+                <Typography sx={{ fontSize: 11.5, color: "text.secondary" }}>
+                  확인 타격
+                </Typography>
+                <Typography sx={{ mt: 0.2, fontSize: 24, fontWeight: 900 }}>
+                  {bdaReport.confirmedHitCount}
+                </Typography>
+                <Typography sx={{ mt: 0.18, fontSize: 11.5, color: "text.secondary" }}>
+                  파괴 {bdaReport.killEventCount} · 피해 {bdaReport.damageEventCount}
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  p: 0.9,
+                  borderRadius: 2.4,
+                  backgroundColor: (theme) =>
+                    alpha(theme.palette.success.main, 0.06),
+                  border: (theme) =>
+                    `1px solid ${alpha(theme.palette.success.main, 0.16)}`,
+                }}
+              >
+                <Typography sx={{ fontSize: 11.5, color: "text.secondary" }}>
+                  화력 투입
+                </Typography>
+                <Typography sx={{ mt: 0.2, fontSize: 24, fontWeight: 900 }}>
+                  {bdaReport.launchCount}
+                </Typography>
+                <Typography sx={{ mt: 0.18, fontSize: 11.5, color: "text.secondary" }}>
+                  플랫폼 {bdaReport.launchedPlatformCount}/{bdaReport.launchPlatformCount}
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  p: 0.9,
+                  borderRadius: 2.4,
+                  backgroundColor: (theme) =>
+                    alpha(theme.palette.warning.main, 0.06),
+                  border: (theme) =>
+                    `1px solid ${alpha(theme.palette.warning.main, 0.16)}`,
+                }}
+              >
+                <Typography sx={{ fontSize: 11.5, color: "text.secondary" }}>
+                  충격량 지수
+                </Typography>
+                <Typography sx={{ mt: 0.2, fontSize: 24, fontWeight: 900 }}>
+                  {bdaReport.shockIndex}
+                </Typography>
+                <Typography sx={{ mt: 0.18, fontSize: 11.5, color: "text.secondary" }}>
+                  {bdaReport.dominantAxis}
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  p: 0.9,
+                  borderRadius: 2.4,
+                  backgroundColor: (theme) =>
+                    alpha(theme.palette.secondary.main, 0.06),
+                  border: (theme) =>
+                    `1px solid ${alpha(theme.palette.secondary.main, 0.16)}`,
+                }}
+              >
+                <Typography sx={{ fontSize: 11.5, color: "text.secondary" }}>
+                  경제성 점수
+                </Typography>
+                <Typography sx={{ mt: 0.2, fontSize: 24, fontWeight: 900 }}>
+                  {bdaReport.economicScore}
+                </Typography>
+                <Typography sx={{ mt: 0.18, fontSize: 11.5, color: "text.secondary" }}>
+                  {bdaReport.deploymentAssessmentLabel}
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  p: 0.9,
+                  borderRadius: 2.4,
+                  backgroundColor: (theme) =>
+                    alpha(theme.palette.info.main, 0.06),
+                  border: (theme) =>
+                    `1px solid ${alpha(theme.palette.info.main, 0.16)}`,
+                }}
+              >
+                <Typography sx={{ fontSize: 11.5, color: "text.secondary" }}>
+                  임무 기준
+                </Typography>
+                <Typography sx={{ mt: 0.2, fontSize: 24, fontWeight: 900 }}>
+                  {bdaReport.requiredEffectScore}
+                </Typography>
+                <Typography sx={{ mt: 0.18, fontSize: 11.5, color: "text.secondary" }}>
+                  {bdaReport.missionThresholdMet ? "기준 충족" : "기준 미달"}
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  p: 0.9,
+                  borderRadius: 2.4,
+                  backgroundColor: (theme) =>
+                    alpha(theme.palette.error.main, 0.06),
+                  border: (theme) =>
+                    `1px solid ${alpha(theme.palette.error.main, 0.16)}`,
+                }}
+              >
+                <Typography sx={{ fontSize: 11.5, color: "text.secondary" }}>
+                  위협 노출
+                </Typography>
+                <Typography sx={{ mt: 0.2, fontSize: 24, fontWeight: 900 }}>
+                  {Math.round(bdaReport.threatExposureScore * 10) / 10}
+                </Typography>
+                <Typography sx={{ mt: 0.18, fontSize: 11.5, color: "text.secondary" }}>
+                  비용 {bdaReport.costScore} · 신뢰도 {bdaReport.assessmentConfidenceLabel}
+                </Typography>
+              </Box>
+            </Box>
+
+            {bdaReport.benchmark && (
+              <Box
+                sx={{
+                  p: { xs: 0.95, sm: 1.05 },
+                  borderRadius: 3,
+                  backgroundColor: (theme) =>
+                    alpha(theme.palette.primary.main, 0.05),
+                  border: (theme) =>
+                    `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
+                }}
+              >
+                <Stack
+                  direction={{ xs: "column", md: "row" }}
+                  spacing={0.9}
+                  sx={{ justifyContent: "space-between", alignItems: { md: "center" } }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 700 }}>배치 비교</Typography>
+                    <Typography sx={{ mt: 0.15, fontSize: 12.5, color: "text.secondary" }}>
+                      동일 목표 기준 최근 {bdaReport.benchmark.comparisonCount}회 비교
+                    </Typography>
+                  </Box>
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    label={`현재 순위 ${bdaReport.benchmark.currentRunRank ?? "-"}위`}
+                  />
+                </Stack>
+                <Typography
+                  sx={{
+                    mt: 0.65,
+                    fontSize: 12.75,
+                    color: "text.secondary",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {bdaReport.benchmarkInsight}
+                </Typography>
+                <Stack spacing={0.55} sx={{ mt: 0.8 }}>
+                  {benchmarkRuns.map((run) => {
+                    const isCurrent = run.runId === bdaReport.benchmark?.currentRunId;
+                    const isBestValue = run.runId === bdaReport.benchmark?.bestValueRunId;
+                    const isMaxEffect = run.runId === bdaReport.benchmark?.maxEffectRunId;
+
+                    return (
+                      <Box
+                        key={run.runId}
+                        sx={{
+                          p: 0.7,
+                          borderRadius: 1.9,
+                          backgroundColor: (theme) =>
+                            alpha(
+                              isCurrent
+                                ? theme.palette.warning.main
+                                : isBestValue
+                                  ? theme.palette.success.main
+                                  : theme.palette.background.paper,
+                              isCurrent ? 0.1 : isBestValue ? 0.08 : 0.18
+                            ),
+                          border: (theme) =>
+                            `1px solid ${alpha(
+                              isCurrent
+                                ? theme.palette.warning.main
+                                : isBestValue
+                                  ? theme.palette.success.main
+                                  : theme.palette.primary.main,
+                              isCurrent || isBestValue ? 0.22 : 0.08
+                            )}`,
+                        }}
+                      >
+                        <Stack
+                          direction={{ xs: "column", md: "row" }}
+                          spacing={0.7}
+                          sx={{ justifyContent: "space-between", alignItems: { md: "center" } }}
+                        >
+                          <Box sx={{ minWidth: 0 }}>
+                            <Stack
+                              direction="row"
+                              spacing={0.45}
+                              sx={{ flexWrap: "wrap", alignItems: "center" }}
+                            >
+                              <Typography sx={{ fontWeight: 700 }}>
+                                {run.actorName ?? "현재 편성"}
+                              </Typography>
+                              {isCurrent && (
+                                <Chip size="small" color="warning" label="현재 런" />
+                              )}
+                              {isBestValue && (
+                                <Chip size="small" color="success" label="경제성 최고" />
+                              )}
+                              {isMaxEffect && (
+                                <Chip size="small" variant="outlined" label="최대 효과" />
+                              )}
+                            </Stack>
+                            <Typography
+                              sx={{ mt: 0.18, fontSize: 12, color: "text.secondary" }}
+                            >
+                              {run.deploymentFootprintLabel} · {run.objectiveStatusLabel} · 종료 {run.endedAtLabel}
+                            </Typography>
+                          </Box>
+                          <Box
+                            sx={{
+                              display: "grid",
+                              gap: 0.7,
+                              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                              minWidth: { md: 276 },
+                            }}
+                          >
+                            <Box>
+                              <Typography sx={{ fontSize: 10.5, color: "text.secondary" }}>
+                                BDA
+                              </Typography>
+                              <Typography sx={{ fontWeight: 800 }}>
+                                {run.assessedEffectScore}
+                              </Typography>
+                            </Box>
+                            <Box>
+                              <Typography sx={{ fontSize: 10.5, color: "text.secondary" }}>
+                                경제성
+                              </Typography>
+                              <Typography sx={{ fontWeight: 800 }}>
+                                {run.economicScore}
+                              </Typography>
+                            </Box>
+                            <Box>
+                              <Typography sx={{ fontSize: 10.5, color: "text.secondary" }}>
+                                기준
+                              </Typography>
+                              <Typography sx={{ fontWeight: 800 }}>
+                                {run.missionThresholdMet ? "충족" : "미달"}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </Stack>
+                      </Box>
+                    );
+                  })}
+                </Stack>
+              </Box>
+            )}
+
+            <Stack direction={{ xs: "column", lg: "row" }} spacing={1}>
+              <Box
+                sx={{
+                  flex: 1.05,
+                  p: 0.95,
+                  borderRadius: 2.6,
+                  backgroundColor: (theme) =>
+                    alpha(theme.palette.primary.main, 0.05),
+                  border: (theme) =>
+                    `1px solid ${alpha(theme.palette.primary.main, 0.12)}`,
+                }}
+              >
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1}
+                  sx={{ justifyContent: "space-between" }}
+                >
+                  <Typography sx={{ fontWeight: 700 }}>BDA 판정</Typography>
+                  <Typography sx={{ fontSize: 12, color: "text.secondary" }}>
+                    평가 보드
+                  </Typography>
+                </Stack>
+                <Box
+                  sx={{
+                    mt: 0.72,
+                    display: "grid",
+                    gap: 0.55,
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                  }}
+                >
+                  <Box
+                    sx={{
+                      p: 0.7,
+                      borderRadius: 1.9,
+                      backgroundColor: (theme) =>
+                        alpha(theme.palette.background.paper, 0.24),
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 11, color: "text.secondary" }}>
+                      효과 요약
+                    </Typography>
+                    <Typography sx={{ mt: 0.15, fontWeight: 700 }}>
+                      {bdaReport.effectSummary}
+                    </Typography>
+                  </Box>
+                  <Box
+                    sx={{
+                      p: 0.7,
+                      borderRadius: 1.9,
+                      backgroundColor: (theme) =>
+                        alpha(theme.palette.background.paper, 0.24),
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 11, color: "text.secondary" }}>
+                      화력 효율
+                    </Typography>
+                    <Typography sx={{ mt: 0.15, fontWeight: 700 }}>
+                      {bdaReport.resourceEfficiencyLabel}
+                    </Typography>
+                  </Box>
+                  <Box
+                    sx={{
+                      p: 0.7,
+                      borderRadius: 1.9,
+                      backgroundColor: (theme) =>
+                        alpha(theme.palette.background.paper, 0.24),
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 11, color: "text.secondary" }}>
+                      분석 신뢰도
+                    </Typography>
+                    <Typography sx={{ mt: 0.15, fontWeight: 700 }}>
+                      {bdaReport.assessmentConfidenceLabel} {bdaReport.assessmentConfidenceScore}
+                    </Typography>
+                  </Box>
+                  <Box
+                    sx={{
+                      p: 0.7,
+                      borderRadius: 1.9,
+                      backgroundColor: (theme) =>
+                        alpha(theme.palette.background.paper, 0.24),
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 11, color: "text.secondary" }}>
+                      운용 템포
+                    </Typography>
+                    <Typography sx={{ mt: 0.15, fontWeight: 700 }}>
+                      {bdaReport.tempoLabel}
+                    </Typography>
+                  </Box>
+                </Box>
+                <Stack spacing={0.55} sx={{ mt: 0.75 }}>
+                  {(bdaReport.keyObservations.length > 0
+                    ? bdaReport.keyObservations
+                    : ["관측 내용을 정리 중입니다."]
+                  ).map((item) => (
+                    <Box
+                      key={item}
+                      sx={{
+                        p: 0.7,
+                        borderRadius: 1.8,
+                        backgroundColor: (theme) =>
+                          alpha(theme.palette.background.paper, 0.22),
+                      }}
+                    >
+                      <Typography sx={{ fontSize: 12.75, lineHeight: 1.5 }}>
+                        {item}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+
+              <Box
+                sx={{
+                  flex: 1,
+                  p: 0.95,
+                  borderRadius: 2.6,
+                  backgroundColor: (theme) =>
+                    alpha(theme.palette.success.main, 0.06),
+                  border: (theme) =>
+                    `1px solid ${alpha(theme.palette.success.main, 0.14)}`,
+                }}
+              >
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  sx={{ justifyContent: "space-between", flexWrap: "wrap" }}
+                >
+                  <Typography sx={{ fontWeight: 700 }}>관측 메모</Typography>
+                  <Typography sx={{ fontSize: 12, color: "text.secondary" }}>
+                    액션 타임라인
+                  </Typography>
+                  <Chip
+                    size="small"
+                    color={narrativeSource === "llm" ? "primary" : "default"}
+                    variant={narrativeSource === "llm" ? "filled" : "outlined"}
+                    label={buildInsightLabel(narrativeSource, loading)}
+                  />
+                </Stack>
+                <Typography
+                  sx={{ mt: 0.65, color: "text.secondary", lineHeight: 1.55, fontSize: 13 }}
+                >
+                  {briefingText}
+                </Typography>
+                <Typography
+                  sx={{
+                    mt: 0.8,
+                    fontSize: 12,
+                    color: "text.secondary",
+                    fontWeight: 700,
+                  }}
+                >
+                  최근 액션
+                </Typography>
+                <Stack spacing={0.45} sx={{ mt: 0.45 }}>
+                  {(bdaReport.recentActions.length > 0
+                    ? bdaReport.recentActions
+                    : ["추가 관측 로그 없음"]
+                  ).map((item) => (
+                    <Box
+                      key={item}
+                      sx={{
+                        position: "relative",
+                        pl: 1.35,
+                        py: 0.2,
+                        "&::before": {
+                          content: '""',
+                          position: "absolute",
+                          left: 0.25,
+                          top: 6,
+                          width: 8,
+                          height: 8,
+                          borderRadius: "50%",
+                          backgroundColor: (theme) =>
+                            alpha(theme.palette.success.main, 0.86),
+                          boxShadow: (theme) =>
+                            `0 0 0 4px ${alpha(theme.palette.success.main, 0.12)}`,
+                        },
+                        "&::after": {
+                          content: '""',
+                          position: "absolute",
+                          left: 0.6,
+                          top: 18,
+                          bottom: -8,
+                          width: 1,
+                          backgroundColor: (theme) =>
+                            alpha(theme.palette.success.main, 0.2),
+                        },
+                        "&:last-of-type::after": {
+                          display: "none",
+                        },
+                      }}
+                    >
+                      <Typography
+                        sx={{
+                          fontSize: 12.5,
+                          color: "text.secondary",
+                          lineHeight: 1.45,
+                        }}
+                      >
+                        {item}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+
+              <Box
+                sx={{
+                  flex: 0.95,
+                  p: 0.95,
+                  borderRadius: 2.6,
+                  backgroundColor: (theme) =>
+                    alpha(theme.palette.warning.main, 0.05),
+                  border: (theme) =>
+                    `1px solid ${alpha(theme.palette.warning.main, 0.12)}`,
+                }}
+              >
+                <Typography sx={{ fontWeight: 700 }}>후속 조치</Typography>
+                <Stack spacing={0.55} sx={{ mt: 0.75 }}>
+                  {(bdaReport.recommendations.length > 0
+                    ? bdaReport.recommendations
+                    : ["후속 권고 정리 중"]
+                  ).map((item) => (
+                    <Box
+                      key={item}
+                      sx={{
+                        p: 0.7,
+                        borderRadius: 1.8,
+                        backgroundColor: (theme) =>
+                          alpha(theme.palette.background.paper, 0.2),
+                      }}
+                    >
+                      <Typography
+                        sx={{ fontSize: 12.5, color: "text.secondary", lineHeight: 1.5 }}
+                      >
+                        {item}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            </Stack>
+          </Stack>
+        </DialogContent>
+
+        <DialogActions
+          sx={{
+            px: { xs: 1.8, sm: 2.4 },
+            py: 1.2,
+            borderTop: (theme) =>
+              `1px solid ${alpha(theme.palette.primary.main, 0.12)}`,
+          }}
+        >
+          <Button onClick={onClose}>닫기</Button>
+        </DialogActions>
+      </Dialog>
+    );
+  }
+
   const assessmentBySideId = new Map(
     summary.report.sideAssessments.map((assessment) => [
       assessment.sideId,

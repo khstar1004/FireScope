@@ -38,12 +38,14 @@ export default function RlLabLineChart(props: Readonly<RlLabLineChartProps>) {
         <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
           {props.title}
         </Typography>
-        <Typography
-          variant="body2"
-          sx={{ color: RL_LAB_PALETTE.mutedText, mt: 0.5 }}
-        >
-          {props.subtitle}
-        </Typography>
+        {props.subtitle ? (
+          <Typography
+            variant="body2"
+            sx={{ color: RL_LAB_PALETTE.mutedText, mt: 0.5 }}
+          >
+            {props.subtitle}
+          </Typography>
+        ) : null}
         <Typography
           variant="body2"
           sx={{ color: RL_LAB_PALETTE.subtleText, mt: 3 }}
@@ -97,9 +99,14 @@ export default function RlLabLineChart(props: Readonly<RlLabLineChartProps>) {
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
             {props.title}
           </Typography>
-          <Typography variant="body2" sx={{ color: RL_LAB_PALETTE.mutedText }}>
-            {props.subtitle}
-          </Typography>
+          {props.subtitle ? (
+            <Typography
+              variant="body2"
+              sx={{ color: RL_LAB_PALETTE.mutedText }}
+            >
+              {props.subtitle}
+            </Typography>
+          ) : null}
         </Box>
         <Typography
           variant="body2"
@@ -115,7 +122,7 @@ export default function RlLabLineChart(props: Readonly<RlLabLineChartProps>) {
           y1={height - padding}
           x2={width - padding}
           y2={height - padding}
-          stroke="rgba(93, 107, 79, 0.35)"
+          stroke={RL_LAB_PALETTE.surfaceBorder}
           strokeWidth="1"
         />
         <line
@@ -123,7 +130,7 @@ export default function RlLabLineChart(props: Readonly<RlLabLineChartProps>) {
           y1={padding}
           x2={padding}
           y2={height - padding}
-          stroke="rgba(93, 107, 79, 0.35)"
+          stroke={RL_LAB_PALETTE.surfaceBorder}
           strokeWidth="1"
         />
         <path

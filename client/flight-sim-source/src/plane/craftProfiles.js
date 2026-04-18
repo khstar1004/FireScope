@@ -154,8 +154,8 @@ export const CRAFT_PROFILES = {
 			'/3d-bundles/drone/models/drone.glb'
 		],
 		iconPath: null,
-		spawnAltitudeOffset: 180,
-		initialAltitude: 180,
+		spawnAltitudeOffset: 60,
+		initialAltitude: 60,
 		initialSpeed: 0,
 		enableWeapons: false,
 		enableNpc: false,
@@ -165,8 +165,8 @@ export const CRAFT_PROFILES = {
 		enableGpws: false,
 		crashClearance: 2,
 		visual: {
-			basePosition: { x: 0, y: -0.45, z: -1.9 },
-			scale: 0.85
+			basePosition: { x: 0, y: -0.55, z: -2.25 },
+			scale: 2.2
 		},
 		animation: {
 			name: null,

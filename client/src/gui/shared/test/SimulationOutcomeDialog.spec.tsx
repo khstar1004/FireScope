@@ -5,6 +5,7 @@ import Relationships from "@/game/Relationships";
 import Scenario from "@/game/Scenario";
 import Side from "@/game/Side";
 import { SimulationLogType } from "@/game/log/SimulationLogs";
+import Facility from "@/game/units/Facility";
 import { buildSimulationOutcomeSummary } from "@/gui/analysis/operationInsight";
 import SimulationOutcomeDialog from "@/gui/shared/SimulationOutcomeDialog";
 
@@ -29,7 +30,12 @@ function createSummary() {
     duration: 3600,
     endTime: 3600,
     sides: [blue, red],
-    relationships: new Relationships({}),
+    relationships: new Relationships({
+      hostiles: {
+        [blue.id]: [red.id],
+        [red.id]: [blue.id],
+      },
+    }),
     aircraft: [
       {
         id: "blue-jet",
@@ -84,6 +90,96 @@ function createSummary() {
   return buildSimulationOutcomeSummary(game);
 }
 
+function createBdaSummary() {
+  const blue = new Side({
+    id: "focus-force",
+    name: "집중 전력",
+    color: "blue",
+  });
+  const observer = new Side({
+    id: "observation-cell",
+    name: "관측 셀",
+    color: "silver",
+  });
+  const scenario = new Scenario({
+    id: "dialog-bda-scenario",
+    name: "Dialog BDA Test",
+    startTime: 0,
+    currentTime: 3600,
+    duration: 3600,
+    endTime: 3600,
+    sides: [blue, observer],
+    relationships: new Relationships({
+      hostiles: {
+        [blue.id]: [],
+        [observer.id]: [],
+      },
+      allies: {
+        [blue.id]: [observer.id],
+        [observer.id]: [blue.id],
+      },
+    }),
+    facilities: [
+      new Facility({
+        id: "blue-battery",
+        name: "천무 포대",
+        sideId: blue.id,
+        className: "Chunmoo",
+        latitude: 37,
+        longitude: 127,
+        altitude: 0,
+        range: 80,
+        sideColor: "blue",
+        weapons: [],
+      }),
+    ],
+  });
+  const game = new Game(scenario);
+
+  game.currentSideId = blue.id;
+  game.setFocusFireMode(true);
+  game.setFocusFireObjective(37.01, 127.02);
+  game.focusFireOperation.captureProgress = 100;
+  game.focusFireOperation.active = false;
+  game.focusFireOperation.launchedPlatformIds = ["blue-battery"];
+  game.simulationLogs.addLog(
+    blue.id,
+    "천무 포대가 집중포격 목표에 일제사격을 가했습니다.",
+    3588,
+    SimulationLogType.WEAPON_LAUNCHED,
+    {
+      actorId: "blue-battery",
+      actorName: "천무 포대",
+      actorType: "facility",
+      quantity: 6,
+      objectiveName: "집중포격 목표",
+      resultTag: "launch",
+    }
+  );
+  game.simulationLogs.addLog(
+    blue.id,
+    "유도탄이 집중포격 목표 지점에 착탄했습니다.",
+    3592,
+    SimulationLogType.WEAPON_HIT,
+    {
+      objectiveName: "집중포격 목표",
+      resultTag: "impact",
+    }
+  );
+  game.simulationLogs.addLog(
+    blue.id,
+    "집중포격 목표를 확보했습니다. 집중포격 작전이 종료됩니다.",
+    3598,
+    SimulationLogType.STRIKE_MISSION_SUCCESS,
+    {
+      objectiveName: "집중포격 목표",
+      resultTag: "objective_secured",
+    }
+  );
+
+  return buildSimulationOutcomeSummary(game);
+}
+
 describe("SimulationOutcomeDialog", () => {
   test("renders compact battle scoreboard sections", () => {
     const summary = createSummary();
@@ -115,5 +211,34 @@ describe("SimulationOutcomeDialog", () => {
       0
     );
     expect(screen.getAllByText("격파 1 · 손실 0").length).toBeGreaterThan(0);
+  });
+
+  test("renders a dedicated BDA layout for focus-fire outcomes", () => {
+    const summary = createBdaSummary();
+
+    render(
+      <SimulationOutcomeDialog
+        open={true}
+        summary={summary}
+        narrative={summary.fallbackSummary}
+        narrativeSource="fallback"
+        onClose={() => {}}
+      />
+    );
+
+    expect(screen.getByText("BDA Assessment")).toBeInTheDocument();
+    expect(screen.getByText("전과 분석 보고서")).toBeInTheDocument();
+    expect(screen.getByText("BDA Ready")).toBeInTheDocument();
+    expect(screen.getByText("배치 비교")).toBeInTheDocument();
+    expect(screen.getByText("경제성 점수")).toBeInTheDocument();
+    expect(screen.getByText("BDA 판정")).toBeInTheDocument();
+    expect(screen.getByText("평가 보드")).toBeInTheDocument();
+    expect(screen.getByText("관측 메모")).toBeInTheDocument();
+    expect(screen.getByText("액션 타임라인")).toBeInTheDocument();
+    expect(screen.getByText("후속 조치")).toBeInTheDocument();
+    expect(screen.getByText("목표 확보 완료")).toBeInTheDocument();
+    expect(screen.getByText("결정적 효과")).toBeInTheDocument();
+    expect(screen.getByText("집중포격 BDA")).toBeInTheDocument();
+    expect(screen.getByText("목표 집중포격 목표")).toBeInTheDocument();
   });
 });

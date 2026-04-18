@@ -186,14 +186,29 @@ function createFacilityFaces(): Face[] {
 }
 
 function createAirbaseFaces(): Face[] {
+  const runwaySegments = [-7.2, -3.6, 0, 3.6, 7.2].flatMap((zOffset) =>
+    createBoxFaces(
+      vector(0, -0.72, zOffset),
+      vector(0.52, 0.03, 1.7),
+      "#f0c469"
+    )
+  );
+
   return [
-    ...createBoxFaces(vector(0, -0.72, 0), vector(7.4, 0.18, 10.6), "#42494f"),
-    ...createBoxFaces(vector(-2.1, -0.15, -1.35), vector(2.5, 1.15, 2.2), "#7d8b95"),
-    ...createPyramidFaces(vector(-2.1, 0.55, -1.35), vector(2.6, 0.95, 2.4), "#afb9c5", "up"),
-    ...createBoxFaces(vector(2.15, 0, 2.25), vector(1, 1.55, 1), "#aeb7c3"),
-    ...createBoxFaces(vector(2.15, 1.08, 2.25), vector(1.35, 0.42, 1.35), "#84cfff"),
-    ...createBoxFaces(vector(0, -0.45, 2.8), vector(1.1, 0.06, 2.4), "#d0d5dc"),
-    ...createBoxFaces(vector(0, -0.38, 2.8), vector(5.2, 0.04, 0.18), "#f4c15b"),
+    ...createBoxFaces(vector(0, -1.05, 0), vector(3.2, 0.12, 17.8), "#485057"),
+    ...createBoxFaces(vector(-3.75, -1.03, 0.25), vector(3.4, 0.1, 8.6), "#596269"),
+    ...createBoxFaces(vector(3.65, -1.03, 0.1), vector(2.9, 0.1, 6.8), "#596269"),
+    ...runwaySegments,
+    ...createBoxFaces(vector(-4.15, -0.42, -3.5), vector(2.7, 1.05, 2.5), "#77838d"),
+    ...createPyramidFaces(vector(-4.15, 0.18, -3.5), vector(2.9, 0.9, 2.7), "#b9c4ce", "up"),
+    ...createBoxFaces(vector(-4.2, -0.45, 3.1), vector(2.9, 1, 2.8), "#6f7d88"),
+    ...createPyramidFaces(vector(-4.2, 0.12, 3.1), vector(3.1, 0.95, 3), "#afbac5", "up"),
+    ...createBoxFaces(vector(4.45, -0.18, -1.7), vector(0.72, 2.4, 0.72), "#9ca8b3"),
+    ...createBoxFaces(vector(4.45, 1.18, -1.7), vector(1.25, 0.34, 1.25), "#88d2ff"),
+    ...createBoxFaces(vector(3.5, -0.55, 1.65), vector(1.8, 0.72, 2.15), "#8f9daa"),
+    ...createBoxFaces(vector(3.5, -0.03, 1.65), vector(1.95, 0.14, 2.25), "#d8e2ec"),
+    ...createBoxFaces(vector(2.45, -0.67, 5.15), vector(1.9, 0.42, 1.55), "#c0ccd8"),
+    ...createBoxFaces(vector(4.65, -0.67, 5.15), vector(1.9, 0.42, 1.55), "#c0ccd8"),
   ];
 }
 
@@ -246,13 +261,13 @@ function createScene(kind: AssetExperienceKind): SceneConfig {
     case "airbase":
       return {
         faces: createAirbaseFaces(),
-        initialYaw: 0.72,
-        initialPitch: -0.34,
-        autoSpin: 0.0018,
-        cameraDistance: 24,
-        scale: 146,
-        shadowWidth: 235,
-        shadowHeight: 40,
+        initialYaw: 0.64,
+        initialPitch: -0.31,
+        autoSpin: 0.0015,
+        cameraDistance: 15.5,
+        scale: 210,
+        shadowWidth: 280,
+        shadowHeight: 44,
       };
   }
 }

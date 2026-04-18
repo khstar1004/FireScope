@@ -1,6 +1,7 @@
 import {
   getFocusFireRerankerConfidence,
   createDefaultFocusFireRerankerModel,
+  describeFocusFireRerankerModel,
   explainFocusFireRerankerCandidate,
   rerankFocusFireCandidates,
   scoreFocusFireRerankerCandidate,
@@ -100,6 +101,7 @@ describe("focus fire reranker", () => {
       ...baseModel,
       source: "telemetry-tree-ensemble",
       modelFamily: "tree-ensemble",
+      origin: "imported-json",
       sampleCount: 24,
       operatorFeedbackCount: 10,
       ruleSeedCount: 8,
@@ -153,6 +155,50 @@ describe("focus fire reranker", () => {
     expect(ranked[0]?.rawRerankerScore).toBeGreaterThan(
       ranked[1]?.rawRerankerScore ?? 0
     );
+  });
+
+  test("describes built-in models as bundled and not downloaded", () => {
+    const descriptor = describeFocusFireRerankerModel(
+      createDefaultFocusFireRerankerModel()
+    );
+
+    expect(descriptor.displayName).toBe("내장 기본 선형 랭커");
+    expect(descriptor.originLabel).toBe("앱 내장");
+    expect(descriptor.downloadLabel).toBe("별도 다운로드 없음");
+    expect(descriptor.storageLabel).toContain("client/src/game/focusFireReranker.ts");
+    expect(descriptor.topFeatureLabels.length).toBeGreaterThan(0);
+  });
+
+  test("describes imported lightgbm tree models as external lambdamart rankers", () => {
+    const baseModel = createDefaultFocusFireRerankerModel();
+    const descriptor = describeFocusFireRerankerModel({
+      ...baseModel,
+      source: "telemetry-tree-ensemble",
+      modelFamily: "tree-ensemble",
+      origin: "imported-json",
+      treeEnsemble: {
+        trainer: "LightGBM LambdaMART",
+        trees: [
+          {
+            root: {
+              feature: "blockedRatio",
+              threshold: 0.2,
+              left: {
+                value: 0.4,
+              },
+              right: {
+                value: -0.3,
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    expect(descriptor.displayName).toBe("외부 LambdaMART 트리 랭커");
+    expect(descriptor.familyLabel).toContain("트리 앙상블");
+    expect(descriptor.downloadLabel).toBe("사용자가 선택한 JSON 파일");
+    expect(descriptor.topFeatureLabels).toContain("차단 비율");
   });
 
   test("produces readable positive and negative ranking signals", () => {

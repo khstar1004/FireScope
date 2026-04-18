@@ -139,6 +139,7 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
   aircraft: "항공기",
   drone: "드론",
   airbase: "기지",
+  army: "지상군",
   facility: "지상 무기체계",
   tank: "전차/장갑차",
   ship: "함정",

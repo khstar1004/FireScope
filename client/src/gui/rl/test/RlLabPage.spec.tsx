@@ -60,6 +60,7 @@ function createCapabilitiesResponse() {
       evalEpisodes: 5,
       evalSeedCount: 4,
       curriculumEnabled: false,
+      guidedLaunchBootstrapSteps: 12,
       seed: 7,
       progressEvalFrequency: 100,
       progressEvalEpisodes: 2,
@@ -132,6 +133,10 @@ function createRlJobSnapshot() {
       eval_mean_reward: 12,
       eval_std_reward: 0,
       eval_success_rate: 0.25,
+      done_reason: "truncated",
+      done_reason_detail: "max_episode_steps",
+      launch_count: 0,
+      selected_target_id: "target-1",
       replay_available: true,
       recording_path:
         "C:/jobs/job-1/runs/ppo/checkpoints/0000000/eval_recording.jsonl",
@@ -142,6 +147,10 @@ function createRlJobSnapshot() {
       eval_mean_reward: 28,
       eval_std_reward: 0,
       eval_success_rate: 0.75,
+      done_reason: "truncated",
+      done_reason_detail: "max_episode_steps",
+      launch_count: 0,
+      selected_target_id: "target-1",
       replay_available: true,
       recording_path:
         "C:/jobs/job-1/runs/ppo/checkpoints/0000512/eval_recording.jsonl",
@@ -153,13 +162,17 @@ function createRlJobSnapshot() {
     createdAt: "2026-04-14T00:00:00.000Z",
     startedAt: "2026-04-14T00:00:01.000Z",
     finishedAt: null,
+    scenarioName: "Codex RL Walkthrough Scenario",
+    displayLabel: "Codex 첫 사용자 점검 2026-04-16",
     request: {
+      experimentLabel: "Codex 첫 사용자 점검 2026-04-16",
       algorithms: ["ppo"],
       timesteps: 1000,
       maxEpisodeSteps: 200,
       evalEpisodes: 1,
       evalSeedCount: 1,
       curriculumEnabled: false,
+      guidedLaunchBootstrapSteps: 12,
       seed: 7,
       progressEvalFrequency: 256,
       progressEvalEpisodes: 1,
@@ -304,8 +317,25 @@ describe("RlLabPage", () => {
     });
     expect(screen.getByText("DDPG")).toBeInTheDocument();
     expect(screen.getByText("TD3")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "전투·배치 최적화 데모" })
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("ETA Progress Weight")).toHaveValue(2);
     expect(screen.getByLabelText("Eval Seed Count")).toHaveValue(4);
+    expect(screen.getByLabelText("Guided Launch Bootstrap")).toHaveValue(12);
+    expect(screen.getByLabelText("실험 라벨")).toBeInTheDocument();
+    expect(
+      screen.getByText("Codex 첫 사용자 점검 2026-04-16")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("시나리오: Codex RL Walkthrough Scenario")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/최근 평가에서 발사 없이 시간 제한에 걸렸습니다/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "무발사 시간초과 보정" })
+    ).toBeInTheDocument();
     expect(screen.getByText("지휘관 자원·배치 최적화")).toBeInTheDocument();
   });
 
@@ -333,6 +363,7 @@ describe("RlLabPage", () => {
     expect(screen.getByLabelText("Timesteps")).toHaveValue(4096);
     expect(screen.getByLabelText("Eval Episodes")).toHaveValue(2);
     expect(screen.getByLabelText("Progress Eval Frequency")).toHaveValue(512);
+    expect(screen.getByLabelText("Guided Launch Bootstrap")).toHaveValue(12);
   });
 
   test("opens the latest checkpoint replay on the map", async () => {

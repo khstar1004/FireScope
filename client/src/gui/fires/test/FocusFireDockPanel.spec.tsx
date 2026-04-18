@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 import type Game from "@/game/Game";
+import { createDefaultFocusFireRerankerModel } from "@/game/focusFireReranker";
 import FocusFireDockPanel from "@/gui/fires/FocusFireDockPanel";
 
 function createGame(
@@ -33,9 +34,7 @@ function createGame(
       enabled: false,
       confidenceScore: 0.42,
       model: {
-        modelFamily: "linear",
-        source: "default",
-        version: 2,
+        ...createDefaultFocusFireRerankerModel(),
         sampleCount: 12,
         operatorFeedbackCount: 1,
         ruleSeedCount: 2,
@@ -140,5 +139,8 @@ describe("FocusFireDockPanel", () => {
     expect(screen.getByText("AI 제어")).toBeInTheDocument();
     expect(screen.getByText("학습 가능")).toBeInTheDocument();
     expect(screen.getAllByText("1건").length).toBeGreaterThan(0);
+    expect(screen.getByText(/내장 기본 선형 랭커/)).toBeInTheDocument();
+    expect(screen.getByText(/앱 번들 코드/)).toBeInTheDocument();
+    expect(screen.getByText(/다운로드 별도 다운로드 없음/)).toBeInTheDocument();
   });
 });

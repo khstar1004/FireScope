@@ -1,16 +1,24 @@
-export const RL_LAB_SUPPORTED_ALGORITHMS = ["ppo", "a2c", "sac", "ddpg", "td3"] as const;
+export const RL_LAB_SUPPORTED_ALGORITHMS = [
+  "ppo",
+  "a2c",
+  "sac",
+  "ddpg",
+  "td3",
+] as const;
 export type RlLabSupportedAlgorithm =
   (typeof RL_LAB_SUPPORTED_ALGORITHMS)[number];
 
 export interface RlLabTrainingRequestLike<
   TRewardConfig extends object = Record<string, number>,
 > {
+  experimentLabel?: string;
   algorithms?: string[];
   timesteps?: number;
   maxEpisodeSteps?: number;
   evalEpisodes?: number;
   evalSeedCount?: number;
   curriculumEnabled?: boolean;
+  guidedLaunchBootstrapSteps?: number;
   seed?: number;
   progressEvalFrequency?: number;
   progressEvalEpisodes?: number;
@@ -25,12 +33,14 @@ export interface RlLabTrainingRequestLike<
 export interface RlLabTrainingFormLike<
   TRewardConfig extends object = Record<string, number>,
 > {
+  experimentLabel: string;
   algorithms: string[];
   timesteps: number;
   maxEpisodeSteps: number;
   evalEpisodes: number;
   evalSeedCount: number;
   curriculumEnabled: boolean;
+  guidedLaunchBootstrapSteps: number;
   seed: number;
   progressEvalFrequency: number;
   progressEvalEpisodes: number;
@@ -51,9 +61,9 @@ export function parseCommaSeparatedIds(value: string) {
 }
 
 export function formatCommaSeparatedIds(values: string[]) {
-  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean))).join(
-    ", "
-  );
+  return Array.from(
+    new Set(values.map((value) => value.trim()).filter(Boolean))
+  ).join(", ");
 }
 
 export function toggleIdSelection(values: string[], id: string) {
@@ -103,13 +113,15 @@ export function applyTrainingRequestToForm<
 ) {
   return {
     ...baseForm,
+    experimentLabel: request.experimentLabel ?? baseForm.experimentLabel,
     algorithms: normalizeAlgorithmIds(request.algorithms, baseForm.algorithms),
     timesteps: request.timesteps ?? baseForm.timesteps,
     maxEpisodeSteps: request.maxEpisodeSteps ?? baseForm.maxEpisodeSteps,
     evalEpisodes: request.evalEpisodes ?? baseForm.evalEpisodes,
     evalSeedCount: request.evalSeedCount ?? baseForm.evalSeedCount,
-    curriculumEnabled:
-      request.curriculumEnabled ?? baseForm.curriculumEnabled,
+    curriculumEnabled: request.curriculumEnabled ?? baseForm.curriculumEnabled,
+    guidedLaunchBootstrapSteps:
+      request.guidedLaunchBootstrapSteps ?? baseForm.guidedLaunchBootstrapSteps,
     seed: request.seed ?? baseForm.seed,
     progressEvalFrequency:
       request.progressEvalFrequency ?? baseForm.progressEvalFrequency,

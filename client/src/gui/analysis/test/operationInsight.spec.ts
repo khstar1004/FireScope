@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import Game from "@/game/Game";
+import Facility from "@/game/units/Facility";
 import Relationships from "@/game/Relationships";
 import Scenario from "@/game/Scenario";
 import Side from "@/game/Side";
@@ -30,7 +31,12 @@ function createOutcomeTestGame() {
     duration: 3600,
     endTime: 3600,
     sides: [blue, red],
-    relationships: new Relationships({}),
+    relationships: new Relationships({
+      hostiles: {
+        [blue.id]: [red.id],
+        [red.id]: [blue.id],
+      },
+    }),
     aircraft: [
       {
         id: "blue-jet",
@@ -108,6 +114,96 @@ function createOutcomeTestGame() {
       resultTag: "mission_success",
       actorScoreDelta: 200,
       scoreNetDelta: 200,
+    }
+  );
+
+  return game;
+}
+
+function createFocusFireBdaGame() {
+  const blue = new Side({
+    id: "focus-force",
+    name: "집중 전력",
+    color: "blue",
+  });
+  const observer = new Side({
+    id: "observation-cell",
+    name: "관측 셀",
+    color: "silver",
+  });
+  const scenario = new Scenario({
+    id: "focus-bda-scenario",
+    name: "Focused BDA Test",
+    startTime: 0,
+    currentTime: 3600,
+    duration: 3600,
+    endTime: 3600,
+    sides: [blue, observer],
+    relationships: new Relationships({
+      hostiles: {
+        [blue.id]: [],
+        [observer.id]: [],
+      },
+      allies: {
+        [blue.id]: [observer.id],
+        [observer.id]: [blue.id],
+      },
+    }),
+    facilities: [
+      new Facility({
+        id: "blue-battery",
+        name: "천무 포대",
+        sideId: blue.id,
+        className: "Chunmoo",
+        latitude: 37,
+        longitude: 127,
+        altitude: 0,
+        range: 80,
+        sideColor: "blue",
+        weapons: [],
+      }),
+    ],
+  });
+  const game = new Game(scenario);
+
+  game.currentSideId = blue.id;
+  game.setFocusFireMode(true);
+  game.setFocusFireObjective(37.01, 127.02);
+  game.focusFireOperation.captureProgress = 100;
+  game.focusFireOperation.active = false;
+  game.focusFireOperation.launchedPlatformIds = ["blue-battery"];
+  game.simulationLogs.addLog(
+    blue.id,
+    "천무 포대가 집중포격 목표에 일제사격을 가했습니다.",
+    3588,
+    SimulationLogType.WEAPON_LAUNCHED,
+    {
+      actorId: "blue-battery",
+      actorName: "천무 포대",
+      actorType: "facility",
+      quantity: 6,
+      objectiveName: "집중포격 목표",
+      resultTag: "launch",
+    }
+  );
+  game.simulationLogs.addLog(
+    blue.id,
+    "유도탄이 집중포격 목표 지점에 착탄했습니다.",
+    3592,
+    SimulationLogType.WEAPON_HIT,
+    {
+      objectiveName: "집중포격 목표",
+      resultTag: "impact",
+    }
+  );
+  game.simulationLogs.addLog(
+    blue.id,
+    "집중포격 목표를 확보했습니다. 집중포격 작전이 종료됩니다.",
+    3598,
+    SimulationLogType.STRIKE_MISSION_SUCCESS,
+    {
+      objectiveName: "집중포격 목표",
+      resultTag: "objective_secured",
     }
   );
 
@@ -206,5 +302,32 @@ describe("operationInsight", () => {
       "생존 세력 BLUE · RED를 유지한 채"
     );
     expect(summary.recentLogs).toHaveLength(4);
+  });
+
+  test("switches to a BDA summary when focus-fire closes out the scenario", () => {
+    const summary = buildSimulationOutcomeSummary(createFocusFireBdaGame());
+
+    expect(summary.reportMode).toBe("bda");
+    expect(summary.bdaReport).not.toBeNull();
+    expect(summary.bdaReport?.modeReason).toBe("focus_fire");
+    expect(summary.bdaReport?.objectiveName).toBe("집중포격 목표");
+    expect(summary.bdaReport?.objectiveStatusLabel).toBe("목표 확보 완료");
+    expect(summary.bdaReport?.damageLevelLabel).toBe("목표 확보");
+    expect(summary.bdaReport?.assessedEffectLabel).toBe("결정적 효과");
+    expect(summary.bdaReport?.assessmentConfidenceLabel).toBe("높음");
+    expect(summary.bdaReport?.resourceEfficiencyLabel).toBe("양호");
+    expect(summary.bdaReport?.tempoLabel).toBe("종결 단계");
+    expect(summary.bdaReport?.requiredEffectScore).toBeGreaterThan(0);
+    expect(summary.bdaReport?.missionThresholdMet).toBe(true);
+    expect(summary.bdaReport?.economicScore).toBeGreaterThan(0);
+    expect(summary.bdaReport?.deploymentAssessmentLabel).toBe("최적 편성");
+    expect(summary.bdaReport?.effectSummary).toContain("탄착 1");
+    expect(summary.bdaReport?.operatingPicture).toContain("분석 신뢰도는 높음");
+    expect(summary.bdaReport?.benchmark?.comparisonCount).toBeGreaterThanOrEqual(1);
+    expect(summary.bdaReport?.benchmarkInsight).toContain("같은 목표");
+    expect(summary.bdaReport?.launchCount).toBe(6);
+    expect(summary.bdaReport?.confirmedHitCount).toBe(1);
+    expect(summary.bdaReport?.recentActions[0]).toContain("집중포격 목표를 확보");
+    expect(summary.fallbackSummary).toContain("집중포격 목표 BDA");
   });
 });

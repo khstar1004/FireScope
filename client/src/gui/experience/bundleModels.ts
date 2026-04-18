@@ -1,5 +1,12 @@
 import type { AssetExperienceSummary } from "@/gui/experience/assetExperience";
 import type { ImmersiveExperienceProfile } from "@/gui/experience/immersiveExperience";
+import { resolveUnitVisualProfileId } from "@/game/db/unitVisualProfiles";
+import {
+  buildAssetSignature,
+  inferDefenseProxyVisualProfileId,
+  isConceptOnlyDefenseAssetSignature,
+  isDefenseAssetSignature,
+} from "@/utils/airDefenseModeling";
 
 export type BundleModelBundle =
   | "aircraft"
@@ -180,6 +187,13 @@ const ARTILLERY_MODELS = {
     "NASAMS",
     "기동형 중거리 방공 체계"
   ),
+  nasamsBattery: createModel(
+    "artillery-nasams-battery",
+    "artillery",
+    "/3d-bundles/artillery/models/nasams_battery.glb",
+    "NASAMS Battery",
+    "배터리 단위 중거리 방공 체계"
+  ),
   thaad: createModel(
     "artillery-thaad",
     "artillery",
@@ -190,6 +204,20 @@ const ARTILLERY_MODELS = {
 };
 
 const TANK_MODELS = {
+  k2: createModel(
+    "tank-k2",
+    "tank",
+    "/3d-bundles/tank/models/k2_black_panther_tank.glb",
+    "K2 Black Panther",
+    "한국 주력전차 계열"
+  ),
+  k21: createModel(
+    "tank-k21",
+    "tank",
+    "/3d-bundles/tank/models/k21_armored_warfare.glb",
+    "K21 IFV",
+    "보병전투차/중형 궤도 장갑차 계열"
+  ),
   km900: createModel(
     "tank-km900",
     "tank",
@@ -210,6 +238,13 @@ const TANK_MODELS = {
     "/3d-bundles/tank/models/m577_command_vehicle.glb",
     "M577 Command Vehicle",
     "지휘 차량 계열"
+  ),
+  stryker: createModel(
+    "tank-stryker",
+    "tank",
+    "/3d-bundles/tank/models/m1126_stryker_50_cal.glb",
+    "M1126 Stryker",
+    "차륜형 보병 전투차/장갑차 계열"
   ),
   trackedArmor: createModel(
     "tank-tracked-armor",
@@ -235,12 +270,26 @@ const SHIP_MODELS = {
     "Type 45 Destroyer",
     "구축함/호위함 계열"
   ),
+  yiSunShin: createModel(
+    "ship-yi-sun-shin",
+    "ship",
+    "/3d-bundles/ships/yi_sun_shin_class_destroyer.glb",
+    "Yi Sun-shin Class Destroyer",
+    "한국 구축함/대형 호위함 계열"
+  ),
   submarine: createModel(
     "ship-submarine",
     "ship",
     "/3d-bundles/ships/uss_texas_ssn-775_submarine.glb",
     "USS Texas SSN-775",
     "잠수함 계열"
+  ),
+  tanker: createModel(
+    "ship-tanker",
+    "ship",
+    "/3d-bundles/ships/tanker_ship.glb",
+    "Fleet Tanker",
+    "보급함/지원함 계열"
   ),
 };
 
@@ -258,6 +307,9 @@ const AIR_MODEL_OPTIONS = [
 ];
 
 const GROUND_MODEL_OPTIONS = [
+  TANK_MODELS.k2,
+  TANK_MODELS.k21,
+  TANK_MODELS.stryker,
   TANK_MODELS.km900,
   TANK_MODELS.m113,
   TANK_MODELS.m577,
@@ -274,37 +326,37 @@ const FIRE_MODEL_OPTIONS = [
   ARTILLERY_MODELS.hyunmoo,
   ARTILLERY_MODELS.roketsan,
   ARTILLERY_MODELS.shell,
-  ARTILLERY_MODELS.patriot,
-  ARTILLERY_MODELS.nasams,
-  ARTILLERY_MODELS.thaad,
 ];
 
 const DEFENSE_MODEL_OPTIONS = [
   ARTILLERY_MODELS.patriot,
+  ARTILLERY_MODELS.nasamsBattery,
   ARTILLERY_MODELS.nasams,
   ARTILLERY_MODELS.thaad,
-  ARTILLERY_MODELS.hyunmoo,
-  ARTILLERY_MODELS.k9,
 ];
 
 const MARITIME_MODEL_OPTIONS = [
+  SHIP_MODELS.yiSunShin,
   SHIP_MODELS.destroyer,
   SHIP_MODELS.carrier,
+  SHIP_MODELS.tanker,
   SHIP_MODELS.submarine,
 ];
 
+const ALL_MODEL_OPTIONS = [
+  ...AIR_MODEL_OPTIONS,
+  ...GROUND_MODEL_OPTIONS,
+  ...FIRE_MODEL_OPTIONS,
+  ...DEFENSE_MODEL_OPTIONS,
+  ...MARITIME_MODEL_OPTIONS,
+];
+
 function buildSignature(asset: AssetExperienceSummary) {
-  return `${asset.className} ${asset.name}`.toLowerCase();
+  return buildAssetSignature(asset.className, asset.name);
 }
 
 function isDroneSignature(signature: string) {
   return /\b(drone|uav|mq-|rq-|global hawk|predator|reaper)\b/i.test(signature);
-}
-
-function isDefenseSignature(signature: string) {
-  return /\b(sam|patriot|nasams|thaad|cheongung|km-sam|m-sam|l-sam|pegasus|biho|vads|chaparral|radar|air defense|surface-to-air|surface to air|antiair|anti-air|interceptor)\b/i.test(
-    signature
-  );
 }
 
 function pickAircraftModel(signature: string) {
@@ -321,9 +373,7 @@ function pickAircraftModel(signature: string) {
   ) {
     return AIRCRAFT_MODELS.blackhawk;
   }
-  if (
-    /\b(kf-21|boramae)\b/i.test(signature)
-  ) {
+  if (/\b(kf-21|boramae)\b/i.test(signature)) {
     return AIRCRAFT_MODELS.kf21;
   }
   if (/\b(f-35|lightning|stealth|f-22|raptor|b-2)\b/i.test(signature)) {
@@ -349,11 +399,20 @@ function pickGroundModel(signature: string) {
   if (/\b(m577|command vehicle|command post)\b/i.test(signature)) {
     return TANK_MODELS.m577;
   }
-  if (/\b(km900|humvee|hmmwv|wheeled|armored car)\b/i.test(signature)) {
+  if (/\b(k21|ifv|bmp|bradley|warrior)\b/i.test(signature)) {
+    return TANK_MODELS.k21;
+  }
+  if (/\b(m1126|stryker|lav|wheeled apc|wheeled ifv)\b/i.test(signature)) {
+    return TANK_MODELS.stryker;
+  }
+  if (/\b(km900|humvee|hmmwv|armored car)\b/i.test(signature)) {
     return TANK_MODELS.km900;
   }
   if (/\b(m113|aavp|apc)\b/i.test(signature)) {
     return TANK_MODELS.m113;
+  }
+  if (/\b(k2|k1|k1a1|k1a2|black panther|mbt)\b/i.test(signature)) {
+    return TANK_MODELS.k2;
   }
   return TANK_MODELS.trackedArmor;
 }
@@ -361,6 +420,14 @@ function pickGroundModel(signature: string) {
 function pickFiresModel(signature: string) {
   if (/\b(patriot|mim-104)\b/i.test(signature)) {
     return ARTILLERY_MODELS.patriot;
+  }
+  if (
+    /\b(nasams)\b/i.test(signature) &&
+    /\b(battery|launcher|system|radar|air defense|surface-to-air|surface to air)\b/i.test(
+      signature
+    )
+  ) {
+    return ARTILLERY_MODELS.nasamsBattery;
   }
   if (/\b(nasams)\b/i.test(signature)) {
     return ARTILLERY_MODELS.nasams;
@@ -378,7 +445,9 @@ function pickFiresModel(signature: string) {
   if (/\b(m109|paladin)\b/i.test(signature)) {
     return ARTILLERY_MODELS.paladin;
   }
-  if (/\b(d-30|d30|fh70|m777|towed howitzer|towed artillery)\b/i.test(signature)) {
+  if (
+    /\b(d-30|d30|fh70|m777|towed howitzer|towed artillery)\b/i.test(signature)
+  ) {
     return ARTILLERY_MODELS.d30;
   }
   if (/\b(roketsan)\b/i.test(signature)) {
@@ -397,18 +466,32 @@ function pickFiresModel(signature: string) {
 }
 
 function pickDefenseModel(signature: string) {
+  if (isConceptOnlyDefenseAssetSignature(signature)) {
+    return null;
+  }
   if (/\b(patriot|mim-104)\b/i.test(signature)) {
     return ARTILLERY_MODELS.patriot;
   }
   if (/\b(nasams)\b/i.test(signature)) {
-    return ARTILLERY_MODELS.nasams;
+    return /\b(battery|launcher|system|radar)\b/i.test(signature)
+      ? ARTILLERY_MODELS.nasamsBattery
+      : ARTILLERY_MODELS.nasams;
   }
-  if (/\b(thaad|l-sam)\b/i.test(signature)) {
+  if (/\b(thaad)\b/i.test(signature)) {
     return ARTILLERY_MODELS.thaad;
   }
-  if (/\b(hyunmoo|ballistic|launcher)\b/i.test(signature)) {
-    return ARTILLERY_MODELS.hyunmoo;
+
+  const proxyProfileId = inferDefenseProxyVisualProfileId(signature);
+  if (proxyProfileId === "artillery-patriot") {
+    return ARTILLERY_MODELS.patriot;
   }
+  if (proxyProfileId === "artillery-nasams-battery") {
+    return ARTILLERY_MODELS.nasamsBattery;
+  }
+  if (proxyProfileId === "artillery-thaad") {
+    return ARTILLERY_MODELS.thaad;
+  }
+
   return ARTILLERY_MODELS.patriot;
 }
 
@@ -418,6 +501,16 @@ function pickShipModel(signature: string) {
   }
   if (/\b(carrier|dokdo|amphibious|lhd)\b/i.test(signature)) {
     return SHIP_MODELS.carrier;
+  }
+  if (/\b(sejong|yi sun|yi-sun|chungmugong|kdx)\b/i.test(signature)) {
+    return SHIP_MODELS.yiSunShin;
+  }
+  if (
+    /\b(tanker|oiler|replenishment|supply ship|support ship|cargo ship)\b/i.test(
+      signature
+    )
+  ) {
+    return SHIP_MODELS.tanker;
   }
   return SHIP_MODELS.destroyer;
 }
@@ -459,9 +552,19 @@ function pickBaseModel(signature: string) {
 }
 
 export function getImmersiveExperienceModelOptions(
-  _asset: AssetExperienceSummary,
+  asset: AssetExperienceSummary,
   profile: ImmersiveExperienceProfile
 ) {
+  const signature = buildSignature(asset);
+
+  if (
+    asset.kind === "facility" &&
+    profile === "defense" &&
+    isConceptOnlyDefenseAssetSignature(signature)
+  ) {
+    return [];
+  }
+
   switch (profile) {
     case "ground":
       return GROUND_MODEL_OPTIONS;
@@ -476,7 +579,41 @@ export function getImmersiveExperienceModelOptions(
   }
 }
 
+export function getBundleModelById(modelId?: string) {
+  if (!modelId) {
+    return null;
+  }
+
+  return ALL_MODEL_OPTIONS.find((model) => model.id === modelId) ?? null;
+}
+
+function resolveAssetVisualModel(asset: AssetExperienceSummary) {
+  const entityType =
+    asset.kind === "weapon"
+      ? "weapon"
+      : asset.kind === "facility"
+        ? "facility"
+        : asset.kind === "ship"
+          ? "ship"
+          : asset.kind === "airbase"
+            ? "airbase"
+            : "aircraft";
+
+  return getBundleModelById(
+    resolveUnitVisualProfileId({
+      entityType,
+      className: asset.className,
+      name: asset.name,
+    })
+  );
+}
+
 export function selectAssetExperienceModel(asset: AssetExperienceSummary) {
+  const resolvedModel = resolveAssetVisualModel(asset);
+  if (resolvedModel) {
+    return resolvedModel;
+  }
+
   const signature = buildSignature(asset);
 
   if (asset.kind === "aircraft") {
@@ -486,7 +623,7 @@ export function selectAssetExperienceModel(asset: AssetExperienceSummary) {
     return pickShipModel(signature);
   }
   if (asset.kind === "weapon" || asset.kind === "facility") {
-    return isDefenseSignature(signature)
+    return isDefenseAssetSignature(signature)
       ? pickDefenseModel(signature)
       : pickFiresModel(signature);
   }
@@ -499,6 +636,24 @@ export function selectImmersiveExperienceModel(
   profile: ImmersiveExperienceProfile
 ) {
   const signature = buildSignature(asset);
+
+  if (
+    asset.kind === "facility" &&
+    profile === "defense" &&
+    isConceptOnlyDefenseAssetSignature(signature)
+  ) {
+    return null;
+  }
+
+  const resolvedModel = resolveAssetVisualModel(asset);
+  if (
+    resolvedModel &&
+    getImmersiveExperienceModelOptions(asset, profile).some(
+      (model) => model.id === resolvedModel.id
+    )
+  ) {
+    return resolvedModel;
+  }
 
   switch (profile) {
     case "ground":

@@ -3,11 +3,12 @@ import PatrolMission from "@/game/mission/PatrolMission";
 import StrikeMission from "@/game/mission/StrikeMission";
 import Airbase from "@/game/units/Airbase";
 import Aircraft from "@/game/units/Aircraft";
+import Army from "@/game/units/Army";
 import Facility from "@/game/units/Facility";
 import Ship from "@/game/units/Ship";
 import Weapon from "@/game/units/Weapon";
 
-type ScorableUnit = Aircraft | Ship | Facility | Airbase | Weapon;
+type ScorableUnit = Aircraft | Ship | Army | Facility | Airbase | Weapon;
 
 export const POINT_VALUES = {
   UNIT_DEFEATS_ENEMY: 50,
@@ -41,7 +42,7 @@ export function getKillScoreDelta(
 ): ScoreDelta {
   let actorDelta = 0;
 
-  if (victor instanceof Facility) {
+  if (victor instanceof Facility || victor instanceof Army) {
     actorDelta = POINT_VALUES.FACILITY_DEFEATS_ENEMY;
   } else if (victor && defeated instanceof Weapon) {
     actorDelta = POINT_VALUES.UNIT_SHOOT_DOWN_WEAPON;
@@ -50,7 +51,9 @@ export function getKillScoreDelta(
   }
 
   const targetDelta =
-    defeated instanceof Facility || defeated instanceof Airbase
+    defeated instanceof Facility ||
+    defeated instanceof Army ||
+    defeated instanceof Airbase
       ? POINT_VALUES.FACILITY_OR_AIRBASE_DEFEATED
       : POINT_VALUES.UNIT_DEFEATED;
 

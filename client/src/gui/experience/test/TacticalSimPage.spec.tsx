@@ -9,7 +9,7 @@ vi.mock("@/gui/experience/modelPreload", () => ({
 }));
 
 describe("TacticalSimPage", () => {
-  test("renders compact runtime controls with a 360 model entry point", async () => {
+  test("renders a model-first tactical control deck", async () => {
     const route: TacticalSimRoute = {
       asset: {
         kind: "facility",
@@ -33,22 +33,24 @@ describe("TacticalSimPage", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "360 모델" })
+      screen.getByRole("button", { name: "모델 집중" })
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "데모 재생" })
     ).toBeInTheDocument();
-    expect(screen.getByText("TODO")).toBeInTheDocument();
-    expect(screen.getByText("Demo Flow")).toBeInTheDocument();
-    expect(screen.queryByText("성공 기준")).not.toBeInTheDocument();
-    expect(screen.queryByText("작전 흐름")).not.toBeInTheDocument();
+    expect(screen.getByText("결심 체크")).toBeInTheDocument();
+    expect(screen.getByText("교전 흐름")).toBeInTheDocument();
+    expect(screen.queryByText("TODO")).not.toBeInTheDocument();
+    expect(screen.queryByText("Demo Flow")).not.toBeInTheDocument();
 
     await waitFor(() =>
       expect(
-        screen.getByRole("button", { name: "임무 시작" })
+        screen.getByRole("button", { name: "작전 투입" })
       ).not.toBeDisabled()
     );
 
-    expect(screen.getByText(/실제 3D 모델/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/방공 자산을 360도로 회전해 레이더와 발사기 방향을 확인합니다\./)
+    ).toBeInTheDocument();
   });
 });

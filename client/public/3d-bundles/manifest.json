@@ -26,6 +26,11 @@
       "path": "/3d-bundles/tank/models",
       "autoSyncTargets": []
     },
+    "infrastructure": {
+      "label": "Infrastructure Bundle",
+      "path": "/3d-bundles/infrastructure/models",
+      "autoSyncTargets": []
+    },
     "effects": {
       "label": "Effects Bundle",
       "path": "/3d-bundles/effects",

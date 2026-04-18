@@ -356,6 +356,7 @@ export default function App() {
     return (
       <ImmersiveExperiencePage
         route={immersiveRoute}
+        game={theGame}
         onBack={() => {
           if (
             immersiveRoute &&
@@ -384,6 +385,8 @@ export default function App() {
     return (
       <TacticalSimPage
         route={tacticalRoute}
+        game={theGame}
+        continueSimulation
         onBack={() => {
           if (tacticalRoute) {
             openImmersiveExperiencePage(

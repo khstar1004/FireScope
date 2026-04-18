@@ -228,6 +228,7 @@ export default function DragSelectionCard({
                   <Box sx={{ mt: 0.8 }}>
                     <FireRecommendationPanel
                       recommendation={selectedRecommendation}
+                      rerankerModel={game.getFocusFireRerankerState().model}
                       objectiveName={
                         priorities.find((entry) => entry.targetId === selectedTargetId)
                           ?.targetName ?? null

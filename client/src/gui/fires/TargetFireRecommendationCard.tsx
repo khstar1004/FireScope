@@ -6,6 +6,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import { CardContent, IconButton, Typography } from "@mui/material";
 import { colorPalette } from "@/utils/constants";
 import type { FocusFireRecommendation } from "@/game/Game";
+import type { FocusFireRerankerModel } from "@/game/focusFireReranker";
 import FireRecommendationPanel from "@/gui/fires/FireRecommendationPanel";
 
 interface TargetFireRecommendationCardProps {
@@ -15,6 +16,7 @@ interface TargetFireRecommendationCardProps {
   targetLatitude: number;
   targetLongitude: number;
   recommendation: FocusFireRecommendation | null;
+  rerankerModel: FocusFireRerankerModel;
   handleCloseOnMap: () => void;
 }
 
@@ -45,6 +47,7 @@ export default function TargetFireRecommendationCard({
   targetLatitude,
   targetLongitude,
   recommendation,
+  rerankerModel,
   handleCloseOnMap,
 }: Readonly<TargetFireRecommendationCardProps>) {
   const nodeRef = useRef(null);
@@ -86,6 +89,7 @@ export default function TargetFireRecommendationCard({
             </Typography>
             <FireRecommendationPanel
               recommendation={recommendation}
+              rerankerModel={rerankerModel}
               objectiveName={targetName}
               objectiveLatitude={targetLatitude}
               objectiveLongitude={targetLongitude}

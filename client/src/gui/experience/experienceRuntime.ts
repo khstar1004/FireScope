@@ -249,8 +249,7 @@ function buildGroundOperationDetails(
       return {
         operationalContext:
           "전진 보급 축을 지나는 호송대를 엄호하는 상황입니다. 매복 지점과 측방 위협을 먼저 열어야 후속 차량이 통과할 수 있습니다.",
-        commandersIntent:
-          `${modelLabel}이 선도 호송선 앞에서 측방 감시를 맡고, 근접 위협은 즉시 직사 화력으로 정리해 이동축을 끊기지 않게 유지합니다.`,
+        commandersIntent: `${modelLabel}이 선도 호송선 앞에서 측방 감시를 맡고, 근접 위협은 즉시 직사 화력으로 정리해 이동축을 끊기지 않게 유지합니다.`,
         readinessChecklist: [
           {
             title: "호송 축 확인",
@@ -287,8 +286,7 @@ function buildGroundOperationDetails(
           {
             id: "convoy-threat",
             title: "측방 위협 포착",
-            description:
-              "위협 큐를 넘기며 도로 측면 표적을 빠르게 고정합니다.",
+            description: "위협 큐를 넘기며 도로 측면 표적을 빠르게 고정합니다.",
             command: "next-target",
             delayMs: 1600,
           },
@@ -317,8 +315,7 @@ function buildGroundOperationDetails(
       return {
         operationalContext:
           "전술 지휘소를 보호하면서 감시 차량과 후방 화력 차량을 끊어야 하는 상황입니다. 빠른 표적 전환과 재배치가 핵심입니다.",
-        commandersIntent:
-          `${modelLabel}은 지휘소 전면에서 센서 역할을 수행하고, 지휘 차량을 노리는 고위협 표적은 유도탄으로 먼저 제거합니다.`,
+        commandersIntent: `${modelLabel}은 지휘소 전면에서 센서 역할을 수행하고, 지휘 차량을 노리는 고위협 표적은 유도탄으로 먼저 제거합니다.`,
         readinessChecklist: [
           {
             title: "지휘소 방어선 확인",
@@ -363,8 +360,7 @@ function buildGroundOperationDetails(
           {
             id: "cp-atgm",
             title: "유도탄 선제 제거",
-            description:
-              "보조 무장으로 장거리 고위협 표적을 먼저 제거합니다.",
+            description: "보조 무장으로 장거리 고위협 표적을 먼저 제거합니다.",
             command: "fire-support",
           },
           {
@@ -386,8 +382,7 @@ function buildGroundOperationDetails(
       return {
         operationalContext:
           "선도 기갑 전력이 돌파축을 여는 시연입니다. 장애물선과 교차 화력축을 짧은 템포로 정리해 후속 전력을 들이는 상황을 재현합니다.",
-        commandersIntent:
-          `${modelLabel}이 중앙 돌파축을 열고, 근접 위협은 주무장으로, 후방 화력 차량은 보조 유도탄으로 마무리해 축을 신속히 개방합니다.`,
+        commandersIntent: `${modelLabel}이 중앙 돌파축을 열고, 근접 위협은 주무장으로, 후방 화력 차량은 보조 유도탄으로 마무리해 축을 신속히 개방합니다.`,
         readinessChecklist: [
           {
             title: "돌파축 정렬",
@@ -461,8 +456,7 @@ function buildFiresOperationDetails(
       return {
         operationalContext:
           "적 포대의 발사 흔적을 포착한 뒤 반격 사격으로 바로 눌러야 하는 상황입니다. 사격 후 재배치 흐름까지 데모에 포함해야 합니다.",
-        commandersIntent:
-          `${modelLabel}은 발사 징후를 잡는 즉시 살보를 짧게 끊어 쏘고, 전과 확인 뒤 다시 통제 탑뷰로 복귀해 다음 사격 준비를 이어갑니다.`,
+        commandersIntent: `${modelLabel}은 발사 징후를 잡는 즉시 살보를 짧게 끊어 쏘고, 전과 확인 뒤 다시 통제 탑뷰로 복귀해 다음 사격 준비를 이어갑니다.`,
         readinessChecklist: [
           {
             title: "발사 원점 식별",
@@ -529,8 +523,7 @@ function buildFiresOperationDetails(
       return {
         operationalContext:
           "넓은 목표 구역에 다연장 화력을 집중해 적 집결지를 눌러 두는 데모입니다. 단발보다 살보 면적과 폭발 리듬을 살리는 구성이 중요합니다.",
-        commandersIntent:
-          `${modelLabel}이 목표 격자 전체를 덮는 방향으로 화력을 분산하고, 착탄 반경과 후속 폭발을 연속적으로 보여 줍니다.`,
+        commandersIntent: `${modelLabel}이 목표 격자 전체를 덮는 방향으로 화력을 분산하고, 착탄 반경과 후속 폭발을 연속적으로 보여 줍니다.`,
         readinessChecklist: [
           {
             title: "목표 구역 설정",
@@ -598,8 +591,7 @@ function buildFiresOperationDetails(
       return {
         operationalContext:
           "종심 지휘소와 보급선을 장거리 화력으로 끊는 상황입니다. 목표 격자 지정부터 발사체 추적, 착탄 평가까지 한 흐름으로 이어져야 합니다.",
-        commandersIntent:
-          `${modelLabel}이 발사 진지에서 종심 표적을 타격하고, 발사체 추적과 폭발 확대로 전과를 한 번에 납득시키는 데모를 만듭니다.`,
+        commandersIntent: `${modelLabel}이 발사 진지에서 종심 표적을 타격하고, 발사체 추적과 폭발 확대로 전과를 한 번에 납득시키는 데모를 만듭니다.`,
         readinessChecklist: [
           {
             title: "격자 우선순위 정리",
@@ -636,8 +628,7 @@ function buildFiresOperationDetails(
           {
             id: "deep-target",
             title: "지휘소 표적 지정",
-            description:
-              "다음 위협을 넘기며 종심 핵심 표적을 고정합니다.",
+            description: "다음 위협을 넘기며 종심 핵심 표적을 고정합니다.",
             command: "next-target",
             delayMs: 1600,
           },
@@ -673,8 +664,7 @@ function buildDefenseOperationDetails(
       return {
         operationalContext:
           "핵심 거점 상공에 근접 침투하는 드론과 헬기, 순항 위협을 짧은 거리에서 끊는 상황입니다. 레이더 탐지보다 즉응 대응 템포가 핵심입니다.",
-        commandersIntent:
-          `${modelLabel}은 보호 구역 바로 바깥에서 근접 표적을 우선 요격하고, 잔여 위협은 장거리 발사 없이 빠르게 정리해 거점 상공을 비웁니다.`,
+        commandersIntent: `${modelLabel}은 보호 구역 바로 바깥에서 근접 표적을 우선 요격하고, 잔여 위협은 장거리 발사 없이 빠르게 정리해 거점 상공을 비웁니다.`,
         readinessChecklist: [
           {
             title: "보호 구역 강조",
@@ -711,16 +701,14 @@ function buildDefenseOperationDetails(
           {
             id: "pd-target",
             title: "침투 표적 고정",
-            description:
-              "다음 위협으로 드론 또는 헬기를 최상단에 고정합니다.",
+            description: "다음 위협으로 드론 또는 헬기를 최상단에 고정합니다.",
             command: "next-target",
             delayMs: 1600,
           },
           {
             id: "pd-fire",
             title: "근접 요격",
-            description:
-              "주무장으로 근접 방공 장면을 먼저 만듭니다.",
+            description: "주무장으로 근접 방공 장면을 먼저 만듭니다.",
             command: "fire-primary",
           },
           {
@@ -741,8 +729,7 @@ function buildDefenseOperationDetails(
       return {
         operationalContext:
           "전방 감시 자산이 먼 거리에서 접근축을 포착하고 후방 배터리에 조기 경보를 넘기는 상황입니다. 탐지와 큐잉의 존재감을 살려야 합니다.",
-        commandersIntent:
-          `${modelLabel}은 전방 레이더 노드로서 위협을 조기에 식별하고, 위협 큐를 통해 후방 요격 결심이 빠르게 이어지도록 합니다.`,
+        commandersIntent: `${modelLabel}은 전방 레이더 노드로서 위협을 조기에 식별하고, 위협 큐를 통해 후방 요격 결심이 빠르게 이어지도록 합니다.`,
         readinessChecklist: [
           {
             title: "감시 링 확인",
@@ -810,8 +797,7 @@ function buildDefenseOperationDetails(
       return {
         operationalContext:
           "장거리와 근접 방어층이 함께 작동해 핵심 보호 구역을 지켜내는 상황입니다. 탐지, 우선순위, 요격, 재평가의 결심 고리가 또렷해야 합니다.",
-        commandersIntent:
-          `${modelLabel}이 장단거리 위협을 분리해 우선순위를 정하고, 장거리 요격으로 외곽을 비운 뒤 근접 방어로 누수를 차단합니다.`,
+        commandersIntent: `${modelLabel}이 장단거리 위협을 분리해 우선순위를 정하고, 장거리 요격으로 외곽을 비운 뒤 근접 방어로 누수를 차단합니다.`,
         readinessChecklist: [
           {
             title: "방어 계층 분리",
@@ -882,8 +868,7 @@ function buildDefaultOperationDetails(
 ): ExperienceOperationDetailSet {
   return {
     operationalContext: `${option.note} 기준으로 ${modelLabel}의 운용 흐름을 입체적으로 보여주는 브리프입니다.`,
-    commandersIntent:
-      `${modelLabel}을 선택한 작전 모드에 맞게 투입하고, 핵심 표적과 임무 구역을 짧은 장면으로 납득시키는 데 집중합니다.`,
+    commandersIntent: `${modelLabel}을 선택한 작전 모드에 맞게 투입하고, 핵심 표적과 임무 구역을 짧은 장면으로 납득시키는 데 집중합니다.`,
     readinessChecklist: [
       {
         title: "모드 확인",
@@ -1198,7 +1183,8 @@ export function buildExperienceMissionPlan(
             objective: "남은 위협을 정리하고 보호 구역을 지켜냅니다.",
             instruction: "레이더 탑뷰로 복귀해 잔여 위협을 점검합니다.",
             cameraCue: "radar",
-            successHint: "모든 웨이브를 막으면 자유 방공 시뮬레이션으로 넘어갑니다.",
+            successHint:
+              "모든 웨이브를 막으면 자유 방공 시뮬레이션으로 넘어갑니다.",
           },
         ],
         operationalContext: operationDetails.operationalContext,
@@ -1293,7 +1279,8 @@ export function buildExperienceMissionPlan(
           },
           {
             title: "접촉 표 분류",
-            description: "수상 접촉과 공중 접촉을 구분해 위협 우선순위를 정합니다.",
+            description:
+              "수상 접촉과 공중 접촉을 구분해 위협 우선순위를 정합니다.",
           },
           {
             title: "무장 전환 계획",
@@ -1427,7 +1414,8 @@ export function buildExperienceMissionPlan(
           },
           {
             title: "스크램블 우선순위",
-            description: "어떤 자산을 먼저 출격시킬지 위협 축 기준으로 정합니다.",
+            description:
+              "어떤 자산을 먼저 출격시킬지 위협 축 기준으로 정합니다.",
           },
           {
             title: "기지 방호 준비",
@@ -1605,6 +1593,24 @@ export function getExperienceModelRuntime(
   const defaults = getProfileModelDefaults(selection, profile);
 
   switch (selection.id) {
+    case "tank-k2":
+      return {
+        ...defaults,
+        movementType: "tracked",
+        scale: 1.78,
+        minimumPixelSize: 86,
+        maxSpeedMps: 18,
+        chaseDistance: 36,
+      };
+    case "tank-k21":
+      return {
+        ...defaults,
+        movementType: "tracked",
+        scale: 1.66,
+        minimumPixelSize: 82,
+        maxSpeedMps: 17,
+        chaseDistance: 33,
+      };
     case "tank-km900":
       return {
         ...defaults,
@@ -1619,12 +1625,29 @@ export function getExperienceModelRuntime(
         scale: 1.42,
         chaseDistance: 30,
       };
+    case "tank-stryker":
+      return {
+        ...defaults,
+        movementType: "wheeled",
+        scale: 1.52,
+        minimumPixelSize: 84,
+        maxSpeedMps: 18,
+        chaseDistance: 32,
+      };
     case "artillery-patriot":
       return {
         ...defaults,
         scale: 1.95,
         minimumPixelSize: 96,
         topDownHeight: 1200,
+      };
+    case "artillery-nasams-battery":
+      return {
+        ...defaults,
+        scale: 2.02,
+        minimumPixelSize: 98,
+        chaseDistance: 40,
+        topDownHeight: 1220,
       };
     case "artillery-nasams":
       return {
@@ -1661,6 +1684,23 @@ export function getExperienceModelRuntime(
         scale: 2.15,
         chaseDistance: 90,
         operatorHeight: 12,
+      };
+    case "ship-yi-sun-shin":
+      return {
+        ...defaults,
+        scale: 2.35,
+        minimumPixelSize: 110,
+        chaseDistance: 118,
+        topDownHeight: 1520,
+      };
+    case "ship-tanker":
+      return {
+        ...defaults,
+        scale: 2.72,
+        minimumPixelSize: 122,
+        maxSpeedMps: 13,
+        chaseDistance: 136,
+        topDownHeight: 1600,
       };
     case "drone-animated":
     case "drone-quad":

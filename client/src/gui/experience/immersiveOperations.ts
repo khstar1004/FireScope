@@ -143,6 +143,10 @@ function buildCountLabel(selectedModels: BundleModelSelection[]) {
   return `${selectedModels.length} Selected`;
 }
 
+function buildPrimaryModelLabel(selectedModels: BundleModelSelection[]) {
+  return selectedModels[0]?.label ?? "선택 모델";
+}
+
 export function getImmersiveOperationOptions(
   profile: ImmersiveExperienceProfile
 ) {
@@ -161,28 +165,23 @@ export function buildImmersiveModeBrief(
   selectedModels: BundleModelSelection[]
 ) {
   const option = getOperationOption(profile, operationModeId);
+  const primaryModelLabel = buildPrimaryModelLabel(selectedModels);
+  const compareTail =
+    selectedModels.length > 1
+      ? ` 비교 ${selectedModels.length}종으로 ${buildSelectionSummary(selectedModels)} 구성을 함께 읽습니다.`
+      : "";
 
   switch (profile) {
     case "ground":
-      return `${option.note}. 현재 ${buildCountLabel(
-        selectedModels
-      )} 기준으로 차체와 기동축을 비교합니다.`;
+      return `${option.note}. ${primaryModelLabel} 기준으로 차체 높이, 포탑 축, 돌파 또는 엄호 기동선을 먼저 확인합니다.${compareTail}`;
     case "fires":
-      return `${option.note}. 현재 ${buildCountLabel(
-        selectedModels
-      )} 기준으로 포대와 발사축을 비교합니다.`;
+      return `${option.note}. ${primaryModelLabel} 기준으로 포대 배치, 발사축, 착탄 리듬을 구체적으로 검토합니다.${compareTail}`;
     case "defense":
-      return `${option.note}. 현재 ${buildCountLabel(
-        selectedModels
-      )} 기준으로 방어 계층과 센서 구역을 비교합니다.`;
+      return `${option.note}. ${primaryModelLabel} 기준으로 레이더 감시축, 발사기 방향, 계층 방어 간격을 읽습니다.${compareTail}`;
     case "maritime":
-      return `${option.note}. 현재 ${buildCountLabel(
-        selectedModels
-      )} 기준으로 전투단 구성을 비교합니다.`;
+      return `${option.note}. ${primaryModelLabel} 기준으로 전투단 실루엣과 호위 간격을 정리합니다.${compareTail}`;
     case "base":
-      return `${option.note}. 현재 ${buildCountLabel(
-        selectedModels
-      )} 기준으로 항공 자산 라인업을 비교합니다.`;
+      return `${option.note}. ${primaryModelLabel} 기준으로 출격 대기 라인과 방호 배치를 확인합니다.${compareTail}`;
   }
 }
 

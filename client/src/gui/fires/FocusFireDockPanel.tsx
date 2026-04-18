@@ -10,6 +10,7 @@ import {
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import type Game from "@/game/Game";
+import { describeFocusFireRerankerModel } from "@/game/focusFireReranker";
 import FireRecommendationPanel from "@/gui/fires/FireRecommendationPanel";
 import { buildFocusFireInsight } from "@/gui/analysis/operationInsight";
 import { ToastContext } from "@/gui/contextProviders/contexts/ToastContext";
@@ -91,6 +92,9 @@ export default function FocusFireDockPanel({
   const focusFireInsight = buildFocusFireInsight(focusFireSummary);
   const focusFireRecommendation = focusFireSummary.recommendation;
   const focusFireRerankerState = game.getFocusFireRerankerState();
+  const focusFireRerankerDescriptor = describeFocusFireRerankerModel(
+    focusFireRerankerState.model
+  );
   const dockStage = resolveFocusFireDockStage(focusFireSummary);
   const focusFireRecommendationTelemetry = game.getFocusFireRecommendationTelemetry(
     game.currentSideId || undefined
@@ -648,6 +652,7 @@ export default function FocusFireDockPanel({
       <Box sx={sectionStyle}>
         <FireRecommendationPanel
           recommendation={focusFireRecommendation}
+          rerankerModel={focusFireRerankerState.model}
           objectiveName={focusFireSummary.objectiveName}
           objectiveLatitude={focusFireSummary.objectiveLatitude}
           objectiveLongitude={focusFireSummary.objectiveLongitude}
@@ -672,21 +677,30 @@ export default function FocusFireDockPanel({
           <Chip
             size="small"
             variant="outlined"
-            label={`모델 ${focusFireRerankerState.model.source}`}
+            label={focusFireRerankerDescriptor.displayName}
           />
         </Stack>
         <Typography sx={helperTextStyle}>
-          모델{" "}
-          {focusFireRerankerState.model.modelFamily === "tree-ensemble"
-            ? "트리"
-            : "선형"}{" "}
-          / {focusFireRerankerState.model.source} · v
+          구조 {focusFireRerankerDescriptor.familyLabel} · 획득{" "}
+          {focusFireRerankerDescriptor.originLabel} · 학습{" "}
+          {focusFireRerankerDescriptor.sourceLabel}
+        </Typography>
+        <Typography sx={helperTextStyle}>
+          트레이너 {focusFireRerankerDescriptor.trainerLabel} · v
           {focusFireRerankerState.model.version} · 표본{" "}
           {focusFireRerankerState.model.sampleCount}
         </Typography>
         <Typography sx={helperTextStyle}>
+          저장 {focusFireRerankerDescriptor.storageLabel}
+        </Typography>
+        <Typography sx={helperTextStyle}>
+          다운로드 {focusFireRerankerDescriptor.downloadLabel} · 최근 학습{" "}
+          {focusFireRerankerDescriptor.trainedAtLabel}
+        </Typography>
+        <Typography sx={helperTextStyle}>
           운용자 {focusFireRerankerState.model.operatorFeedbackCount} / 규칙{" "}
-          {focusFireRerankerState.model.ruleSeedCount}
+          {focusFireRerankerState.model.ruleSeedCount} · 주요 입력{" "}
+          {focusFireRerankerDescriptor.topFeatureLabels.join(" / ")}
         </Typography>
         <Stack
           direction="row"

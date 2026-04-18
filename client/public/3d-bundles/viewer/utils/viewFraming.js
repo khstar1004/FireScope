@@ -107,6 +107,26 @@ const DEFAULT_MODEL_ROTATION = [0, 0, 0];
 const DEFAULT_MODEL_OFFSET = [0, 0, 0];
 
 const MODEL_PRESET_OVERRIDES = {
+  "tank-k2": {
+    targetSizeMultiplier: 1.12,
+    paddingMultiplier: 1.1,
+    focusHeight: 0.46,
+    cameraVector: [8.4, 3.9, 9.6],
+    exposureMultiplier: 1.04,
+    keyLightMultiplier: 1.08,
+  },
+  "tank-k21": {
+    targetSizeMultiplier: 1.04,
+    paddingMultiplier: 1.08,
+    focusHeight: 0.5,
+    cameraVector: [7.9, 4.1, 9.2],
+  },
+  "tank-stryker": {
+    targetSizeMultiplier: 1.02,
+    paddingMultiplier: 1.06,
+    focusHeight: 0.48,
+    cameraVector: [7.7, 4.1, 9.4],
+  },
   "artillery-k9": {
     targetSizeMultiplier: 1.08,
     paddingMultiplier: 1.18,
@@ -132,6 +152,27 @@ const MODEL_PRESET_OVERRIDES = {
     ambientLightMultiplier: 1.06,
     keyLightMultiplier: 1.12,
     rimLightMultiplier: 1.22,
+  },
+  "artillery-nasams-battery": {
+    targetSizeMultiplier: 1.16,
+    paddingMultiplier: 1.22,
+    focusHeight: 0.46,
+    cameraVector: [10.2, 4.7, 11.4],
+    exposureMultiplier: 1.05,
+    ambientLightMultiplier: 1.04,
+    keyLightMultiplier: 1.1,
+  },
+  "ship-yi-sun-shin": {
+    targetSizeMultiplier: 1.12,
+    paddingMultiplier: 1.12,
+    focusHeight: 0.38,
+    cameraVector: [10.6, 4.8, 13.3],
+  },
+  "ship-tanker": {
+    targetSizeMultiplier: 1.18,
+    paddingMultiplier: 1.18,
+    focusHeight: 0.36,
+    cameraVector: [11.1, 4.6, 13.9],
   },
 };
 

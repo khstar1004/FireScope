@@ -35,7 +35,7 @@ import {
 import type { FlightSimBattleSpectatorState } from "@/gui/flightSim/battleSpectatorState";
 
 const FLIGHT_SIM_ENTRY = "/flight-sim/index.html";
-const FLIGHT_SIM_REVISION = "20260416-battle-spectator-tactical-ui-v5";
+const FLIGHT_SIM_REVISION = "20260418-battle-spectator-trajectory-v6";
 
 type AssetState = "checking" | "ready" | "missing";
 type CraftMode = "jet" | "drone";
@@ -85,6 +85,23 @@ type BattleSpectatorTempoRow = {
   recentLaunches: number;
   recentImpacts: number;
   targetName: string | null;
+};
+type BattleSpectatorTrajectoryRow = {
+  weapon: BattleSpectatorWeaponSnapshot;
+  launcherName: string;
+  targetName: string | null;
+  targetPoint:
+    | {
+        longitude: number;
+        latitude: number;
+        altitudeMeters: number;
+      }
+    | null;
+  totalDistanceKm: number | null;
+  remainingDistanceKm: number | null;
+  progressPercent: number | null;
+  phaseLabel: string;
+  targetTypeLabel: string;
 };
 type FlightSimRuntimeInfo = {
   mapProvider?: "initializing" | "vworld-webgl" | "cesium-fallback";
@@ -157,6 +174,11 @@ const BATTLE_SPECTATOR_LOD_OPTIONS: Array<{
     description: "마커 위주 경량 관전",
   },
 ];
+
+const TRAJECTORY_WEAPON_SIGNATURE =
+  /\b(aim-|agm-|asm|sam|aam|atgm|jdam|jassm|tomahawk|hyunmoo|guided|missile|rocket)\b/i;
+const NON_TRAJECTORY_WEAPON_SIGNATURE =
+  /\b(shell|round|bullet|cannon|gun|30mm|20mm|40mm|57mm|76mm|90mm|105mm|120mm|125mm|127mm|130mm|152mm|155mm)\b/i;
 
 function resolveInitialJetCraftId(initialCraft?: string): JetCraftId {
   return isJetCraftId(initialCraft) ? initialCraft : DEFAULT_JET_CRAFT_ID;
@@ -371,7 +393,7 @@ const battleSpectatorCopy = {
   overline: "전장 3D 관전 모드",
   title: "전장 3D 관전",
   description:
-    "현재 시나리오의 유닛과 비행 중 탄체를 3D 지형 위에서 실시간으로 관전합니다. 추적 대상, 위협 상위 유닛, 최근 교전을 오가며 전장 흐름을 빠르게 확인할 수 있습니다.",
+    "현재 시나리오의 유닛, 미사일 궤적, 최근 교전선을 3D 지형 위에서 실시간으로 관전합니다. 추적 대상, 위협 상위 유닛, 최근 교전을 오가며 전장 흐름을 빠르게 확인할 수 있습니다.",
   controls: [
     "`마우스 드래그`: 시야 회전",
     "`마우스 휠`: 확대 / 축소",
@@ -388,10 +410,12 @@ function buildBattleSpectatorStats(state: BattleSpectatorState) {
 
   return {
     aircraft: state.units.filter((unit) => unit.entityType === "aircraft").length,
-    facilities: state.units.filter((unit) => unit.entityType === "facility")
-      .length,
+    facilities: state.units.filter(
+      (unit) => unit.entityType === "facility" || unit.entityType === "army"
+    ).length,
     airbases: state.units.filter((unit) => unit.entityType === "airbase").length,
     ships: state.units.filter((unit) => unit.entityType === "ship").length,
+    groundUnits: state.units.filter((unit) => unit.groundUnit).length,
     weaponsInFlight: state.weapons.length,
     sides: sides.size,
   };
@@ -616,6 +640,7 @@ function buildBattleSpectatorSideTrendHistoryEntry(
       case "aircraft":
         side.aircraftCount += 1;
         break;
+      case "army":
       case "facility":
         side.facilityCount += 1;
         break;
@@ -982,6 +1007,8 @@ function formatBattleSpectatorEntityType(entityType: BattleSpectatorEntityType) 
   switch (entityType) {
     case "aircraft":
       return "항공";
+    case "army":
+      return "지상군";
     case "facility":
       return "지상시설";
     case "airbase":
@@ -1117,6 +1144,213 @@ function resolveBattleSpectatorSideJumpPoint(
     point: resolveBattleSpectatorUnitJumpPoint(representativeUnit),
     followTargetId: `unit:${representativeUnit.id}`,
   };
+}
+
+function clampBattleSpectatorValue(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function distanceKmBetweenBattleSpectatorPoints(
+  source: { longitude: number; latitude: number } | null | undefined,
+  target: { longitude: number; latitude: number } | null | undefined
+) {
+  if (
+    !source ||
+    !target ||
+    !Number.isFinite(source.longitude) ||
+    !Number.isFinite(source.latitude) ||
+    !Number.isFinite(target.longitude) ||
+    !Number.isFinite(target.latitude)
+  ) {
+    return null;
+  }
+
+  const earthRadiusKm = 6371;
+  const latitudeDeltaRadians =
+    ((target.latitude - source.latitude) * Math.PI) / 180;
+  const longitudeDeltaRadians =
+    ((target.longitude - source.longitude) * Math.PI) / 180;
+  const sourceLatitudeRadians = (source.latitude * Math.PI) / 180;
+  const targetLatitudeRadians = (target.latitude * Math.PI) / 180;
+  const haversine =
+    Math.sin(latitudeDeltaRadians / 2) ** 2 +
+    Math.cos(sourceLatitudeRadians) *
+      Math.cos(targetLatitudeRadians) *
+      Math.sin(longitudeDeltaRadians / 2) ** 2;
+
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+function isBattleSpectatorTrajectoryWeapon(weapon: BattleSpectatorWeaponSnapshot) {
+  if (
+    weapon.modelId === "weapon-air-to-air-missile" ||
+    weapon.modelId === "weapon-surface-missile"
+  ) {
+    return true;
+  }
+  if (weapon.modelId === "weapon-artillery-shell") {
+    return false;
+  }
+
+  const signature = `${weapon.className} ${weapon.name}`;
+  if (NON_TRAJECTORY_WEAPON_SIGNATURE.test(signature)) {
+    return false;
+  }
+
+  return TRAJECTORY_WEAPON_SIGNATURE.test(signature);
+}
+
+function formatBattleSpectatorDistanceKm(distanceKm: number | null) {
+  if (distanceKm === null || !Number.isFinite(distanceKm)) {
+    return "거리 미상";
+  }
+
+  return distanceKm >= 10
+    ? `${distanceKm.toFixed(0)}km`
+    : `${distanceKm.toFixed(1)}km`;
+}
+
+function formatBattleSpectatorRangeNm(rangeNm: number) {
+  return `${Math.round(Math.max(0, rangeNm || 0))}nm`;
+}
+
+function formatBattleSpectatorFuelFraction(fuelFraction?: number) {
+  if (typeof fuelFraction !== "number" || !Number.isFinite(fuelFraction)) {
+    return "미상";
+  }
+
+  return `${Math.round(clampBattleSpectatorValue(fuelFraction, 0, 1) * 100)}%`;
+}
+
+function resolveBattleSpectatorOverviewPoint(state?: BattleSpectatorState) {
+  if (!state) {
+    return null;
+  }
+
+  if (hasFiniteBattleSpectatorPoint(state.centerLongitude, state.centerLatitude)) {
+    return {
+      longitude: state.centerLongitude as number,
+      latitude: state.centerLatitude as number,
+      altitudeMeters: Math.max(
+        8200,
+        5600 + state.units.length * 110 + state.weapons.length * 220
+      ),
+    };
+  }
+
+  const fallbackJumpPoint = resolveBattleSpectatorJumpPoint(state);
+  if (!fallbackJumpPoint) {
+    return null;
+  }
+
+  return {
+    longitude: fallbackJumpPoint.longitude,
+    latitude: fallbackJumpPoint.latitude,
+    altitudeMeters: Math.max(7600, fallbackJumpPoint.altitudeMeters + 2600),
+  };
+}
+
+function buildBattleSpectatorTrajectoryRows(
+  state: BattleSpectatorState | undefined,
+  allUnitsById: Map<string, BattleSpectatorUnitSnapshot>
+) {
+  if (!state) {
+    return [] as BattleSpectatorTrajectoryRow[];
+  }
+
+  return state.weapons
+    .filter((weapon) => isBattleSpectatorTrajectoryWeapon(weapon))
+    .map((weapon) => {
+      const targetUnit =
+        weapon.targetId ? allUnitsById.get(weapon.targetId) ?? null : null;
+      const targetPoint =
+        typeof weapon.targetLongitude === "number" &&
+        typeof weapon.targetLatitude === "number"
+          ? {
+              longitude: weapon.targetLongitude,
+              latitude: weapon.targetLatitude,
+              altitudeMeters: targetUnit?.altitudeMeters ?? 0,
+            }
+          : targetUnit
+            ? {
+                longitude: targetUnit.longitude,
+                latitude: targetUnit.latitude,
+                altitudeMeters: targetUnit.altitudeMeters,
+              }
+            : null;
+      const launchPoint = {
+        longitude: weapon.launchLongitude,
+        latitude: weapon.launchLatitude,
+      };
+      const currentPoint = {
+        longitude: weapon.longitude,
+        latitude: weapon.latitude,
+      };
+      const totalDistanceKm = distanceKmBetweenBattleSpectatorPoints(
+        launchPoint,
+        targetPoint
+      );
+      const remainingDistanceKm = distanceKmBetweenBattleSpectatorPoints(
+        currentPoint,
+        targetPoint
+      );
+      const traveledDistanceKm = distanceKmBetweenBattleSpectatorPoints(
+        launchPoint,
+        currentPoint
+      );
+      const progressPercent =
+        totalDistanceKm && totalDistanceKm > 0 && traveledDistanceKm !== null
+          ? clampBattleSpectatorValue(
+              (traveledDistanceKm / totalDistanceKm) * 100,
+              0,
+              100
+            )
+          : null;
+      const phaseLabel =
+        progressPercent === null
+          ? "탐색"
+          : progressPercent >= 82
+            ? "종말"
+            : progressPercent >= 45
+              ? "중간"
+              : "초기";
+      const targetTypeLabel =
+        targetUnit?.entityType === "aircraft"
+          ? "공중 표적"
+          : targetUnit?.entityType === "ship"
+            ? "해상 표적"
+            : targetUnit
+              ? "지상 표적"
+              : targetPoint
+                ? "좌표 표적"
+                : "표적 미상";
+
+      return {
+        weapon,
+        launcherName: weapon.launcherName,
+        targetName: targetUnit?.name ?? null,
+        targetPoint,
+        totalDistanceKm,
+        remainingDistanceKm,
+        progressPercent,
+        phaseLabel,
+        targetTypeLabel,
+      };
+    })
+    .sort((left, right) => {
+      const leftRemaining = left.remainingDistanceKm ?? Number.POSITIVE_INFINITY;
+      const rightRemaining = right.remainingDistanceKm ?? Number.POSITIVE_INFINITY;
+      if (leftRemaining !== rightRemaining) {
+        return leftRemaining - rightRemaining;
+      }
+      const leftProgress = left.progressPercent ?? -1;
+      const rightProgress = right.progressPercent ?? -1;
+      if (leftProgress !== rightProgress) {
+        return rightProgress - leftProgress;
+      }
+      return right.weapon.speedKts - left.weapon.speedKts;
+    })
+    .slice(0, 4);
 }
 
 function buildBattleSpectatorSelectedUnitInsight(
@@ -1477,6 +1711,8 @@ export default function FlightSimPage({
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const simulationOutcomeRequestIdRef = useRef(0);
   const battleSpectatorAutoCaptureKeyRef = useRef("");
+  const battleSpectatorInitialJumpScenarioRef = useRef("");
+  const battleSpectatorInitialFollowSeededRef = useRef(false);
   const battleSpectatorStateSignatureRef = useRef("");
   const battleSpectatorRuntimeSignatureRef = useRef("");
   const [assetState, setAssetState] = useState<AssetState>("checking");
@@ -1489,16 +1725,15 @@ export default function FlightSimPage({
   const [flightSimFrameReady, setFlightSimFrameReady] = useState(false);
   const battleSpectatorEnabled = battleSpectator !== undefined;
   const focusFireAirwatchEnabled = hasFocusFireObjective(focusFireAirwatch);
+  const initialBattleSpectatorState = battleSpectatorEnabled
+    ? buildBattleSpectatorState(game, continueSimulation, battleSpectator)
+    : undefined;
   const [battleSpectatorPanelOpen, setBattleSpectatorPanelOpen] = useState(
     () => !battleSpectatorEnabled || resolveInitialBattleSpectatorPanelOpen()
   );
   const [currentBattleSpectator, setCurrentBattleSpectator] = useState<
     BattleSpectatorState | undefined
-  >(() =>
-    battleSpectatorEnabled
-      ? buildBattleSpectatorState(game, continueSimulation, battleSpectator)
-      : undefined
-  );
+  >(() => initialBattleSpectatorState);
   const [currentFocusFireAirwatch, setCurrentFocusFireAirwatch] = useState<
     FocusFireAirwatchState | undefined
   >(() =>
@@ -1509,7 +1744,11 @@ export default function FlightSimPage({
   const [battleSpectatorSideFilter, setBattleSpectatorSideFilter] =
     useState<string>("all");
   const [battleSpectatorFollowTargetId, setBattleSpectatorFollowTargetId] =
-    useState("");
+    useState(
+      () =>
+        resolveBattleSpectatorJumpPoint(initialBattleSpectatorState)
+          ?.followTargetId ?? ""
+    );
   const [battleSpectatorLodLevel, setBattleSpectatorLodLevel] =
     useState<BattleSpectatorLodLevel>("balanced");
   const [battleSpectatorAutoCapture, setBattleSpectatorAutoCapture] =
@@ -1649,6 +1888,18 @@ export default function FlightSimPage({
       ),
     [allBattleSpectatorUnitsById, visibleBattleSpectator]
   );
+  const battleSpectatorTrajectoryRows = useMemo(
+    () =>
+      buildBattleSpectatorTrajectoryRows(
+        visibleBattleSpectator,
+        allBattleSpectatorUnitsById
+      ),
+    [allBattleSpectatorUnitsById, visibleBattleSpectator]
+  );
+  const battleSpectatorOverviewPoint = useMemo(
+    () => resolveBattleSpectatorOverviewPoint(displayedBattleSpectator),
+    [displayedBattleSpectator]
+  );
   const latestBattleEngagementPoint = useMemo(
     () => resolveBattleSpectatorJumpPoint(visibleBattleSpectator),
     [visibleBattleSpectator]
@@ -1769,6 +2020,41 @@ export default function FlightSimPage({
     }
   };
 
+  const syncBattleSpectatorRuntime = (
+    state: BattleSpectatorState,
+    followTargetId: string,
+    lodLevel: BattleSpectatorLodLevel
+  ) => {
+    const runtimePayload = {
+      scenarioId: state.scenarioId,
+      scenarioName: state.scenarioName,
+      currentTime: state.currentTime,
+      currentSideId: state.currentSideId,
+      currentSideName: state.currentSideName,
+      centerLongitude: state.centerLongitude,
+      centerLatitude: state.centerLatitude,
+      units: state.units,
+      weapons: state.weapons,
+      recentEvents: state.recentEvents,
+      stats: state.stats,
+      view: {
+        followTargetId: followTargetId || null,
+        lodLevel,
+      },
+    };
+    const nextRuntimeSignature = buildBattleSpectatorRuntimeSignature({
+      state,
+      followTargetId,
+      lodLevel,
+    });
+    if (battleSpectatorRuntimeSignatureRef.current === nextRuntimeSignature) {
+      return;
+    }
+
+    battleSpectatorRuntimeSignatureRef.current = nextRuntimeSignature;
+    postRuntimeToFlightSim("firescope-battle-spectator-update", runtimePayload);
+  };
+
   const focusBattleSpectatorView = (options: {
     point: {
       longitude: number;
@@ -1783,6 +2069,18 @@ export default function FlightSimPage({
     }
     if (options.followTargetId !== undefined) {
       setBattleSpectatorFollowTargetId(options.followTargetId);
+      if (
+        flightSimFrameReady &&
+        showBattleSpectator &&
+        visibleBattleSpectator &&
+        !options.sideFilterId
+      ) {
+        syncBattleSpectatorRuntime(
+          visibleBattleSpectator,
+          options.followTargetId,
+          battleSpectatorLodLevel
+        );
+      }
     }
     jumpToBattleSpectatorPoint(options.point);
     closeBattleSpectatorPanelOnMobile();
@@ -1820,6 +2118,7 @@ export default function FlightSimPage({
     if (!currentBattleSpectator) {
       setBattleSpectatorSideFilter("all");
       setBattleSpectatorFollowTargetId("");
+      battleSpectatorInitialFollowSeededRef.current = false;
       return;
     }
 
@@ -1835,6 +2134,35 @@ export default function FlightSimPage({
     battleSpectatorSideFilter,
     battleSpectatorSideOptions,
     currentBattleSpectator,
+  ]);
+
+  useEffect(() => {
+    if (!showBattleSpectator) {
+      battleSpectatorInitialFollowSeededRef.current = false;
+      return;
+    }
+
+    if (battleSpectatorFollowTargetId) {
+      battleSpectatorInitialFollowSeededRef.current = true;
+      return;
+    }
+
+    if (battleSpectatorInitialFollowSeededRef.current || !currentBattleSpectator) {
+      return;
+    }
+
+    const initialJumpPoint =
+      resolveBattleSpectatorJumpPoint(currentBattleSpectator);
+    battleSpectatorInitialFollowSeededRef.current = true;
+    if (!initialJumpPoint?.followTargetId) {
+      return;
+    }
+
+    setBattleSpectatorFollowTargetId(initialJumpPoint.followTargetId);
+  }, [
+    battleSpectatorFollowTargetId,
+    currentBattleSpectator,
+    showBattleSpectator,
   ]);
 
   useEffect(() => {
@@ -1929,11 +2257,46 @@ export default function FlightSimPage({
   useEffect(() => {
     if (!showBattleSpectator) {
       setBattleSpectatorPanelOpen(true);
+      battleSpectatorInitialJumpScenarioRef.current = "";
       return;
     }
 
     setBattleSpectatorPanelOpen(resolveInitialBattleSpectatorPanelOpen());
   }, [showBattleSpectator]);
+
+  useEffect(() => {
+    if (
+      !showBattleSpectator ||
+      !flightSimFrameReady ||
+      battleSpectatorAutoCapture ||
+      !visibleBattleSpectator ||
+      !latestBattleEngagementPoint
+    ) {
+      if (!showBattleSpectator) {
+        battleSpectatorInitialJumpScenarioRef.current = "";
+      }
+      return;
+    }
+
+    const initialJumpScenarioKey = visibleBattleSpectator.scenarioId;
+    if (
+      battleSpectatorInitialJumpScenarioRef.current === initialJumpScenarioKey
+    ) {
+      return;
+    }
+
+    battleSpectatorInitialJumpScenarioRef.current = initialJumpScenarioKey;
+    focusBattleSpectatorView({
+      point: latestBattleEngagementPoint,
+      followTargetId: latestBattleEngagementPoint.followTargetId,
+    });
+  }, [
+    battleSpectatorAutoCapture,
+    flightSimFrameReady,
+    latestBattleEngagementPoint,
+    showBattleSpectator,
+    visibleBattleSpectator,
+  ]);
 
   useEffect(() => {
     if (!currentBattleSpectator) {
@@ -2039,34 +2402,11 @@ export default function FlightSimPage({
       return;
     }
 
-    const runtimePayload = {
-      scenarioId: visibleBattleSpectator.scenarioId,
-      scenarioName: visibleBattleSpectator.scenarioName,
-      currentTime: visibleBattleSpectator.currentTime,
-      currentSideId: visibleBattleSpectator.currentSideId,
-      currentSideName: visibleBattleSpectator.currentSideName,
-      centerLongitude: visibleBattleSpectator.centerLongitude,
-      centerLatitude: visibleBattleSpectator.centerLatitude,
-      units: visibleBattleSpectator.units,
-      weapons: visibleBattleSpectator.weapons,
-      recentEvents: visibleBattleSpectator.recentEvents,
-      stats: visibleBattleSpectator.stats,
-      view: {
-        followTargetId: battleSpectatorFollowTargetId || null,
-        lodLevel: battleSpectatorLodLevel,
-      },
-    };
-    const nextRuntimeSignature = buildBattleSpectatorRuntimeSignature({
-      state: visibleBattleSpectator,
-      followTargetId: battleSpectatorFollowTargetId,
-      lodLevel: battleSpectatorLodLevel,
-    });
-    if (battleSpectatorRuntimeSignatureRef.current === nextRuntimeSignature) {
-      return;
-    }
-
-    battleSpectatorRuntimeSignatureRef.current = nextRuntimeSignature;
-    postRuntimeToFlightSim("firescope-battle-spectator-update", runtimePayload);
+    syncBattleSpectatorRuntime(
+      visibleBattleSpectator,
+      battleSpectatorFollowTargetId,
+      battleSpectatorLodLevel
+    );
   }, [
     battleSpectatorFollowTargetId,
     battleSpectatorLodLevel,
@@ -3229,6 +3569,239 @@ export default function FlightSimPage({
                 {battleSpectatorAutoCapture ? "ON" : "OFF"}
               </Typography>
             </Box>
+            {battleSpectatorTrajectoryRows.length > 0 && (
+              <Box
+                sx={{
+                  mt: 1.1,
+                  p: 1.15,
+                  borderRadius: 1.9,
+                  backgroundColor: "rgba(5, 16, 18, 0.72)",
+                  border: "1px solid rgba(98, 230, 208, 0.1)",
+                }}
+              >
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  alignItems="center"
+                  justifyContent="space-between"
+                >
+                  <Typography
+                    sx={{
+                      fontSize: 10.5,
+                      letterSpacing: "0.12em",
+                      color: "rgba(98, 230, 208, 0.84)",
+                    }}
+                  >
+                    탄체 궤적 관제
+                  </Typography>
+                  <Typography
+                    sx={{
+                      px: 0.85,
+                      py: 0.35,
+                      borderRadius: 99,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      backgroundColor: "rgba(98, 230, 208, 0.12)",
+                      color: "#62e6d0",
+                    }}
+                  >
+                    유도 궤적 {battleSpectatorTrajectoryRows.length}
+                  </Typography>
+                </Stack>
+                <Typography
+                  sx={{
+                    mt: 0.55,
+                    fontSize: 12.2,
+                    color: "rgba(236, 255, 251, 0.8)",
+                  }}
+                >
+                  종말 단계{" "}
+                  {
+                    battleSpectatorTrajectoryRows.filter(
+                      (row) => row.phaseLabel === "종말"
+                    ).length
+                  }{" "}
+                  · 중간 단계{" "}
+                  {
+                    battleSpectatorTrajectoryRows.filter(
+                      (row) => row.phaseLabel === "중간"
+                    ).length
+                  }{" "}
+                  · 최신 탄체{" "}
+                  {latestBattleSpectatorWeapon
+                    ? latestBattleSpectatorWeapon.name
+                    : "없음"}
+                </Typography>
+                <Stack
+                  direction="row"
+                  spacing={0.75}
+                  sx={{ mt: 0.85, flexWrap: "wrap" }}
+                >
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    disabled={!battleSpectatorOverviewPoint}
+                    onClick={() => {
+                      if (!battleSpectatorOverviewPoint) {
+                        return;
+                      }
+                      focusBattleSpectatorView({
+                        point: battleSpectatorOverviewPoint,
+                        followTargetId: "",
+                      });
+                    }}
+                    sx={{
+                      borderColor: "rgba(98, 230, 208, 0.24)",
+                      color: "#ecfffb",
+                    }}
+                  >
+                    전장 개관
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="text"
+                    disabled={!latestBattleSpectatorWeapon}
+                    onClick={() => {
+                      if (!latestBattleSpectatorWeapon) {
+                        return;
+                      }
+                      focusBattleSpectatorView({
+                        point: resolveBattleSpectatorWeaponJumpPoint(
+                          latestBattleSpectatorWeapon
+                        ),
+                        followTargetId: `weapon:${latestBattleSpectatorWeapon.id}`,
+                      });
+                    }}
+                    sx={{ color: "rgba(236, 255, 251, 0.78)" }}
+                  >
+                    최신 궤적 고정
+                  </Button>
+                </Stack>
+                <Stack spacing={0.8} sx={{ mt: 0.9 }}>
+                  {battleSpectatorTrajectoryRows.map((row, index) => (
+                    <Box
+                      key={row.weapon.id}
+                      sx={{
+                        px: 1,
+                        py: 0.95,
+                        borderRadius: 1.6,
+                        backgroundColor: "rgba(8, 24, 29, 0.78)",
+                        border: "1px solid rgba(98, 230, 208, 0.08)",
+                      }}
+                    >
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        alignItems="center"
+                        justifyContent="space-between"
+                      >
+                        <Box>
+                          <Typography
+                            sx={{
+                              fontSize: 11,
+                              color: "rgba(98, 230, 208, 0.82)",
+                              letterSpacing: "0.08em",
+                            }}
+                          >
+                            #{index + 1} · {row.weapon.sideName}
+                          </Typography>
+                          <Typography sx={{ mt: 0.15, fontWeight: 700 }}>
+                            {row.weapon.name}
+                          </Typography>
+                        </Box>
+                        <Typography
+                          sx={{
+                            px: 0.85,
+                            py: 0.35,
+                            borderRadius: 99,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            backgroundColor: "rgba(98, 230, 208, 0.12)",
+                            color: "#62e6d0",
+                          }}
+                        >
+                          {row.phaseLabel}
+                        </Typography>
+                      </Stack>
+                      <Typography
+                        sx={{
+                          mt: 0.55,
+                          fontSize: 12,
+                          color: "rgba(236, 255, 251, 0.72)",
+                        }}
+                      >
+                        발사 {row.launcherName} →{" "}
+                        {row.targetName ?? row.targetTypeLabel} · 남은 거리{" "}
+                        {formatBattleSpectatorDistanceKm(row.remainingDistanceKm)}
+                        {typeof row.progressPercent === "number"
+                          ? ` · 진행 ${Math.round(row.progressPercent)}%`
+                          : ""}
+                      </Typography>
+                      <Typography
+                        sx={{
+                          mt: 0.35,
+                          fontSize: 12,
+                          color: "rgba(236, 255, 251, 0.68)",
+                        }}
+                      >
+                        현재 고도 {Math.round(row.weapon.altitudeMeters)}m · 속도{" "}
+                        {Math.round(row.weapon.speedKts)}kt · 총 비행 거리{" "}
+                        {formatBattleSpectatorDistanceKm(row.totalDistanceKm)}
+                      </Typography>
+                      <Stack
+                        direction="row"
+                        spacing={0.75}
+                        sx={{ mt: 0.75, flexWrap: "wrap" }}
+                      >
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() =>
+                            focusBattleSpectatorView({
+                              point: resolveBattleSpectatorWeaponJumpPoint(
+                                row.weapon
+                              ),
+                              followTargetId: `weapon:${row.weapon.id}`,
+                            })
+                          }
+                          sx={{
+                            borderColor: "rgba(98, 230, 208, 0.24)",
+                            color: "#ecfffb",
+                          }}
+                        >
+                          궤적 추적
+                        </Button>
+                        {row.targetPoint && (
+                          <Button
+                            size="small"
+                            variant="text"
+                            onClick={() =>
+                              focusBattleSpectatorView({
+                                point: {
+                                  longitude: row.targetPoint.longitude,
+                                  latitude: row.targetPoint.latitude,
+                                  altitudeMeters: Math.max(
+                                    1800,
+                                    row.targetPoint.altitudeMeters + 1800
+                                  ),
+                                },
+                                followTargetId:
+                                  typeof row.weapon.targetId === "string"
+                                    ? `unit:${row.weapon.targetId}`
+                                    : undefined,
+                              })
+                            }
+                            sx={{ color: "rgba(236, 255, 251, 0.78)" }}
+                          >
+                            예상 착탄점
+                          </Button>
+                        )}
+                      </Stack>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            )}
             {selectedBattleSpectatorUnit && selectedBattleSpectatorInsight && (
               <Box
                 sx={{
@@ -3374,6 +3947,65 @@ export default function FlightSimPage({
                   유닛이 띄운 탄체 {selectedBattleSpectatorInsight.outgoingWeapons} ·
                   유닛을 향하는 탄체 {selectedBattleSpectatorInsight.incomingWeapons}
                 </Typography>
+                <Typography
+                  sx={{
+                    mt: 0.35,
+                    fontSize: 12,
+                    color: "rgba(236, 255, 251, 0.68)",
+                  }}
+                >
+                  탐지 {formatBattleSpectatorRangeNm(
+                    selectedBattleSpectatorUnit.detectionRangeNm
+                  )}{" "}
+                  · 교전{" "}
+                  {formatBattleSpectatorRangeNm(
+                    selectedBattleSpectatorUnit.engagementRangeNm
+                  )}{" "}
+                  · 연료{" "}
+                  {formatBattleSpectatorFuelFraction(
+                    selectedBattleSpectatorUnit.fuelFraction
+                  )}
+                </Typography>
+                {selectedBattleSpectatorUnit.statusFlags.length > 0 && (
+                  <Stack
+                    direction="row"
+                    spacing={0.55}
+                    sx={{ mt: 0.8, flexWrap: "wrap" }}
+                  >
+                    {selectedBattleSpectatorUnit.statusFlags.map((statusFlag) => (
+                      <Typography
+                        key={statusFlag}
+                        sx={{
+                          px: 0.7,
+                          py: 0.25,
+                          borderRadius: 99,
+                          fontSize: 10.6,
+                          backgroundColor: "rgba(98, 230, 208, 0.08)",
+                          color: "rgba(236, 255, 251, 0.76)",
+                        }}
+                      >
+                        {statusFlag}
+                      </Typography>
+                    ))}
+                  </Stack>
+                )}
+                {selectedBattleSpectatorUnit.weaponInventory.length > 0 && (
+                  <Typography
+                    sx={{
+                      mt: 0.75,
+                      fontSize: 11.8,
+                      color: "rgba(236, 255, 251, 0.68)",
+                    }}
+                  >
+                    무장 구성: {selectedBattleSpectatorUnit.weaponInventory
+                      .slice(0, 3)
+                      .map((inventory) => `${inventory.name} ${inventory.quantity}`)
+                      .join(" · ")}
+                    {selectedBattleSpectatorUnit.weaponInventory.length > 3
+                      ? " · ..."
+                      : ""}
+                  </Typography>
+                )}
                 <Stack direction="row" spacing={0.75} sx={{ mt: 0.9, flexWrap: "wrap" }}>
                   <Button
                     size="small"

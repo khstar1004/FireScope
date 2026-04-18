@@ -75,6 +75,15 @@ function distance3D(a, b) {
   return Math.hypot(b.x - a.x, b.y - a.y, (b.z ?? 0) - (a.z ?? 0));
 }
 
+function hasFiniteLocalPoint(point) {
+  return (
+    point &&
+    Number.isFinite(point.x) &&
+    Number.isFinite(point.y) &&
+    (!("z" in point) || Number.isFinite(point.z ?? 0))
+  );
+}
+
 function directionFromHeading(headingDeg) {
   const radians = (headingDeg * Math.PI) / 180;
   return { x: Math.sin(radians), y: Math.cos(radians) };
@@ -1284,7 +1293,9 @@ function createState(viewer) {
     helipad: { x: support.x - 50, y: support.y - 30 },
     "drone-pad": { x: support.x - 30, y: support.y + 10 },
   };
-  const playerHome = homeBySpawn[modelRuntime.spawnMode] ?? { x: 0, y: 0 };
+  const playerHome = hasFiniteLocalPoint(scenario.player.position)
+    ? { ...scenario.player.position }
+    : (homeBySpawn[modelRuntime.spawnMode] ?? { x: 0, y: 0 });
   const movementAnchor = resolveMovementAnchor(
     payload.profile,
     playerHome,
@@ -1356,36 +1367,9 @@ function createState(viewer) {
       pendingStrike: false,
       targetId: null,
     },
-    hostiles: scenario.config.hostileContacts.map((hostile, index) => ({
-      ...hostile,
-      position: { ...hostile.position },
-      altitudeM:
-        hostile.domain === "air"
-          ? payload.profile === "defense"
-            ? ([1100, 520, 180][index] ?? 280)
-            : payload.profile === "base"
-              ? ([240, 0, 180][index] ?? 120)
-              : payload.profile === "maritime"
-                ? 260
-                : 160
-          : hostile.domain === "surface"
-            ? 6
-            : 0,
-      waypointIndex: hostile.waypoints.length > 1 ? 1 : 0,
-      headingDeg:
-        hostile.waypoints.length > 1
-          ? headingBetween(hostile.position, hostile.waypoints[1])
-          : 0,
-      health: hostile.health,
-      routeMode:
-        hostile.domain === "ground" && hostile.speedMps > 0
-          ? "routing"
-          : "fallback",
-      routePending: hostile.domain === "ground" && hostile.speedMps > 0,
-      routeDistanceM: 0,
-      destroyed: false,
-      entity: null,
-    })),
+    hostiles: scenario.config.hostileContacts.map((hostile, index) =>
+      buildRuntimeHostile(hostile, index, payload.profile)
+    ),
     projectiles: [],
     explosions: [],
     sensorEntity: null,
@@ -1416,6 +1400,37 @@ function createState(viewer) {
     },
     lastFrameTime: 0,
     hudUpdatedAt: 0,
+  };
+}
+
+function buildRuntimeHostile(hostile, index, profile) {
+  return {
+    ...hostile,
+    position: { ...hostile.position },
+    altitudeM:
+      hostile.domain === "air"
+        ? profile === "defense"
+          ? ([1100, 520, 180][index] ?? 280)
+          : profile === "base"
+            ? ([240, 0, 180][index] ?? 120)
+            : profile === "maritime"
+              ? 260
+              : 160
+        : hostile.domain === "surface"
+          ? 6
+          : 0,
+    waypointIndex: hostile.waypoints.length > 1 ? 1 : 0,
+    headingDeg:
+      hostile.waypoints.length > 1
+        ? headingBetween(hostile.position, hostile.waypoints[1])
+        : 0,
+    health: hostile.health,
+    routeMode:
+      hostile.domain === "ground" && hostile.speedMps > 0 ? "routing" : "fallback",
+    routePending: hostile.domain === "ground" && hostile.speedMps > 0,
+    routeDistanceM: 0,
+    destroyed: false,
+    entity: null,
   };
 }
 
@@ -1546,69 +1561,169 @@ function createEntities(state) {
   });
 
   state.sites.forEach((site) => {
-    site.areaEntity = state.viewer.entities.add({
-      position: cartesianFromLocal(state.origin, { ...site.position, z: 0 }),
-      ellipse: {
-        semiMajorAxis: site.radiusM,
-        semiMinorAxis: site.radiusM,
-        material: colorFromCss(
-          site.kind === "objective"
-            ? state.theme.glowColor
-            : state.theme.accentColor,
-          site.kind === "objective" ? 0.11 : 0.08
-        ),
-        outline: true,
-        outlineColor: colorFromCss(
-          site.kind === "objective"
-            ? state.theme.glowColor
-            : state.theme.accentColor,
-          0.72
-        ),
-        outlineWidth: 2,
-        height: 0,
-      },
-    });
-    site.labelEntity = state.viewer.entities.add({
-      position: cartesianFromLocal(state.origin, { ...site.position, z: 4 }),
-      label: {
-        text: site.label,
-        font: "700 12px Bahnschrift, sans-serif",
-        fillColor: CesiumRef.Color.WHITE,
-        outlineColor: colorFromCss("#04121b", 0.96),
-        outlineWidth: 4,
-        style: CesiumRef.LabelStyle.FILL_AND_OUTLINE,
-        verticalOrigin: CesiumRef.VerticalOrigin.BOTTOM,
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      },
-    });
+    addSiteEntities(state, site);
   });
 
   state.hostiles.forEach((hostile) => {
-    hostile.entity = state.viewer.entities.add({
-      position: cartesianFromLocal(state.origin, {
-        ...hostile.position,
-        z: hostile.altitudeM,
-      }),
-      point: {
-        pixelSize: hostile.domain === "air" ? 16 : 14,
-        color: colorFromCss("#ef476f", 0.94),
-        outlineColor: colorFromCss("#23070b", 0.94),
-        outlineWidth: 2,
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      },
-      label: {
-        text: hostile.label,
-        font: "700 12px Bahnschrift, sans-serif",
-        fillColor: CesiumRef.Color.WHITE,
-        outlineColor: colorFromCss("#23070b", 0.96),
-        outlineWidth: 4,
-        style: CesiumRef.LabelStyle.FILL_AND_OUTLINE,
-        verticalOrigin: CesiumRef.VerticalOrigin.BOTTOM,
-        pixelOffset: new CesiumRef.Cartesian2(0, -20),
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      },
-    });
+    addHostileEntity(state, hostile);
   });
+}
+
+function addSiteEntities(state, site) {
+  site.areaEntity = state.viewer.entities.add({
+    position: cartesianFromLocal(state.origin, { ...site.position, z: 0 }),
+    ellipse: {
+      semiMajorAxis: site.radiusM,
+      semiMinorAxis: site.radiusM,
+      material: colorFromCss(
+        site.kind === "objective"
+          ? state.theme.glowColor
+          : state.theme.accentColor,
+        site.kind === "objective" ? 0.11 : 0.08
+      ),
+      outline: true,
+      outlineColor: colorFromCss(
+        site.kind === "objective"
+          ? state.theme.glowColor
+          : state.theme.accentColor,
+        0.72
+      ),
+      outlineWidth: 2,
+      height: 0,
+    },
+  });
+  site.labelEntity = state.viewer.entities.add({
+    position: cartesianFromLocal(state.origin, { ...site.position, z: 4 }),
+    label: {
+      text: site.label,
+      font: "700 12px Bahnschrift, sans-serif",
+      fillColor: CesiumRef.Color.WHITE,
+      outlineColor: colorFromCss("#04121b", 0.96),
+      outlineWidth: 4,
+      style: CesiumRef.LabelStyle.FILL_AND_OUTLINE,
+      verticalOrigin: CesiumRef.VerticalOrigin.BOTTOM,
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+    },
+  });
+}
+
+function addHostileEntity(state, hostile) {
+  hostile.entity = state.viewer.entities.add({
+    position: cartesianFromLocal(state.origin, {
+      ...hostile.position,
+      z: hostile.altitudeM,
+    }),
+    point: {
+      pixelSize: hostile.domain === "air" ? 16 : 14,
+      color: colorFromCss("#ef476f", 0.94),
+      outlineColor: colorFromCss("#23070b", 0.94),
+      outlineWidth: 2,
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+    },
+    label: {
+      text: hostile.label,
+      font: "700 12px Bahnschrift, sans-serif",
+      fillColor: CesiumRef.Color.WHITE,
+      outlineColor: colorFromCss("#23070b", 0.96),
+      outlineWidth: 4,
+      style: CesiumRef.LabelStyle.FILL_AND_OUTLINE,
+      verticalOrigin: CesiumRef.VerticalOrigin.BOTTOM,
+      pixelOffset: new CesiumRef.Cartesian2(0, -20),
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+    },
+  });
+}
+
+function removeSiteEntities(state) {
+  state.sites.forEach((site) => {
+    site.areaEntity && state.viewer.entities.remove(site.areaEntity);
+    site.labelEntity && state.viewer.entities.remove(site.labelEntity);
+  });
+}
+
+function removeHostileEntities(state) {
+  state.hostiles.forEach((hostile) => {
+    hostile.entity && state.viewer.entities.remove(hostile.entity);
+  });
+}
+
+function syncMovementLaneEntity(state) {
+  if (!state.movementLaneEntity?.polyline) {
+    return;
+  }
+
+  state.movementLaneEntity.show = state.movementLane.length > 1;
+  state.movementLaneEntity.polyline.positions = state.movementLane.map((point) =>
+    cartesianFromLocal(state.origin, point)
+  );
+}
+
+function applyExternalTacticalRuntimeUpdate(state, nextPayload) {
+  if (!nextPayload?.scenario?.config || !nextPayload?.mission || !nextPayload?.theme) {
+    return;
+  }
+
+  state.payload = nextPayload;
+  state.scenario = nextPayload.scenario;
+  state.origin = nextPayload.scenario.origin;
+  state.theme = nextPayload.theme;
+  state.mission = nextPayload.mission;
+  state.statusText = nextPayload.mission.briefingSummary;
+
+  if (hasFiniteLocalPoint(nextPayload.scenario.player.position)) {
+    state.player.position = { ...nextPayload.scenario.player.position };
+    state.player.homePosition = { ...nextPayload.scenario.player.position };
+  }
+  state.player.headingDeg = normalizeHeading(
+    nextPayload.scenario.player.headingDeg ?? state.player.headingDeg
+  );
+  state.player.ammoPrimary = nextPayload.scenario.player.ammoPrimary;
+  state.player.ammoSupport = nextPayload.scenario.player.ammoSupport;
+
+  removeSiteEntities(state);
+  state.sites = nextPayload.scenario.config.sites.map((site) => ({
+    ...site,
+    areaEntity: null,
+    labelEntity: null,
+  }));
+  state.sites.forEach((site) => addSiteEntities(state, site));
+
+  removeHostileEntities(state);
+  state.hostiles = nextPayload.scenario.config.hostileContacts.map(
+    (hostile, index) =>
+      buildRuntimeHostile(hostile, index, nextPayload.profile ?? state.profile)
+  );
+  state.hostiles.forEach((hostile) => addHostileEntity(state, hostile));
+
+  const movementAnchor = resolveMovementAnchor(
+    state.profile,
+    state.player.homePosition,
+    state.scenario,
+    state.sites
+  );
+  state.movementAnchor = movementAnchor;
+  state.movementLane = buildMovementLane(
+    state.player.homePosition,
+    movementAnchor,
+    state.modelRuntime.spawnMode
+  );
+  state.battlespaceFrame = buildBattlespaceFrame(
+    state.player.homePosition,
+    movementAnchor,
+    state.scenario,
+    state.sites
+  );
+  state.commandHeadingBias = state.battlespaceFrame.headingDeg;
+  syncMovementLaneEntity(state);
+  updateHostileRouteStats(state);
+
+  if (!state.hostiles.some((hostile) => hostile.id === state.selectedTargetId)) {
+    state.selectedTargetId = state.hostiles[0]?.id ?? null;
+  }
+  window.__TACTICAL_SIM_RUNTIME__ = {
+    ...(window.__TACTICAL_SIM_RUNTIME__ ?? {}),
+    statusText: state.statusText,
+  };
 }
 
 function announce(state, text, durationMs = 2200) {
@@ -2401,6 +2516,8 @@ function updateEntities(state) {
       ? { x: 0, y: 0, z: 0 }
       : { ...state.player.position, z: 0 }
   );
+  state.sensorEntity.ellipse.semiMajorAxis = state.scenario.config.sensorRangeM;
+  state.sensorEntity.ellipse.semiMinorAxis = state.scenario.config.sensorRangeM;
   state.hostiles.forEach((hostile) => {
     hostile.entity.show = !hostile.destroyed;
     if (hostile.destroyed) return;
@@ -2533,6 +2650,9 @@ function updateCamera(state) {
   reticleElement.hidden =
     state.overviewActive ||
     mode === "orbit" ||
+    mode === "operator" ||
+    mode === "chase" ||
+    mode === "bridge" ||
     mode === "profile" ||
     mode === "topdown" ||
     mode === "radar" ||
@@ -3026,6 +3146,14 @@ if (!CesiumRef || !payload) {
         return;
       }
 
+      if (event.data.type === "firescope-tactical-runtime-update") {
+        applyExternalTacticalRuntimeUpdate(state, event.data.payload);
+        updateEntities(state);
+        updateCamera(state);
+        updateHud(state);
+        return;
+      }
+
       if (event.data.type === "firescope-tactical-command") {
         handleTacticalCommand(state, event.data.payload?.command);
         updateCamera(state);
@@ -3101,7 +3229,7 @@ if (!CesiumRef || !payload) {
     }
     announce(
       state,
-      `3D 전장 개요에서 시작합니다. ${payload.mission.missionStatement}`,
+      `3D 모델 집중 보기에서 시작합니다. ${payload.mission.missionStatement}`,
       3200
     );
     updateEntities(state);

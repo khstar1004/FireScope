@@ -1,0 +1,10 @@
+{
+  "metadata_version": 1,
+  "algorithm": "ppo",
+  "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\919408db-92dc-49a4-9d9d-d9765e0a507a\\runs\\ppo\\fixed_target_strike_policy_ppo_final.zip",
+  "scenario_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\919408db-92dc-49a4-9d9d-d9765e0a507a\\scenario.json",
+  "training_mode": "standard",
+  "observation_version": 4,
+  "reward_version": 4,
+  "curriculum_stage": null
+}

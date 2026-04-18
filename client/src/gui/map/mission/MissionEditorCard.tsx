@@ -345,6 +345,7 @@ const MissionEditorCard = (props: MissionEditorCardProps) => {
           <Box sx={{ mt: 0.8 }}>
             <FireRecommendationPanel
               recommendation={selectedRecommendation}
+              rerankerModel={props.game.getFocusFireRerankerState().model}
               objectiveName={selectedTarget?.name}
               objectiveLatitude={selectedTarget?.latitude}
               objectiveLongitude={selectedTarget?.longitude}

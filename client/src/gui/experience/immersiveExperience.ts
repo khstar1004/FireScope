@@ -4,6 +4,10 @@ import {
   getAssetExperienceQueryParams,
   parseAssetExperienceQueryParams,
 } from "@/gui/experience/assetExperience";
+import {
+  buildAssetSignature,
+  isDefenseAssetSignature,
+} from "@/utils/airDefenseModeling";
 
 export const IMMERSIVE_EXPERIENCE_HASH = "#/immersive-experience";
 
@@ -24,8 +28,6 @@ const groundPattern =
   /\b(tank|mbt|abrams|leopard|k1|k2|ifv|apc|armored|armoured|humvee|hmmwv|km900|m113|m577|aavp)\b/i;
 const firesPattern =
   /\b(artillery|howitzer|mlrs|rocket|launcher|ballistic|hyunmoo|chunmoo|atacms|paladin|k9|k55|himars|tomahawk|jassm)\b/i;
-const defensePattern =
-  /\b(sam|patriot|nasams|thaad|cheongung|km-sam|m-sam|l-sam|pegasus|biho|vads|chaparral|radar|air defense|surface-to-air|antiair|anti-air)\b/i;
 
 function isImmersiveProfile(
   value: string | null
@@ -58,8 +60,8 @@ export function inferImmersiveExperienceProfile(
     return "base";
   }
 
-  const signature = `${asset.className} ${asset.name}`;
-  const matchesDefense = defensePattern.test(signature);
+  const signature = buildAssetSignature(asset.className, asset.name);
+  const matchesDefense = isDefenseAssetSignature(signature);
   const matchesFires = firesPattern.test(signature);
   const matchesGround = groundPattern.test(signature);
 

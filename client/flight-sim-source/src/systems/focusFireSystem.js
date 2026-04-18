@@ -48,6 +48,15 @@ function color(cssColor, alpha = 1) {
 	return Cesium.Color.fromCssColorString(cssColor).withAlpha(alpha);
 }
 
+function formatTrackDistance(distanceMeters) {
+	if (distanceMeters >= 1000) {
+		const kilometers = distanceMeters / 1000;
+		return `${kilometers >= 100 ? kilometers.toFixed(0) : kilometers.toFixed(1)} km`;
+	}
+
+	return `${Math.round(distanceMeters)} m`;
+}
+
 function offsetCoordinates(lon, lat, distanceMeters, headingDeg) {
 	const headingRad = Cesium.Math.toRadians(normalizeHeading(headingDeg));
 	const latRad = Cesium.Math.toRadians(lat);
@@ -208,6 +217,62 @@ function getProjectileVisual(variant) {
 	}
 }
 
+function getTrajectoryOverlayVisual(variant) {
+	switch (variant) {
+		case 'aircraft':
+			return {
+				arcColor: '#9feaff',
+				progressColor: '#dffbff',
+				beamColor: '#dffbff',
+				width: 2.5,
+				progressWidth: 3.3,
+				glowPower: 0.2,
+				progressGlowPower: 0.34,
+				arcAlpha: 0.3,
+				progressAlpha: 0.96,
+				beamAlpha: 0.56,
+				apexMultiplier: 0.24,
+				minApexHeight: 18000,
+				maxApexHeight: 320000,
+				maxBeamHeight: 56000
+			};
+		case 'armor':
+			return {
+				arcColor: '#ffe08a',
+				progressColor: '#fff1bf',
+				beamColor: '#fff1bf',
+				width: 2.0,
+				progressWidth: 2.6,
+				glowPower: 0.18,
+				progressGlowPower: 0.28,
+				arcAlpha: 0.24,
+				progressAlpha: 0.86,
+				beamAlpha: 0.42,
+				apexMultiplier: 0.15,
+				minApexHeight: 4000,
+				maxApexHeight: 80000,
+				maxBeamHeight: 18000
+			};
+		default:
+			return {
+				arcColor: '#ffd166',
+				progressColor: '#fff2c6',
+				beamColor: '#fff2c6',
+				width: 2.3,
+				progressWidth: 3.1,
+				glowPower: 0.24,
+				progressGlowPower: 0.34,
+				arcAlpha: 0.28,
+				progressAlpha: 0.92,
+				beamAlpha: 0.48,
+				apexMultiplier: 0.22,
+				minApexHeight: 14000,
+				maxApexHeight: 240000,
+				maxBeamHeight: 42000
+			};
+	}
+}
+
 function defaultFocusFireState() {
 	return {
 		objectiveLon: null,
@@ -231,6 +296,7 @@ export class FocusFireSystem {
 		this.focusState = defaultFocusFireState();
 		this.projectiles = [];
 		this.impacts = [];
+		this.trajectoryOverlays = new Map();
 		this.renderedTrackIds = new Set();
 		this.launchPlatformMarkers = new Map();
 		this.objectiveMarker = null;
@@ -275,6 +341,32 @@ export class FocusFireSystem {
 			this.viewer.entities.remove(impact.dustEntity);
 		}
 		this.impacts = [];
+	}
+
+	removeTrajectoryOverlay(overlay) {
+		if (!overlay) {
+			return;
+		}
+
+		if (overlay.arcEntity) {
+			this.viewer.entities.remove(overlay.arcEntity);
+		}
+		if (overlay.progressEntity) {
+			this.viewer.entities.remove(overlay.progressEntity);
+		}
+		if (overlay.startBeamEntity) {
+			this.viewer.entities.remove(overlay.startBeamEntity);
+		}
+		if (overlay.endBeamEntity) {
+			this.viewer.entities.remove(overlay.endBeamEntity);
+		}
+	}
+
+	clearTrajectoryOverlays() {
+		for (const overlay of this.trajectoryOverlays.values()) {
+			this.removeTrajectoryOverlay(overlay);
+		}
+		this.trajectoryOverlays.clear();
 	}
 
 	removeObjectiveEntities() {
@@ -357,6 +449,7 @@ export class FocusFireSystem {
 
 		if (!this.hasObjective()) {
 			this.clearProjectiles();
+			this.clearTrajectoryOverlays();
 			this.removeObjectiveEntities();
 			this.removeLaunchPlatformEntities();
 			return;
@@ -364,10 +457,12 @@ export class FocusFireSystem {
 
 		if (objectiveChanged) {
 			this.clearProjectiles();
+			this.clearTrajectoryOverlays();
 		}
 
 		this.ensureObjectiveEntities();
 		this.syncLaunchPlatformMarkers();
+		this.syncTrajectoryOverlays(nextState);
 		this.syncWeaponTrackProjectiles(previousState, nextState);
 	}
 
@@ -972,6 +1067,215 @@ export class FocusFireSystem {
 		}
 
 		return positions;
+	}
+
+	buildTrajectoryTrackEnvelope(track) {
+		const variant = track.variant ?? 'artillery';
+		const style = getTrajectoryOverlayVisual(variant);
+		const launcherGround = this.getTerrainHeight(
+			track.launcherLongitude,
+			track.launcherLatitude,
+			track.launcherAltitudeMeters
+		);
+		const targetGround = this.getTerrainHeight(
+			track.targetLongitude,
+			track.targetLatitude,
+			0
+		);
+		const start = {
+			lon: track.launcherLongitude,
+			lat: track.launcherLatitude,
+			alt:
+				variant === 'aircraft'
+					? Math.max(track.launcherAltitudeMeters, launcherGround + 1400)
+					: launcherGround + (variant === 'armor' ? 12 : 24)
+		};
+		const end = {
+			lon: track.targetLongitude,
+			lat: track.targetLatitude,
+			alt: targetGround + (variant === 'aircraft' ? 70 : 18)
+		};
+		const distanceMeters = Math.max(distanceMetersBetweenPoints(start, end), 1);
+		const currentDistance = distanceMetersBetweenPoints(start, {
+			lon: track.longitude,
+			lat: track.latitude,
+			alt: track.altitudeMeters
+		});
+
+		return {
+			variant,
+			style,
+			start,
+			end,
+			distanceMeters,
+			currentProgress: clamp(currentDistance / distanceMeters, 0, 1),
+			apexHeight: clamp(
+				distanceMeters * style.apexMultiplier,
+				style.minApexHeight,
+				style.maxApexHeight
+			)
+		};
+	}
+
+	buildTrajectoryArcSamples(envelope, sampleCount = 56, maxRatio = 1) {
+		const safeRatio = clamp(maxRatio, 0, 1);
+		const resolvedSampleCount = Math.max(
+			4,
+			Math.ceil(sampleCount * Math.max(safeRatio, 0.12))
+		);
+		const positions = [];
+
+		for (let index = 0; index <= resolvedSampleCount; index += 1) {
+			const ratio = safeRatio * (index / resolvedSampleCount);
+			const point = this.sampleArc(envelope, ratio);
+			positions.push(cartesianFromPoint(point));
+		}
+
+		return positions;
+	}
+
+	buildTrajectoryBeamPositions(lon, lat, groundAltitude, beamRise) {
+		return [
+			Cesium.Cartesian3.fromDegrees(lon, lat, groundAltitude + 12),
+			Cesium.Cartesian3.fromDegrees(lon, lat, groundAltitude + beamRise)
+		];
+	}
+
+	syncTrajectoryOverlays(state = this.focusState) {
+		const visibleTracks = this.getDisplayedWeaponTracks(state);
+		const activeTrackIds = new Set(visibleTracks.map((track) => track.id));
+
+		for (const [trackId, overlay] of this.trajectoryOverlays.entries()) {
+			if (activeTrackIds.has(trackId)) {
+				continue;
+			}
+			this.removeTrajectoryOverlay(overlay);
+			this.trajectoryOverlays.delete(trackId);
+		}
+
+		visibleTracks.forEach((track) => {
+			const envelope = this.buildTrajectoryTrackEnvelope(track);
+			const beamRise = clamp(
+				envelope.apexHeight * 0.42,
+				4200,
+				envelope.style.maxBeamHeight
+			);
+			const fullArcPositions = this.buildTrajectoryArcSamples(envelope, 64, 1);
+			const progressArcPositions = this.buildTrajectoryArcSamples(
+				envelope,
+				28,
+				Math.max(envelope.currentProgress, 0.04)
+			);
+			const startBeamPositions = this.buildTrajectoryBeamPositions(
+				envelope.start.lon,
+				envelope.start.lat,
+				envelope.start.alt,
+				beamRise
+			);
+			const endBeamPositions = this.buildTrajectoryBeamPositions(
+				envelope.end.lon,
+				envelope.end.lat,
+				envelope.end.alt,
+				beamRise
+			);
+			const distanceLabel = `${track.launcherName} · ${formatTrackDistance(
+				envelope.distanceMeters
+			)}`;
+			let overlay = this.trajectoryOverlays.get(track.id);
+
+			if (!overlay) {
+				overlay = {
+					arcEntity: this.viewer.entities.add({
+						name: distanceLabel,
+						polyline: {
+							positions: fullArcPositions,
+							width: envelope.style.width,
+							material: new Cesium.PolylineGlowMaterialProperty({
+								glowPower: envelope.style.glowPower,
+								color: color(
+									envelope.style.arcColor,
+									envelope.style.arcAlpha
+								)
+							}),
+							clampToGround: false
+						}
+					}),
+					progressEntity: this.viewer.entities.add({
+						polyline: {
+							positions: progressArcPositions,
+							width: envelope.style.progressWidth,
+							material: new Cesium.PolylineGlowMaterialProperty({
+								glowPower: envelope.style.progressGlowPower,
+								color: color(
+									envelope.style.progressColor,
+									envelope.style.progressAlpha
+								)
+							}),
+							clampToGround: false
+						}
+					}),
+					startBeamEntity: this.viewer.entities.add({
+						polyline: {
+							positions: startBeamPositions,
+							width: 1.4,
+							material: new Cesium.PolylineGlowMaterialProperty({
+								glowPower: 0.16,
+								color: color(
+									envelope.style.beamColor,
+									envelope.style.beamAlpha
+								)
+							}),
+							clampToGround: false
+						}
+					}),
+					endBeamEntity: this.viewer.entities.add({
+						polyline: {
+							positions: endBeamPositions,
+							width: 1.6,
+							material: new Cesium.PolylineGlowMaterialProperty({
+								glowPower: 0.18,
+								color: color('#ffffff', envelope.style.beamAlpha + 0.08)
+							}),
+							clampToGround: false
+						}
+					})
+				};
+				this.trajectoryOverlays.set(track.id, overlay);
+			}
+
+			overlay.arcEntity.name = distanceLabel;
+			overlay.arcEntity.polyline.positions = fullArcPositions;
+			overlay.arcEntity.polyline.width = envelope.style.width;
+			overlay.arcEntity.polyline.material = new Cesium.PolylineGlowMaterialProperty({
+				glowPower: envelope.style.glowPower,
+				color: color(envelope.style.arcColor, envelope.style.arcAlpha)
+			});
+
+			overlay.progressEntity.polyline.positions = progressArcPositions;
+			overlay.progressEntity.polyline.width = envelope.style.progressWidth;
+			overlay.progressEntity.polyline.material =
+				new Cesium.PolylineGlowMaterialProperty({
+					glowPower: envelope.style.progressGlowPower,
+					color: color(
+						envelope.style.progressColor,
+						envelope.style.progressAlpha
+					)
+				});
+
+			overlay.startBeamEntity.polyline.positions = startBeamPositions;
+			overlay.startBeamEntity.polyline.material =
+				new Cesium.PolylineGlowMaterialProperty({
+					glowPower: 0.16,
+					color: color(envelope.style.beamColor, envelope.style.beamAlpha)
+				});
+
+			overlay.endBeamEntity.polyline.positions = endBeamPositions;
+			overlay.endBeamEntity.polyline.material =
+				new Cesium.PolylineGlowMaterialProperty({
+					glowPower: 0.18,
+					color: color('#ffffff', envelope.style.beamAlpha + 0.08)
+				});
+		});
 	}
 
 	syncWeaponTrackProjectiles(previousState, nextState) {

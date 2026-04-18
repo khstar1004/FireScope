@@ -59,6 +59,7 @@ export default function EntityIcon({
         />
       );
     case "tank":
+    case "army":
       return (
         <SvgIcon component={TankIconSvg} inheritViewBox sx={customIconSx} />
       );

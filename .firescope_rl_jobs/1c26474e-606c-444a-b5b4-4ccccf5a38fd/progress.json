@@ -1,0 +1,1659 @@
+{
+  "status": "completed",
+  "training_mode": "standard",
+  "objective": "success_rate",
+  "objective_detail": "success_rate > mean_reward > shorter mean_episode_steps",
+  "scenario_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\scenario.json",
+  "algorithms": [
+    "ppo"
+  ],
+  "current_algorithm": "ppo",
+  "timesteps_target": 512,
+  "current_timesteps": 512,
+  "overall_timesteps_target": 512,
+  "overall_timesteps": 512,
+  "eval_frequency": 128,
+  "eval_episodes": 1,
+  "selection_eval_episodes": 1,
+  "selection_eval_seed_count": 1,
+  "current_stage": null,
+  "curriculum": {
+    "enabled": false,
+    "stage_count": 0,
+    "stages": []
+  },
+  "checkpoints": [
+    {
+      "algorithm": "ppo",
+      "timesteps": 0,
+      "eval_mean_reward": -243.00000000000026,
+      "eval_std_reward": 0.0,
+      "eval_success_rate": 0.0,
+      "eval_failure_rate": 0.0,
+      "eval_truncated_rate": 1.0,
+      "survivability": 1.0,
+      "weapon_efficiency": 0.0,
+      "time_to_ready": 0.0,
+      "tot_quality": 0.0,
+      "mean_episode_steps": 60.0,
+      "done_reason": "truncated",
+      "done_reason_detail": "max_episode_steps",
+      "selected_target_id": "red-airbase",
+      "selected_target_ids": [
+        "red-airbase",
+        "red-airbase"
+      ],
+      "selected_target_assignments": {
+        "blue-striker-1": "red-airbase",
+        "blue-striker-2": "red-airbase"
+      },
+      "launch_count": 0,
+      "reward_breakdown": {
+        "kill_reward": 0.0,
+        "damage_progress_reward": 0.0,
+        "tot_bonus": 0.0,
+        "eta_progress_bonus": 0.0,
+        "ready_to_fire_bonus": 0.0,
+        "stagnation_penalty": -0.0,
+        "target_switch_penalty": -0.0,
+        "threat_penalty": -4.0,
+        "launch_cost": -0.0,
+        "time_cost": -0.05,
+        "loss_cost": -0.0,
+        "terminal_bonus": 0.0,
+        "destroyed_target_ids": [],
+        "target_damage_fractions": {},
+        "total_damage_fraction": 0.0,
+        "destroyed_high_value_target_ids": [],
+        "lost_ally_ids": [],
+        "threat_exposure_count": 2,
+        "weapons_fired": 0,
+        "selected_target_id": "red-airbase",
+        "selected_target_ids": [
+          "red-airbase",
+          "red-airbase"
+        ],
+        "ally_target_assignments": {
+          "blue-striker-1": "red-airbase",
+          "blue-striker-2": "red-airbase"
+        },
+        "selected_launch_eta_before": {
+          "blue-striker-1": 0.0,
+          "blue-striker-2": 0.0
+        },
+        "selected_launch_eta_after": {
+          "blue-striker-1": 0.0,
+          "blue-striker-2": 0.0
+        },
+        "selected_ready_before_count": 2,
+        "selected_ready_after_count": 2,
+        "selected_ready_delta": 0,
+        "eta_progress_ratio": 0.0,
+        "stagnation_count": 0,
+        "target_switch_count": 0,
+        "tot_group_count": 0,
+        "tot_groups": [],
+        "done_reason": "truncated",
+        "step_index": 60,
+        "reward_version": 4,
+        "total_reward": -4.05
+      },
+      "curriculum_stage": null,
+      "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000000\\eval_scenario.json",
+      "recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000000\\eval_recording.jsonl",
+      "replay_available": true
+    },
+    {
+      "algorithm": "ppo",
+      "timesteps": 128,
+      "eval_mean_reward": -243.00000000000026,
+      "eval_std_reward": 0.0,
+      "eval_success_rate": 0.0,
+      "eval_failure_rate": 0.0,
+      "eval_truncated_rate": 1.0,
+      "survivability": 1.0,
+      "weapon_efficiency": 0.0,
+      "time_to_ready": 0.0,
+      "tot_quality": 0.0,
+      "mean_episode_steps": 60.0,
+      "done_reason": "truncated",
+      "done_reason_detail": "max_episode_steps",
+      "selected_target_id": "red-airbase",
+      "selected_target_ids": [
+        "red-airbase",
+        "red-airbase"
+      ],
+      "selected_target_assignments": {
+        "blue-striker-1": "red-airbase",
+        "blue-striker-2": "red-airbase"
+      },
+      "launch_count": 0,
+      "reward_breakdown": {
+        "kill_reward": 0.0,
+        "damage_progress_reward": 0.0,
+        "tot_bonus": 0.0,
+        "eta_progress_bonus": 0.0,
+        "ready_to_fire_bonus": 0.0,
+        "stagnation_penalty": -0.0,
+        "target_switch_penalty": -0.0,
+        "threat_penalty": -4.0,
+        "launch_cost": -0.0,
+        "time_cost": -0.05,
+        "loss_cost": -0.0,
+        "terminal_bonus": 0.0,
+        "destroyed_target_ids": [],
+        "target_damage_fractions": {},
+        "total_damage_fraction": 0.0,
+        "destroyed_high_value_target_ids": [],
+        "lost_ally_ids": [],
+        "threat_exposure_count": 2,
+        "weapons_fired": 0,
+        "selected_target_id": "red-airbase",
+        "selected_target_ids": [
+          "red-airbase",
+          "red-airbase"
+        ],
+        "ally_target_assignments": {
+          "blue-striker-1": "red-airbase",
+          "blue-striker-2": "red-airbase"
+        },
+        "selected_launch_eta_before": {
+          "blue-striker-1": 0.0,
+          "blue-striker-2": 0.0
+        },
+        "selected_launch_eta_after": {
+          "blue-striker-1": 0.0,
+          "blue-striker-2": 0.0
+        },
+        "selected_ready_before_count": 2,
+        "selected_ready_after_count": 2,
+        "selected_ready_delta": 0,
+        "eta_progress_ratio": 0.0,
+        "stagnation_count": 0,
+        "target_switch_count": 0,
+        "tot_group_count": 0,
+        "tot_groups": [],
+        "done_reason": "truncated",
+        "step_index": 60,
+        "reward_version": 4,
+        "total_reward": -4.05
+      },
+      "curriculum_stage": null,
+      "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000128\\eval_scenario.json",
+      "recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000128\\eval_recording.jsonl",
+      "replay_available": true
+    },
+    {
+      "algorithm": "ppo",
+      "timesteps": 256,
+      "eval_mean_reward": -243.00000000000026,
+      "eval_std_reward": 0.0,
+      "eval_success_rate": 0.0,
+      "eval_failure_rate": 0.0,
+      "eval_truncated_rate": 1.0,
+      "survivability": 1.0,
+      "weapon_efficiency": 0.0,
+      "time_to_ready": 0.0,
+      "tot_quality": 0.0,
+      "mean_episode_steps": 60.0,
+      "done_reason": "truncated",
+      "done_reason_detail": "max_episode_steps",
+      "selected_target_id": "red-airbase",
+      "selected_target_ids": [
+        "red-airbase",
+        "red-airbase"
+      ],
+      "selected_target_assignments": {
+        "blue-striker-1": "red-airbase",
+        "blue-striker-2": "red-airbase"
+      },
+      "launch_count": 0,
+      "reward_breakdown": {
+        "kill_reward": 0.0,
+        "damage_progress_reward": 0.0,
+        "tot_bonus": 0.0,
+        "eta_progress_bonus": 0.0,
+        "ready_to_fire_bonus": 0.0,
+        "stagnation_penalty": -0.0,
+        "target_switch_penalty": -0.0,
+        "threat_penalty": -4.0,
+        "launch_cost": -0.0,
+        "time_cost": -0.05,
+        "loss_cost": -0.0,
+        "terminal_bonus": 0.0,
+        "destroyed_target_ids": [],
+        "target_damage_fractions": {},
+        "total_damage_fraction": 0.0,
+        "destroyed_high_value_target_ids": [],
+        "lost_ally_ids": [],
+        "threat_exposure_count": 2,
+        "weapons_fired": 0,
+        "selected_target_id": "red-airbase",
+        "selected_target_ids": [
+          "red-airbase",
+          "red-airbase"
+        ],
+        "ally_target_assignments": {
+          "blue-striker-1": "red-airbase",
+          "blue-striker-2": "red-airbase"
+        },
+        "selected_launch_eta_before": {
+          "blue-striker-1": 0.0,
+          "blue-striker-2": 0.0
+        },
+        "selected_launch_eta_after": {
+          "blue-striker-1": 0.0,
+          "blue-striker-2": 0.0
+        },
+        "selected_ready_before_count": 2,
+        "selected_ready_after_count": 2,
+        "selected_ready_delta": 0,
+        "eta_progress_ratio": 0.0,
+        "stagnation_count": 0,
+        "target_switch_count": 0,
+        "tot_group_count": 0,
+        "tot_groups": [],
+        "done_reason": "truncated",
+        "step_index": 60,
+        "reward_version": 4,
+        "total_reward": -4.05
+      },
+      "curriculum_stage": null,
+      "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000256\\eval_scenario.json",
+      "recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000256\\eval_recording.jsonl",
+      "replay_available": true
+    },
+    {
+      "algorithm": "ppo",
+      "timesteps": 384,
+      "eval_mean_reward": -243.00000000000026,
+      "eval_std_reward": 0.0,
+      "eval_success_rate": 0.0,
+      "eval_failure_rate": 0.0,
+      "eval_truncated_rate": 1.0,
+      "survivability": 1.0,
+      "weapon_efficiency": 0.0,
+      "time_to_ready": 0.0,
+      "tot_quality": 0.0,
+      "mean_episode_steps": 60.0,
+      "done_reason": "truncated",
+      "done_reason_detail": "max_episode_steps",
+      "selected_target_id": "red-airbase",
+      "selected_target_ids": [
+        "red-airbase",
+        "red-airbase"
+      ],
+      "selected_target_assignments": {
+        "blue-striker-1": "red-airbase",
+        "blue-striker-2": "red-airbase"
+      },
+      "launch_count": 0,
+      "reward_breakdown": {
+        "kill_reward": 0.0,
+        "damage_progress_reward": 0.0,
+        "tot_bonus": 0.0,
+        "eta_progress_bonus": 0.0,
+        "ready_to_fire_bonus": 0.0,
+        "stagnation_penalty": -0.0,
+        "target_switch_penalty": -0.0,
+        "threat_penalty": -4.0,
+        "launch_cost": -0.0,
+        "time_cost": -0.05,
+        "loss_cost": -0.0,
+        "terminal_bonus": 0.0,
+        "destroyed_target_ids": [],
+        "target_damage_fractions": {},
+        "total_damage_fraction": 0.0,
+        "destroyed_high_value_target_ids": [],
+        "lost_ally_ids": [],
+        "threat_exposure_count": 2,
+        "weapons_fired": 0,
+        "selected_target_id": "red-airbase",
+        "selected_target_ids": [
+          "red-airbase",
+          "red-airbase"
+        ],
+        "ally_target_assignments": {
+          "blue-striker-1": "red-airbase",
+          "blue-striker-2": "red-airbase"
+        },
+        "selected_launch_eta_before": {
+          "blue-striker-1": 0.0,
+          "blue-striker-2": 0.0
+        },
+        "selected_launch_eta_after": {
+          "blue-striker-1": 0.0,
+          "blue-striker-2": 0.0
+        },
+        "selected_ready_before_count": 2,
+        "selected_ready_after_count": 2,
+        "selected_ready_delta": 0,
+        "eta_progress_ratio": 0.0,
+        "stagnation_count": 0,
+        "target_switch_count": 0,
+        "tot_group_count": 0,
+        "tot_groups": [],
+        "done_reason": "truncated",
+        "step_index": 60,
+        "reward_version": 4,
+        "total_reward": -4.05
+      },
+      "curriculum_stage": null,
+      "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000384\\eval_scenario.json",
+      "recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000384\\eval_recording.jsonl",
+      "replay_available": true
+    },
+    {
+      "algorithm": "ppo",
+      "timesteps": 512,
+      "eval_mean_reward": -243.00000000000026,
+      "eval_std_reward": 0.0,
+      "eval_success_rate": 0.0,
+      "eval_failure_rate": 0.0,
+      "eval_truncated_rate": 1.0,
+      "survivability": 1.0,
+      "weapon_efficiency": 0.0,
+      "time_to_ready": 0.0,
+      "tot_quality": 0.0,
+      "mean_episode_steps": 60.0,
+      "done_reason": "truncated",
+      "done_reason_detail": "max_episode_steps",
+      "selected_target_id": "red-airbase",
+      "selected_target_ids": [
+        "red-airbase",
+        "red-airbase"
+      ],
+      "selected_target_assignments": {
+        "blue-striker-1": "red-airbase",
+        "blue-striker-2": "red-airbase"
+      },
+      "launch_count": 0,
+      "reward_breakdown": {
+        "kill_reward": 0.0,
+        "damage_progress_reward": 0.0,
+        "tot_bonus": 0.0,
+        "eta_progress_bonus": 0.0,
+        "ready_to_fire_bonus": 0.0,
+        "stagnation_penalty": -0.0,
+        "target_switch_penalty": -0.0,
+        "threat_penalty": -4.0,
+        "launch_cost": -0.0,
+        "time_cost": -0.05,
+        "loss_cost": -0.0,
+        "terminal_bonus": 0.0,
+        "destroyed_target_ids": [],
+        "target_damage_fractions": {},
+        "total_damage_fraction": 0.0,
+        "destroyed_high_value_target_ids": [],
+        "lost_ally_ids": [],
+        "threat_exposure_count": 2,
+        "weapons_fired": 0,
+        "selected_target_id": "red-airbase",
+        "selected_target_ids": [
+          "red-airbase",
+          "red-airbase"
+        ],
+        "ally_target_assignments": {
+          "blue-striker-1": "red-airbase",
+          "blue-striker-2": "red-airbase"
+        },
+        "selected_launch_eta_before": {
+          "blue-striker-1": 0.0,
+          "blue-striker-2": 0.0
+        },
+        "selected_launch_eta_after": {
+          "blue-striker-1": 0.0,
+          "blue-striker-2": 0.0
+        },
+        "selected_ready_before_count": 2,
+        "selected_ready_after_count": 2,
+        "selected_ready_delta": 0,
+        "eta_progress_ratio": 0.0,
+        "stagnation_count": 0,
+        "target_switch_count": 0,
+        "tot_group_count": 0,
+        "tot_groups": [],
+        "done_reason": "truncated",
+        "step_index": 60,
+        "reward_version": 4,
+        "total_reward": -4.05
+      },
+      "curriculum_stage": null,
+      "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000512\\eval_scenario.json",
+      "recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000512\\eval_recording.jsonl",
+      "replay_available": true
+    }
+  ],
+  "episodes": [
+    {
+      "algorithm": "ppo",
+      "timesteps": 47,
+      "reward": 138.1,
+      "length": 47
+    },
+    {
+      "algorithm": "ppo",
+      "timesteps": 94,
+      "reward": 135.1,
+      "length": 47
+    },
+    {
+      "algorithm": "ppo",
+      "timesteps": 141,
+      "reward": 136.45,
+      "length": 47
+    },
+    {
+      "algorithm": "ppo",
+      "timesteps": 192,
+      "reward": 171.448952,
+      "length": 51
+    },
+    {
+      "algorithm": "ppo",
+      "timesteps": 239,
+      "reward": 134.5,
+      "length": 47
+    },
+    {
+      "algorithm": "ppo",
+      "timesteps": 286,
+      "reward": 134.05,
+      "length": 47
+    },
+    {
+      "algorithm": "ppo",
+      "timesteps": 331,
+      "reward": 142.9,
+      "length": 45
+    },
+    {
+      "algorithm": "ppo",
+      "timesteps": 380,
+      "reward": 126.55,
+      "length": 49
+    },
+    {
+      "algorithm": "ppo",
+      "timesteps": 432,
+      "reward": 113.95,
+      "length": 52
+    },
+    {
+      "algorithm": "ppo",
+      "timesteps": 483,
+      "reward": 118.9,
+      "length": 51
+    }
+  ],
+  "algorithm_runs": {
+    "ppo": {
+      "algorithm": "ppo",
+      "status": "completed",
+      "current_timesteps": 512,
+      "timesteps_target": 512,
+      "checkpoints": [
+        {
+          "algorithm": "ppo",
+          "timesteps": 0,
+          "eval_mean_reward": -243.00000000000026,
+          "eval_std_reward": 0.0,
+          "eval_success_rate": 0.0,
+          "eval_failure_rate": 0.0,
+          "eval_truncated_rate": 1.0,
+          "survivability": 1.0,
+          "weapon_efficiency": 0.0,
+          "time_to_ready": 0.0,
+          "tot_quality": 0.0,
+          "mean_episode_steps": 60.0,
+          "done_reason": "truncated",
+          "done_reason_detail": "max_episode_steps",
+          "selected_target_id": "red-airbase",
+          "selected_target_ids": [
+            "red-airbase",
+            "red-airbase"
+          ],
+          "selected_target_assignments": {
+            "blue-striker-1": "red-airbase",
+            "blue-striker-2": "red-airbase"
+          },
+          "launch_count": 0,
+          "reward_breakdown": {
+            "kill_reward": 0.0,
+            "damage_progress_reward": 0.0,
+            "tot_bonus": 0.0,
+            "eta_progress_bonus": 0.0,
+            "ready_to_fire_bonus": 0.0,
+            "stagnation_penalty": -0.0,
+            "target_switch_penalty": -0.0,
+            "threat_penalty": -4.0,
+            "launch_cost": -0.0,
+            "time_cost": -0.05,
+            "loss_cost": -0.0,
+            "terminal_bonus": 0.0,
+            "destroyed_target_ids": [],
+            "target_damage_fractions": {},
+            "total_damage_fraction": 0.0,
+            "destroyed_high_value_target_ids": [],
+            "lost_ally_ids": [],
+            "threat_exposure_count": 2,
+            "weapons_fired": 0,
+            "selected_target_id": "red-airbase",
+            "selected_target_ids": [
+              "red-airbase",
+              "red-airbase"
+            ],
+            "ally_target_assignments": {
+              "blue-striker-1": "red-airbase",
+              "blue-striker-2": "red-airbase"
+            },
+            "selected_launch_eta_before": {
+              "blue-striker-1": 0.0,
+              "blue-striker-2": 0.0
+            },
+            "selected_launch_eta_after": {
+              "blue-striker-1": 0.0,
+              "blue-striker-2": 0.0
+            },
+            "selected_ready_before_count": 2,
+            "selected_ready_after_count": 2,
+            "selected_ready_delta": 0,
+            "eta_progress_ratio": 0.0,
+            "stagnation_count": 0,
+            "target_switch_count": 0,
+            "tot_group_count": 0,
+            "tot_groups": [],
+            "done_reason": "truncated",
+            "step_index": 60,
+            "reward_version": 4,
+            "total_reward": -4.05
+          },
+          "curriculum_stage": null,
+          "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000000\\eval_scenario.json",
+          "recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000000\\eval_recording.jsonl",
+          "replay_available": true
+        },
+        {
+          "algorithm": "ppo",
+          "timesteps": 128,
+          "eval_mean_reward": -243.00000000000026,
+          "eval_std_reward": 0.0,
+          "eval_success_rate": 0.0,
+          "eval_failure_rate": 0.0,
+          "eval_truncated_rate": 1.0,
+          "survivability": 1.0,
+          "weapon_efficiency": 0.0,
+          "time_to_ready": 0.0,
+          "tot_quality": 0.0,
+          "mean_episode_steps": 60.0,
+          "done_reason": "truncated",
+          "done_reason_detail": "max_episode_steps",
+          "selected_target_id": "red-airbase",
+          "selected_target_ids": [
+            "red-airbase",
+            "red-airbase"
+          ],
+          "selected_target_assignments": {
+            "blue-striker-1": "red-airbase",
+            "blue-striker-2": "red-airbase"
+          },
+          "launch_count": 0,
+          "reward_breakdown": {
+            "kill_reward": 0.0,
+            "damage_progress_reward": 0.0,
+            "tot_bonus": 0.0,
+            "eta_progress_bonus": 0.0,
+            "ready_to_fire_bonus": 0.0,
+            "stagnation_penalty": -0.0,
+            "target_switch_penalty": -0.0,
+            "threat_penalty": -4.0,
+            "launch_cost": -0.0,
+            "time_cost": -0.05,
+            "loss_cost": -0.0,
+            "terminal_bonus": 0.0,
+            "destroyed_target_ids": [],
+            "target_damage_fractions": {},
+            "total_damage_fraction": 0.0,
+            "destroyed_high_value_target_ids": [],
+            "lost_ally_ids": [],
+            "threat_exposure_count": 2,
+            "weapons_fired": 0,
+            "selected_target_id": "red-airbase",
+            "selected_target_ids": [
+              "red-airbase",
+              "red-airbase"
+            ],
+            "ally_target_assignments": {
+              "blue-striker-1": "red-airbase",
+              "blue-striker-2": "red-airbase"
+            },
+            "selected_launch_eta_before": {
+              "blue-striker-1": 0.0,
+              "blue-striker-2": 0.0
+            },
+            "selected_launch_eta_after": {
+              "blue-striker-1": 0.0,
+              "blue-striker-2": 0.0
+            },
+            "selected_ready_before_count": 2,
+            "selected_ready_after_count": 2,
+            "selected_ready_delta": 0,
+            "eta_progress_ratio": 0.0,
+            "stagnation_count": 0,
+            "target_switch_count": 0,
+            "tot_group_count": 0,
+            "tot_groups": [],
+            "done_reason": "truncated",
+            "step_index": 60,
+            "reward_version": 4,
+            "total_reward": -4.05
+          },
+          "curriculum_stage": null,
+          "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000128\\eval_scenario.json",
+          "recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000128\\eval_recording.jsonl",
+          "replay_available": true
+        },
+        {
+          "algorithm": "ppo",
+          "timesteps": 256,
+          "eval_mean_reward": -243.00000000000026,
+          "eval_std_reward": 0.0,
+          "eval_success_rate": 0.0,
+          "eval_failure_rate": 0.0,
+          "eval_truncated_rate": 1.0,
+          "survivability": 1.0,
+          "weapon_efficiency": 0.0,
+          "time_to_ready": 0.0,
+          "tot_quality": 0.0,
+          "mean_episode_steps": 60.0,
+          "done_reason": "truncated",
+          "done_reason_detail": "max_episode_steps",
+          "selected_target_id": "red-airbase",
+          "selected_target_ids": [
+            "red-airbase",
+            "red-airbase"
+          ],
+          "selected_target_assignments": {
+            "blue-striker-1": "red-airbase",
+            "blue-striker-2": "red-airbase"
+          },
+          "launch_count": 0,
+          "reward_breakdown": {
+            "kill_reward": 0.0,
+            "damage_progress_reward": 0.0,
+            "tot_bonus": 0.0,
+            "eta_progress_bonus": 0.0,
+            "ready_to_fire_bonus": 0.0,
+            "stagnation_penalty": -0.0,
+            "target_switch_penalty": -0.0,
+            "threat_penalty": -4.0,
+            "launch_cost": -0.0,
+            "time_cost": -0.05,
+            "loss_cost": -0.0,
+            "terminal_bonus": 0.0,
+            "destroyed_target_ids": [],
+            "target_damage_fractions": {},
+            "total_damage_fraction": 0.0,
+            "destroyed_high_value_target_ids": [],
+            "lost_ally_ids": [],
+            "threat_exposure_count": 2,
+            "weapons_fired": 0,
+            "selected_target_id": "red-airbase",
+            "selected_target_ids": [
+              "red-airbase",
+              "red-airbase"
+            ],
+            "ally_target_assignments": {
+              "blue-striker-1": "red-airbase",
+              "blue-striker-2": "red-airbase"
+            },
+            "selected_launch_eta_before": {
+              "blue-striker-1": 0.0,
+              "blue-striker-2": 0.0
+            },
+            "selected_launch_eta_after": {
+              "blue-striker-1": 0.0,
+              "blue-striker-2": 0.0
+            },
+            "selected_ready_before_count": 2,
+            "selected_ready_after_count": 2,
+            "selected_ready_delta": 0,
+            "eta_progress_ratio": 0.0,
+            "stagnation_count": 0,
+            "target_switch_count": 0,
+            "tot_group_count": 0,
+            "tot_groups": [],
+            "done_reason": "truncated",
+            "step_index": 60,
+            "reward_version": 4,
+            "total_reward": -4.05
+          },
+          "curriculum_stage": null,
+          "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000256\\eval_scenario.json",
+          "recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000256\\eval_recording.jsonl",
+          "replay_available": true
+        },
+        {
+          "algorithm": "ppo",
+          "timesteps": 384,
+          "eval_mean_reward": -243.00000000000026,
+          "eval_std_reward": 0.0,
+          "eval_success_rate": 0.0,
+          "eval_failure_rate": 0.0,
+          "eval_truncated_rate": 1.0,
+          "survivability": 1.0,
+          "weapon_efficiency": 0.0,
+          "time_to_ready": 0.0,
+          "tot_quality": 0.0,
+          "mean_episode_steps": 60.0,
+          "done_reason": "truncated",
+          "done_reason_detail": "max_episode_steps",
+          "selected_target_id": "red-airbase",
+          "selected_target_ids": [
+            "red-airbase",
+            "red-airbase"
+          ],
+          "selected_target_assignments": {
+            "blue-striker-1": "red-airbase",
+            "blue-striker-2": "red-airbase"
+          },
+          "launch_count": 0,
+          "reward_breakdown": {
+            "kill_reward": 0.0,
+            "damage_progress_reward": 0.0,
+            "tot_bonus": 0.0,
+            "eta_progress_bonus": 0.0,
+            "ready_to_fire_bonus": 0.0,
+            "stagnation_penalty": -0.0,
+            "target_switch_penalty": -0.0,
+            "threat_penalty": -4.0,
+            "launch_cost": -0.0,
+            "time_cost": -0.05,
+            "loss_cost": -0.0,
+            "terminal_bonus": 0.0,
+            "destroyed_target_ids": [],
+            "target_damage_fractions": {},
+            "total_damage_fraction": 0.0,
+            "destroyed_high_value_target_ids": [],
+            "lost_ally_ids": [],
+            "threat_exposure_count": 2,
+            "weapons_fired": 0,
+            "selected_target_id": "red-airbase",
+            "selected_target_ids": [
+              "red-airbase",
+              "red-airbase"
+            ],
+            "ally_target_assignments": {
+              "blue-striker-1": "red-airbase",
+              "blue-striker-2": "red-airbase"
+            },
+            "selected_launch_eta_before": {
+              "blue-striker-1": 0.0,
+              "blue-striker-2": 0.0
+            },
+            "selected_launch_eta_after": {
+              "blue-striker-1": 0.0,
+              "blue-striker-2": 0.0
+            },
+            "selected_ready_before_count": 2,
+            "selected_ready_after_count": 2,
+            "selected_ready_delta": 0,
+            "eta_progress_ratio": 0.0,
+            "stagnation_count": 0,
+            "target_switch_count": 0,
+            "tot_group_count": 0,
+            "tot_groups": [],
+            "done_reason": "truncated",
+            "step_index": 60,
+            "reward_version": 4,
+            "total_reward": -4.05
+          },
+          "curriculum_stage": null,
+          "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000384\\eval_scenario.json",
+          "recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000384\\eval_recording.jsonl",
+          "replay_available": true
+        },
+        {
+          "algorithm": "ppo",
+          "timesteps": 512,
+          "eval_mean_reward": -243.00000000000026,
+          "eval_std_reward": 0.0,
+          "eval_success_rate": 0.0,
+          "eval_failure_rate": 0.0,
+          "eval_truncated_rate": 1.0,
+          "survivability": 1.0,
+          "weapon_efficiency": 0.0,
+          "time_to_ready": 0.0,
+          "tot_quality": 0.0,
+          "mean_episode_steps": 60.0,
+          "done_reason": "truncated",
+          "done_reason_detail": "max_episode_steps",
+          "selected_target_id": "red-airbase",
+          "selected_target_ids": [
+            "red-airbase",
+            "red-airbase"
+          ],
+          "selected_target_assignments": {
+            "blue-striker-1": "red-airbase",
+            "blue-striker-2": "red-airbase"
+          },
+          "launch_count": 0,
+          "reward_breakdown": {
+            "kill_reward": 0.0,
+            "damage_progress_reward": 0.0,
+            "tot_bonus": 0.0,
+            "eta_progress_bonus": 0.0,
+            "ready_to_fire_bonus": 0.0,
+            "stagnation_penalty": -0.0,
+            "target_switch_penalty": -0.0,
+            "threat_penalty": -4.0,
+            "launch_cost": -0.0,
+            "time_cost": -0.05,
+            "loss_cost": -0.0,
+            "terminal_bonus": 0.0,
+            "destroyed_target_ids": [],
+            "target_damage_fractions": {},
+            "total_damage_fraction": 0.0,
+            "destroyed_high_value_target_ids": [],
+            "lost_ally_ids": [],
+            "threat_exposure_count": 2,
+            "weapons_fired": 0,
+            "selected_target_id": "red-airbase",
+            "selected_target_ids": [
+              "red-airbase",
+              "red-airbase"
+            ],
+            "ally_target_assignments": {
+              "blue-striker-1": "red-airbase",
+              "blue-striker-2": "red-airbase"
+            },
+            "selected_launch_eta_before": {
+              "blue-striker-1": 0.0,
+              "blue-striker-2": 0.0
+            },
+            "selected_launch_eta_after": {
+              "blue-striker-1": 0.0,
+              "blue-striker-2": 0.0
+            },
+            "selected_ready_before_count": 2,
+            "selected_ready_after_count": 2,
+            "selected_ready_delta": 0,
+            "eta_progress_ratio": 0.0,
+            "stagnation_count": 0,
+            "target_switch_count": 0,
+            "tot_group_count": 0,
+            "tot_groups": [],
+            "done_reason": "truncated",
+            "step_index": 60,
+            "reward_version": 4,
+            "total_reward": -4.05
+          },
+          "curriculum_stage": null,
+          "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000512\\eval_scenario.json",
+          "recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000512\\eval_recording.jsonl",
+          "replay_available": true
+        }
+      ],
+      "episodes": [
+        {
+          "algorithm": "ppo",
+          "timesteps": 47,
+          "reward": 138.1,
+          "length": 47
+        },
+        {
+          "algorithm": "ppo",
+          "timesteps": 94,
+          "reward": 135.1,
+          "length": 47
+        },
+        {
+          "algorithm": "ppo",
+          "timesteps": 141,
+          "reward": 136.45,
+          "length": 47
+        },
+        {
+          "algorithm": "ppo",
+          "timesteps": 192,
+          "reward": 171.448952,
+          "length": 51
+        },
+        {
+          "algorithm": "ppo",
+          "timesteps": 239,
+          "reward": 134.5,
+          "length": 47
+        },
+        {
+          "algorithm": "ppo",
+          "timesteps": 286,
+          "reward": 134.05,
+          "length": 47
+        },
+        {
+          "algorithm": "ppo",
+          "timesteps": 331,
+          "reward": 142.9,
+          "length": 45
+        },
+        {
+          "algorithm": "ppo",
+          "timesteps": 380,
+          "reward": 126.55,
+          "length": 49
+        },
+        {
+          "algorithm": "ppo",
+          "timesteps": 432,
+          "reward": 113.95,
+          "length": 52
+        },
+        {
+          "algorithm": "ppo",
+          "timesteps": 483,
+          "reward": 118.9,
+          "length": 51
+        }
+      ],
+      "best_checkpoint": {
+        "algorithm": "ppo",
+        "timesteps": 0,
+        "eval_mean_reward": -243.00000000000026,
+        "eval_std_reward": 0.0,
+        "eval_success_rate": 0.0,
+        "eval_failure_rate": 0.0,
+        "eval_truncated_rate": 1.0,
+        "survivability": 1.0,
+        "weapon_efficiency": 0.0,
+        "time_to_ready": 0.0,
+        "tot_quality": 0.0,
+        "mean_episode_steps": 60.0,
+        "done_reason": "truncated",
+        "done_reason_detail": "max_episode_steps",
+        "selected_target_id": "red-airbase",
+        "selected_target_ids": [
+          "red-airbase",
+          "red-airbase"
+        ],
+        "selected_target_assignments": {
+          "blue-striker-1": "red-airbase",
+          "blue-striker-2": "red-airbase"
+        },
+        "launch_count": 0,
+        "reward_breakdown": {
+          "kill_reward": 0.0,
+          "damage_progress_reward": 0.0,
+          "tot_bonus": 0.0,
+          "eta_progress_bonus": 0.0,
+          "ready_to_fire_bonus": 0.0,
+          "stagnation_penalty": -0.0,
+          "target_switch_penalty": -0.0,
+          "threat_penalty": -4.0,
+          "launch_cost": -0.0,
+          "time_cost": -0.05,
+          "loss_cost": -0.0,
+          "terminal_bonus": 0.0,
+          "destroyed_target_ids": [],
+          "target_damage_fractions": {},
+          "total_damage_fraction": 0.0,
+          "destroyed_high_value_target_ids": [],
+          "lost_ally_ids": [],
+          "threat_exposure_count": 2,
+          "weapons_fired": 0,
+          "selected_target_id": "red-airbase",
+          "selected_target_ids": [
+            "red-airbase",
+            "red-airbase"
+          ],
+          "ally_target_assignments": {
+            "blue-striker-1": "red-airbase",
+            "blue-striker-2": "red-airbase"
+          },
+          "selected_launch_eta_before": {
+            "blue-striker-1": 0.0,
+            "blue-striker-2": 0.0
+          },
+          "selected_launch_eta_after": {
+            "blue-striker-1": 0.0,
+            "blue-striker-2": 0.0
+          },
+          "selected_ready_before_count": 2,
+          "selected_ready_after_count": 2,
+          "selected_ready_delta": 0,
+          "eta_progress_ratio": 0.0,
+          "stagnation_count": 0,
+          "target_switch_count": 0,
+          "tot_group_count": 0,
+          "tot_groups": [],
+          "done_reason": "truncated",
+          "step_index": 60,
+          "reward_version": 4,
+          "total_reward": -4.05
+        },
+        "curriculum_stage": null,
+        "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000000\\eval_scenario.json",
+        "recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\checkpoints\\0000000\\eval_recording.jsonl",
+        "replay_available": true,
+        "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\fixed_target_strike_policy_ppo_checkpoint_best.zip"
+      },
+      "final_evaluation": {
+        "benchmark_seed_count": 1,
+        "benchmark_seeds": [
+          7
+        ],
+        "recording_seed": 7,
+        "mean_reward": -243.00000000000026,
+        "std_reward": 0.0,
+        "episodes": 1,
+        "episodes_per_seed": 1,
+        "total_steps": 60,
+        "mean_episode_steps": 60.0,
+        "success_count": 0,
+        "failure_count": 0,
+        "truncated_count": 1,
+        "success_rate": 0.0,
+        "failure_rate": 0.0,
+        "truncated_rate": 1.0,
+        "win_rate": 0.0,
+        "survivability": 1.0,
+        "weapon_efficiency": 0.0,
+        "time_to_ready": 0.0,
+        "tot_quality": 0.0,
+        "done_reason_distribution": {
+          "success": 0,
+          "failure": 0,
+          "truncated": 1,
+          "in_progress": 0
+        },
+        "done_reason": "truncated",
+        "done_reason_detail": "max_episode_steps",
+        "selected_target_id": "red-airbase",
+        "selected_target_ids": [
+          "red-airbase",
+          "red-airbase"
+        ],
+        "selected_target_assignments": {
+          "blue-striker-1": "red-airbase",
+          "blue-striker-2": "red-airbase"
+        },
+        "launch_count": 0,
+        "reward_breakdown": {
+          "kill_reward": 0.0,
+          "damage_progress_reward": 0.0,
+          "tot_bonus": 0.0,
+          "eta_progress_bonus": 0.0,
+          "ready_to_fire_bonus": 0.0,
+          "stagnation_penalty": -0.0,
+          "target_switch_penalty": -0.0,
+          "threat_penalty": -4.0,
+          "launch_cost": -0.0,
+          "time_cost": -0.05,
+          "loss_cost": -0.0,
+          "terminal_bonus": 0.0,
+          "destroyed_target_ids": [],
+          "target_damage_fractions": {},
+          "total_damage_fraction": 0.0,
+          "destroyed_high_value_target_ids": [],
+          "lost_ally_ids": [],
+          "threat_exposure_count": 2,
+          "weapons_fired": 0,
+          "selected_target_id": "red-airbase",
+          "selected_target_ids": [
+            "red-airbase",
+            "red-airbase"
+          ],
+          "ally_target_assignments": {
+            "blue-striker-1": "red-airbase",
+            "blue-striker-2": "red-airbase"
+          },
+          "selected_launch_eta_before": {
+            "blue-striker-1": 0.0,
+            "blue-striker-2": 0.0
+          },
+          "selected_launch_eta_after": {
+            "blue-striker-1": 0.0,
+            "blue-striker-2": 0.0
+          },
+          "selected_ready_before_count": 2,
+          "selected_ready_after_count": 2,
+          "selected_ready_delta": 0,
+          "eta_progress_ratio": 0.0,
+          "stagnation_count": 0,
+          "target_switch_count": 0,
+          "tot_group_count": 0,
+          "tot_groups": [],
+          "done_reason": "truncated",
+          "step_index": 60,
+          "reward_version": 4,
+          "total_reward": -4.05
+        },
+        "seed_variability": {
+          "warning": false,
+          "reasons": [],
+          "success_rate_std": 0.0,
+          "mean_reward_std": 0.0,
+          "survivability_std": 0.0,
+          "weapon_efficiency_std": 0.0,
+          "time_to_ready_std": 0.0,
+          "tot_quality_std": 0.0
+        },
+        "seed_variability_warning": false,
+        "observation_version": 4,
+        "reward_version": 4,
+        "curriculum_stage": null,
+        "per_seed_evaluations": [
+          {
+            "evaluation_seed": 7,
+            "mean_reward": -243.00000000000026,
+            "std_reward": 0.0,
+            "episodes": 1,
+            "total_steps": 60,
+            "mean_episode_steps": 60.0,
+            "success_count": 0,
+            "failure_count": 0,
+            "truncated_count": 1,
+            "success_rate": 0.0,
+            "failure_rate": 0.0,
+            "truncated_rate": 1.0,
+            "win_rate": 0.0,
+            "survivability": 1.0,
+            "survivability_std": 0.0,
+            "weapon_efficiency": 0.0,
+            "weapon_efficiency_std": 0.0,
+            "time_to_ready": 0.0,
+            "time_to_ready_std": 0.0,
+            "tot_quality": 0.0,
+            "tot_quality_std": 0.0,
+            "done_reason_distribution": {
+              "success": 0,
+              "failure": 0,
+              "truncated": 1,
+              "in_progress": 0
+            },
+            "done_reason": "truncated",
+            "done_reason_detail": "max_episode_steps",
+            "selected_target_id": "red-airbase",
+            "selected_target_ids": [
+              "red-airbase",
+              "red-airbase"
+            ],
+            "selected_target_assignments": {
+              "blue-striker-1": "red-airbase",
+              "blue-striker-2": "red-airbase"
+            },
+            "launch_count": 0,
+            "reward_breakdown": {
+              "kill_reward": 0.0,
+              "damage_progress_reward": 0.0,
+              "tot_bonus": 0.0,
+              "eta_progress_bonus": 0.0,
+              "ready_to_fire_bonus": 0.0,
+              "stagnation_penalty": -0.0,
+              "target_switch_penalty": -0.0,
+              "threat_penalty": -4.0,
+              "launch_cost": -0.0,
+              "time_cost": -0.05,
+              "loss_cost": -0.0,
+              "terminal_bonus": 0.0,
+              "destroyed_target_ids": [],
+              "target_damage_fractions": {},
+              "total_damage_fraction": 0.0,
+              "destroyed_high_value_target_ids": [],
+              "lost_ally_ids": [],
+              "threat_exposure_count": 2,
+              "weapons_fired": 0,
+              "selected_target_id": "red-airbase",
+              "selected_target_ids": [
+                "red-airbase",
+                "red-airbase"
+              ],
+              "ally_target_assignments": {
+                "blue-striker-1": "red-airbase",
+                "blue-striker-2": "red-airbase"
+              },
+              "selected_launch_eta_before": {
+                "blue-striker-1": 0.0,
+                "blue-striker-2": 0.0
+              },
+              "selected_launch_eta_after": {
+                "blue-striker-1": 0.0,
+                "blue-striker-2": 0.0
+              },
+              "selected_ready_before_count": 2,
+              "selected_ready_after_count": 2,
+              "selected_ready_delta": 0,
+              "eta_progress_ratio": 0.0,
+              "stagnation_count": 0,
+              "target_switch_count": 0,
+              "tot_group_count": 0,
+              "tot_groups": [],
+              "done_reason": "truncated",
+              "step_index": 60,
+              "reward_version": 4,
+              "total_reward": -4.05
+            },
+            "observation_version": 4,
+            "reward_version": 4,
+            "curriculum_stage": null
+          }
+        ]
+      },
+      "selected_model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\fixed_target_strike_policy_ppo.zip",
+      "final_model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\runs\\ppo\\fixed_target_strike_policy_ppo_final.zip",
+      "error": null,
+      "current_stage": null
+    }
+  },
+  "best_run": {
+    "algorithm": "ppo",
+    "evaluation": {
+      "benchmark_seed_count": 1,
+      "benchmark_seeds": [
+        7
+      ],
+      "recording_seed": 7,
+      "mean_reward": -243.00000000000026,
+      "std_reward": 0.0,
+      "episodes": 1,
+      "episodes_per_seed": 1,
+      "total_steps": 60,
+      "mean_episode_steps": 60.0,
+      "success_count": 0,
+      "failure_count": 0,
+      "truncated_count": 1,
+      "success_rate": 0.0,
+      "failure_rate": 0.0,
+      "truncated_rate": 1.0,
+      "win_rate": 0.0,
+      "survivability": 1.0,
+      "weapon_efficiency": 0.0,
+      "time_to_ready": 0.0,
+      "tot_quality": 0.0,
+      "done_reason_distribution": {
+        "success": 0,
+        "failure": 0,
+        "truncated": 1,
+        "in_progress": 0
+      },
+      "done_reason": "truncated",
+      "done_reason_detail": "max_episode_steps",
+      "selected_target_id": "red-airbase",
+      "selected_target_ids": [
+        "red-airbase",
+        "red-airbase"
+      ],
+      "selected_target_assignments": {
+        "blue-striker-1": "red-airbase",
+        "blue-striker-2": "red-airbase"
+      },
+      "launch_count": 0,
+      "reward_breakdown": {
+        "kill_reward": 0.0,
+        "damage_progress_reward": 0.0,
+        "tot_bonus": 0.0,
+        "eta_progress_bonus": 0.0,
+        "ready_to_fire_bonus": 0.0,
+        "stagnation_penalty": -0.0,
+        "target_switch_penalty": -0.0,
+        "threat_penalty": -4.0,
+        "launch_cost": -0.0,
+        "time_cost": -0.05,
+        "loss_cost": -0.0,
+        "terminal_bonus": 0.0,
+        "destroyed_target_ids": [],
+        "target_damage_fractions": {},
+        "total_damage_fraction": 0.0,
+        "destroyed_high_value_target_ids": [],
+        "lost_ally_ids": [],
+        "threat_exposure_count": 2,
+        "weapons_fired": 0,
+        "selected_target_id": "red-airbase",
+        "selected_target_ids": [
+          "red-airbase",
+          "red-airbase"
+        ],
+        "ally_target_assignments": {
+          "blue-striker-1": "red-airbase",
+          "blue-striker-2": "red-airbase"
+        },
+        "selected_launch_eta_before": {
+          "blue-striker-1": 0.0,
+          "blue-striker-2": 0.0
+        },
+        "selected_launch_eta_after": {
+          "blue-striker-1": 0.0,
+          "blue-striker-2": 0.0
+        },
+        "selected_ready_before_count": 2,
+        "selected_ready_after_count": 2,
+        "selected_ready_delta": 0,
+        "eta_progress_ratio": 0.0,
+        "stagnation_count": 0,
+        "target_switch_count": 0,
+        "tot_group_count": 0,
+        "tot_groups": [],
+        "done_reason": "truncated",
+        "step_index": 60,
+        "reward_version": 4,
+        "total_reward": -4.05
+      },
+      "seed_variability": {
+        "warning": false,
+        "reasons": [],
+        "success_rate_std": 0.0,
+        "mean_reward_std": 0.0,
+        "survivability_std": 0.0,
+        "weapon_efficiency_std": 0.0,
+        "time_to_ready_std": 0.0,
+        "tot_quality_std": 0.0
+      },
+      "seed_variability_warning": false,
+      "observation_version": 4,
+      "reward_version": 4,
+      "curriculum_stage": null,
+      "per_seed_evaluations": [
+        {
+          "evaluation_seed": 7,
+          "mean_reward": -243.00000000000026,
+          "std_reward": 0.0,
+          "episodes": 1,
+          "total_steps": 60,
+          "mean_episode_steps": 60.0,
+          "success_count": 0,
+          "failure_count": 0,
+          "truncated_count": 1,
+          "success_rate": 0.0,
+          "failure_rate": 0.0,
+          "truncated_rate": 1.0,
+          "win_rate": 0.0,
+          "survivability": 1.0,
+          "survivability_std": 0.0,
+          "weapon_efficiency": 0.0,
+          "weapon_efficiency_std": 0.0,
+          "time_to_ready": 0.0,
+          "time_to_ready_std": 0.0,
+          "tot_quality": 0.0,
+          "tot_quality_std": 0.0,
+          "done_reason_distribution": {
+            "success": 0,
+            "failure": 0,
+            "truncated": 1,
+            "in_progress": 0
+          },
+          "done_reason": "truncated",
+          "done_reason_detail": "max_episode_steps",
+          "selected_target_id": "red-airbase",
+          "selected_target_ids": [
+            "red-airbase",
+            "red-airbase"
+          ],
+          "selected_target_assignments": {
+            "blue-striker-1": "red-airbase",
+            "blue-striker-2": "red-airbase"
+          },
+          "launch_count": 0,
+          "reward_breakdown": {
+            "kill_reward": 0.0,
+            "damage_progress_reward": 0.0,
+            "tot_bonus": 0.0,
+            "eta_progress_bonus": 0.0,
+            "ready_to_fire_bonus": 0.0,
+            "stagnation_penalty": -0.0,
+            "target_switch_penalty": -0.0,
+            "threat_penalty": -4.0,
+            "launch_cost": -0.0,
+            "time_cost": -0.05,
+            "loss_cost": -0.0,
+            "terminal_bonus": 0.0,
+            "destroyed_target_ids": [],
+            "target_damage_fractions": {},
+            "total_damage_fraction": 0.0,
+            "destroyed_high_value_target_ids": [],
+            "lost_ally_ids": [],
+            "threat_exposure_count": 2,
+            "weapons_fired": 0,
+            "selected_target_id": "red-airbase",
+            "selected_target_ids": [
+              "red-airbase",
+              "red-airbase"
+            ],
+            "ally_target_assignments": {
+              "blue-striker-1": "red-airbase",
+              "blue-striker-2": "red-airbase"
+            },
+            "selected_launch_eta_before": {
+              "blue-striker-1": 0.0,
+              "blue-striker-2": 0.0
+            },
+            "selected_launch_eta_after": {
+              "blue-striker-1": 0.0,
+              "blue-striker-2": 0.0
+            },
+            "selected_ready_before_count": 2,
+            "selected_ready_after_count": 2,
+            "selected_ready_delta": 0,
+            "eta_progress_ratio": 0.0,
+            "stagnation_count": 0,
+            "target_switch_count": 0,
+            "tot_group_count": 0,
+            "tot_groups": [],
+            "done_reason": "truncated",
+            "step_index": 60,
+            "reward_version": 4,
+            "total_reward": -4.05
+          },
+          "observation_version": 4,
+          "reward_version": 4,
+          "curriculum_stage": null
+        }
+      ],
+      "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\eval_scenario.json"
+    },
+    "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\fixed_target_strike_policy.zip"
+  },
+  "error": null,
+  "final_evaluation": {
+    "benchmark_seed_count": 1,
+    "benchmark_seeds": [
+      7
+    ],
+    "recording_seed": 7,
+    "mean_reward": -243.00000000000026,
+    "std_reward": 0.0,
+    "episodes": 1,
+    "episodes_per_seed": 1,
+    "total_steps": 60,
+    "mean_episode_steps": 60.0,
+    "success_count": 0,
+    "failure_count": 0,
+    "truncated_count": 1,
+    "success_rate": 0.0,
+    "failure_rate": 0.0,
+    "truncated_rate": 1.0,
+    "win_rate": 0.0,
+    "survivability": 1.0,
+    "weapon_efficiency": 0.0,
+    "time_to_ready": 0.0,
+    "tot_quality": 0.0,
+    "done_reason_distribution": {
+      "success": 0,
+      "failure": 0,
+      "truncated": 1,
+      "in_progress": 0
+    },
+    "done_reason": "truncated",
+    "done_reason_detail": "max_episode_steps",
+    "selected_target_id": "red-airbase",
+    "selected_target_ids": [
+      "red-airbase",
+      "red-airbase"
+    ],
+    "selected_target_assignments": {
+      "blue-striker-1": "red-airbase",
+      "blue-striker-2": "red-airbase"
+    },
+    "launch_count": 0,
+    "reward_breakdown": {
+      "kill_reward": 0.0,
+      "damage_progress_reward": 0.0,
+      "tot_bonus": 0.0,
+      "eta_progress_bonus": 0.0,
+      "ready_to_fire_bonus": 0.0,
+      "stagnation_penalty": -0.0,
+      "target_switch_penalty": -0.0,
+      "threat_penalty": -4.0,
+      "launch_cost": -0.0,
+      "time_cost": -0.05,
+      "loss_cost": -0.0,
+      "terminal_bonus": 0.0,
+      "destroyed_target_ids": [],
+      "target_damage_fractions": {},
+      "total_damage_fraction": 0.0,
+      "destroyed_high_value_target_ids": [],
+      "lost_ally_ids": [],
+      "threat_exposure_count": 2,
+      "weapons_fired": 0,
+      "selected_target_id": "red-airbase",
+      "selected_target_ids": [
+        "red-airbase",
+        "red-airbase"
+      ],
+      "ally_target_assignments": {
+        "blue-striker-1": "red-airbase",
+        "blue-striker-2": "red-airbase"
+      },
+      "selected_launch_eta_before": {
+        "blue-striker-1": 0.0,
+        "blue-striker-2": 0.0
+      },
+      "selected_launch_eta_after": {
+        "blue-striker-1": 0.0,
+        "blue-striker-2": 0.0
+      },
+      "selected_ready_before_count": 2,
+      "selected_ready_after_count": 2,
+      "selected_ready_delta": 0,
+      "eta_progress_ratio": 0.0,
+      "stagnation_count": 0,
+      "target_switch_count": 0,
+      "tot_group_count": 0,
+      "tot_groups": [],
+      "done_reason": "truncated",
+      "step_index": 60,
+      "reward_version": 4,
+      "total_reward": -4.05
+    },
+    "seed_variability": {
+      "warning": false,
+      "reasons": [],
+      "success_rate_std": 0.0,
+      "mean_reward_std": 0.0,
+      "survivability_std": 0.0,
+      "weapon_efficiency_std": 0.0,
+      "time_to_ready_std": 0.0,
+      "tot_quality_std": 0.0
+    },
+    "seed_variability_warning": false,
+    "observation_version": 4,
+    "reward_version": 4,
+    "curriculum_stage": null,
+    "per_seed_evaluations": [
+      {
+        "evaluation_seed": 7,
+        "mean_reward": -243.00000000000026,
+        "std_reward": 0.0,
+        "episodes": 1,
+        "total_steps": 60,
+        "mean_episode_steps": 60.0,
+        "success_count": 0,
+        "failure_count": 0,
+        "truncated_count": 1,
+        "success_rate": 0.0,
+        "failure_rate": 0.0,
+        "truncated_rate": 1.0,
+        "win_rate": 0.0,
+        "survivability": 1.0,
+        "survivability_std": 0.0,
+        "weapon_efficiency": 0.0,
+        "weapon_efficiency_std": 0.0,
+        "time_to_ready": 0.0,
+        "time_to_ready_std": 0.0,
+        "tot_quality": 0.0,
+        "tot_quality_std": 0.0,
+        "done_reason_distribution": {
+          "success": 0,
+          "failure": 0,
+          "truncated": 1,
+          "in_progress": 0
+        },
+        "done_reason": "truncated",
+        "done_reason_detail": "max_episode_steps",
+        "selected_target_id": "red-airbase",
+        "selected_target_ids": [
+          "red-airbase",
+          "red-airbase"
+        ],
+        "selected_target_assignments": {
+          "blue-striker-1": "red-airbase",
+          "blue-striker-2": "red-airbase"
+        },
+        "launch_count": 0,
+        "reward_breakdown": {
+          "kill_reward": 0.0,
+          "damage_progress_reward": 0.0,
+          "tot_bonus": 0.0,
+          "eta_progress_bonus": 0.0,
+          "ready_to_fire_bonus": 0.0,
+          "stagnation_penalty": -0.0,
+          "target_switch_penalty": -0.0,
+          "threat_penalty": -4.0,
+          "launch_cost": -0.0,
+          "time_cost": -0.05,
+          "loss_cost": -0.0,
+          "terminal_bonus": 0.0,
+          "destroyed_target_ids": [],
+          "target_damage_fractions": {},
+          "total_damage_fraction": 0.0,
+          "destroyed_high_value_target_ids": [],
+          "lost_ally_ids": [],
+          "threat_exposure_count": 2,
+          "weapons_fired": 0,
+          "selected_target_id": "red-airbase",
+          "selected_target_ids": [
+            "red-airbase",
+            "red-airbase"
+          ],
+          "ally_target_assignments": {
+            "blue-striker-1": "red-airbase",
+            "blue-striker-2": "red-airbase"
+          },
+          "selected_launch_eta_before": {
+            "blue-striker-1": 0.0,
+            "blue-striker-2": 0.0
+          },
+          "selected_launch_eta_after": {
+            "blue-striker-1": 0.0,
+            "blue-striker-2": 0.0
+          },
+          "selected_ready_before_count": 2,
+          "selected_ready_after_count": 2,
+          "selected_ready_delta": 0,
+          "eta_progress_ratio": 0.0,
+          "stagnation_count": 0,
+          "target_switch_count": 0,
+          "tot_group_count": 0,
+          "tot_groups": [],
+          "done_reason": "truncated",
+          "step_index": 60,
+          "reward_version": 4,
+          "total_reward": -4.05
+        },
+        "observation_version": 4,
+        "reward_version": 4,
+        "curriculum_stage": null
+      }
+    ],
+    "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\1c26474e-606c-444a-b5b4-4ccccf5a38fd\\eval_scenario.json"
+  }
+}

@@ -174,6 +174,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Train with staged curriculum mutations before the full scenario.",
     )
     parser.add_argument(
+        "--guided-launch-bootstrap-steps",
+        type=int,
+        default=0,
+        help="Apply a launch bootstrap heuristic for the first N steps until the first launch.",
+    )
+    parser.add_argument(
         "--scenario-path",
         type=Path,
         default=DEFAULT_SCENARIO_PATH,
@@ -669,6 +675,10 @@ def build_config(
         normalize_margin_nm=120.0,
         eta_clip_seconds=1800.0,
         threat_buffer_nm=5.0,
+        guided_launch_bootstrap_steps=max(
+            int(getattr(args, "guided_launch_bootstrap_steps", 0)),
+            0,
+        ),
         reward_config=build_reward_config(args),
         controllable_side_name=args.controllable_side_name,
         target_side_name=args.target_side_name,

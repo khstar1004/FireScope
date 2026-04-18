@@ -75,6 +75,9 @@ interface CommanderEvalSummary {
   mean_reward?: number;
   survivability?: number;
   time_to_ready?: number;
+  weapon_efficiency?: number;
+  mean_episode_steps?: number;
+  done_reason?: string | null;
 }
 
 interface CommanderLeaderboardEntry {
@@ -82,6 +85,46 @@ interface CommanderLeaderboardEntry {
   candidate_id: string;
   label: string;
   evaluation_summary?: CommanderEvalSummary;
+}
+
+interface CommanderCandidateDeployment {
+  distance_scale?: number;
+  bearing_offset_deg?: number;
+  formation_spread_nm?: number;
+  key?: string;
+}
+
+interface CommanderCandidateDecision {
+  ally_ids?: string[];
+  target_ids?: string[];
+  high_value_target_ids?: string[];
+  deployment?: CommanderCandidateDeployment;
+}
+
+interface CommanderCandidateResourceSummary {
+  ally_count?: number;
+  ally_names?: string[];
+  total_weapon_count?: number;
+  candidate_pool_size?: number;
+}
+
+interface CommanderCandidateSummary {
+  candidate_id: string;
+  label: string;
+  status: string;
+  selected_algorithm?: string | null;
+  evaluation_summary?: CommanderEvalSummary | null;
+  decision?: CommanderCandidateDecision;
+  resource_summary?: CommanderCandidateResourceSummary;
+  error?: string | null;
+}
+
+interface CommanderSearchSpaceSummary {
+  candidate_count?: number;
+  high_value_target_search_mode?: string;
+  distance_scales?: number[];
+  bearing_offsets_deg?: number[];
+  formation_spreads_nm?: number[];
 }
 
 interface CommanderJobSnapshot {
@@ -96,13 +139,16 @@ interface CommanderJobSnapshot {
     finished_candidate_count?: number;
     current_candidate_label?: string | null;
     leaderboard?: CommanderLeaderboardEntry[];
+    candidates?: CommanderCandidateSummary[];
   } | null;
   summary: {
     dry_run?: boolean;
     selection_metric?: string;
+    selected_candidate_id?: string | null;
     selected_candidate_label?: string | null;
     leaderboard?: CommanderLeaderboardEntry[];
-    search_space?: { candidate_count?: number };
+    search_space?: CommanderSearchSpaceSummary;
+    candidates?: CommanderCandidateSummary[];
   } | null;
   artifacts: {
     summary: boolean;
@@ -149,6 +195,41 @@ function formatNumber(value: number | undefined, digits = 1) {
   return typeof value === "number" && Number.isFinite(value)
     ? value.toFixed(digits)
     : "-";
+}
+
+function formatSignedNumber(value: number | undefined, digits = 0) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "-";
+  }
+  return `${value > 0 ? "+" : ""}${value.toFixed(digits)}`;
+}
+
+function formatCandidateStatusLabel(status: string | undefined) {
+  switch (status) {
+    case "completed":
+      return "평가 완료";
+    case "planned":
+      return "후보 생성";
+    case "running":
+      return "평가 중";
+    case "failed":
+      return "실패";
+    default:
+      return status ?? "대기";
+  }
+}
+
+function buildCandidateDeploymentLabel(
+  deployment: CommanderCandidateDeployment | undefined
+) {
+  if (!deployment) {
+    return "배치 정보 없음";
+  }
+
+  const distance = formatNumber(deployment.distance_scale, 2);
+  const bearing = formatSignedNumber(deployment.bearing_offset_deg, 0);
+  const spread = formatNumber(deployment.formation_spread_nm, 1);
+  return `거리 ${distance}x · 축선 ${bearing}deg · 간격 ${spread}nm`;
 }
 
 const WRAP_ROW_SX = {
@@ -425,6 +506,11 @@ export default function RlLabCommanderPanel(
     () => job?.summary?.leaderboard ?? job?.progress?.leaderboard ?? [],
     [job?.progress?.leaderboard, job?.summary?.leaderboard]
   );
+  const candidateCards = useMemo(
+    () => job?.summary?.candidates ?? job?.progress?.candidates ?? [],
+    [job?.progress?.candidates, job?.summary?.candidates]
+  );
+  const selectedCandidateId = job?.summary?.selected_candidate_id ?? null;
   const ready =
     Boolean(capabilities?.available) &&
     Boolean(form) &&
@@ -926,6 +1012,196 @@ export default function RlLabCommanderPanel(
                 }`}
               />
             </Stack>
+            {job.summary?.search_space && (
+              <Stack direction="row" spacing={1} sx={WRAP_ROW_SX}>
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={`거리축 ${(
+                    job.summary.search_space.distance_scales ?? []
+                  ).join(", ") || "-"}`}
+                />
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={`방위축 ${(
+                    job.summary.search_space.bearing_offsets_deg ?? []
+                  ).join(", ") || "-"}`}
+                />
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={`간격축 ${(
+                    job.summary.search_space.formation_spreads_nm ?? []
+                  ).join(", ") || "-"}`}
+                />
+              </Stack>
+            )}
+            {candidateCards.length > 0 && (
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 1,
+                  gridTemplateColumns: {
+                    xs: "minmax(0, 1fr)",
+                    xl: "repeat(2, minmax(0, 1fr))",
+                  },
+                }}
+              >
+                {candidateCards.slice(0, 6).map((candidate) => {
+                  const deploymentLabel = buildCandidateDeploymentLabel(
+                    candidate.decision?.deployment
+                  );
+                  const allyNames =
+                    candidate.resource_summary?.ally_names?.join(", ") ||
+                    candidate.decision?.ally_ids?.join(", ") ||
+                    "-";
+                  const targetNames =
+                    candidate.decision?.target_ids?.join(", ") || "-";
+                  const highValueTargets =
+                    candidate.decision?.high_value_target_ids?.join(", ") || "-";
+                  const evaluation = candidate.evaluation_summary;
+                  const isSelected = selectedCandidateId === candidate.candidate_id;
+
+                  return (
+                    <Box
+                      key={candidate.candidate_id}
+                      sx={{
+                        p: 1.25,
+                        borderRadius: 2,
+                        border: `1px solid ${
+                          isSelected
+                            ? RL_LAB_PALETTE.accent
+                            : RL_LAB_PALETTE.surfaceBorder
+                        }`,
+                        backgroundColor: isSelected
+                          ? RL_LAB_PALETTE.accentSoft
+                          : RL_LAB_PALETTE.surfaceRaised,
+                        color: RL_LAB_PALETTE.text,
+                      }}
+                    >
+                      <Stack spacing={1}>
+                        <Stack
+                          direction={{ xs: "column", md: "row" }}
+                          sx={{ justifyContent: "space-between", gap: 1 }}
+                        >
+                          <Stack
+                            direction="row"
+                            spacing={1}
+                            sx={{ flexWrap: "wrap" }}
+                          >
+                            <Chip
+                              size="small"
+                              color={isSelected ? "success" : "default"}
+                              label={candidate.candidate_id}
+                            />
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={formatCandidateStatusLabel(candidate.status)}
+                            />
+                            {candidate.selected_algorithm && (
+                              <Chip
+                                size="small"
+                                variant="outlined"
+                                label={candidate.selected_algorithm.toUpperCase()}
+                              />
+                            )}
+                          </Stack>
+                          {isSelected && (
+                            <Chip
+                              size="small"
+                              color="success"
+                              label="선정 후보"
+                            />
+                          )}
+                        </Stack>
+
+                        <Typography
+                          variant="subtitle2"
+                          sx={{ fontWeight: 700, ...BREAK_TEXT_SX }}
+                        >
+                          {candidate.label}
+                        </Typography>
+
+                        <Typography
+                          variant="body2"
+                          sx={{ color: RL_LAB_PALETTE.mutedText }}
+                        >
+                          {deploymentLabel}
+                        </Typography>
+
+                        <Stack direction="row" spacing={1} sx={WRAP_ROW_SX}>
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            label={`아군 ${allyNames}`}
+                          />
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            label={`표적 ${targetNames}`}
+                          />
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            label={`HVT ${highValueTargets}`}
+                          />
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            label={`무장 ${
+                              candidate.resource_summary?.total_weapon_count ?? "-"
+                            }`}
+                          />
+                        </Stack>
+
+                        {evaluation && (
+                          <Stack direction="row" spacing={1} sx={WRAP_ROW_SX}>
+                            <Chip
+                              size="small"
+                              label={`Win ${formatPercent(
+                                evaluation.success_rate
+                              )}`}
+                            />
+                            <Chip
+                              size="small"
+                              label={`Reward ${formatNumber(
+                                evaluation.mean_reward,
+                                1
+                              )}`}
+                            />
+                            <Chip
+                              size="small"
+                              label={`Survival ${formatPercent(
+                                evaluation.survivability,
+                                1
+                              )}`}
+                            />
+                            <Chip
+                              size="small"
+                              label={`Ready ${formatNumber(
+                                evaluation.time_to_ready,
+                                1
+                              )}`}
+                            />
+                          </Stack>
+                        )}
+
+                        {candidate.error && (
+                          <Typography
+                            variant="body2"
+                            sx={{ color: RL_LAB_PALETTE.subtleText }}
+                          >
+                            {candidate.error}
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Box>
+                  );
+                })}
+              </Box>
+            )}
             {leaderboard.length > 0 && (
               <TableContainer sx={TABLE_CONTAINER_SX}>
                 <Table size="small">

@@ -1,6 +1,7 @@
 import { randomUUID } from "@/utils/generateUUID";
 import { NAUTICAL_MILES_TO_METERS } from "@/utils/constants";
 import Aircraft from "@/game/units/Aircraft";
+import Army from "@/game/units/Army";
 import Facility from "@/game/units/Facility";
 import Scenario from "@/game/Scenario";
 import Weapon from "@/game/units/Weapon";
@@ -27,13 +28,14 @@ import ReferencePoint from "@/game/units/ReferencePoint";
 
 export type Target =
   | Aircraft
+  | Army
   | Facility
   | Weapon
   | Airbase
   | Ship
   | ReferencePoint;
-type Detector = Facility | Ship | Aircraft;
-type LaunchPlatform = Aircraft | Facility | Ship;
+type Detector = Army | Facility | Ship | Aircraft;
+type LaunchPlatform = Aircraft | Army | Facility | Ship;
 type LocatableTarget = {
   latitude: number;
   longitude: number;
@@ -44,6 +46,9 @@ function getEntityType(
 ): SimulationLogEntityType {
   if (entity instanceof Aircraft) {
     return "aircraft";
+  }
+  if (entity instanceof Army) {
+    return "army";
   }
   if (entity instanceof Facility) {
     return "facility";
@@ -70,6 +75,7 @@ function getEntitySideId(entity: LaunchPlatform | Target | null | undefined) {
 function resolveLauncher(currentScenario: Scenario, weapon: Weapon) {
   return (
     currentScenario.getAircraft(weapon.launcherId) ??
+    currentScenario.getArmy(weapon.launcherId) ??
     currentScenario.getFacility(weapon.launcherId) ??
     currentScenario.getShip(weapon.launcherId) ??
     null
@@ -240,6 +246,10 @@ export function weaponEndgame(
     currentScenario.aircraft = currentScenario.aircraft.filter(
       (currentScenarioAircraft) => currentScenarioAircraft.id !== target.id
     );
+  } else if (target instanceof Army) {
+    currentScenario.armies = currentScenario.armies.filter(
+      (currentScenarioArmy) => currentScenarioArmy.id !== target.id
+    );
   } else if (target instanceof Facility) {
     currentScenario.facilities = currentScenario.facilities.filter(
       (currentScenarioFacility) => currentScenarioFacility.id !== target.id
@@ -277,7 +287,7 @@ export function weaponEndgame(
 
 export function launchWeapon(
   currentScenario: Scenario,
-  origin: Aircraft | Facility | Ship,
+  origin: Aircraft | Army | Facility | Ship,
   target: Target,
   launchedWeapon: Weapon,
   launchedWeaponQuantity: number,
@@ -372,6 +382,7 @@ export function weaponEngagement(
 ) {
   const target =
     currentScenario.getAircraft(weapon.targetId) ??
+    currentScenario.getArmy(weapon.targetId) ??
     currentScenario.getFacility(weapon.targetId) ??
     currentScenario.getWeapon(weapon.targetId) ??
     currentScenario.getShip(weapon.targetId) ??
@@ -482,6 +493,7 @@ export function routeAircraftToStrikePosition(
   strikeRadiusNm: number
 ) {
   const target =
+    currentScenario.getArmy(targetId) ||
     currentScenario.getFacility(targetId) ||
     currentScenario.getShip(targetId) ||
     currentScenario.getAirbase(targetId) ||

@@ -1,5 +1,6 @@
 export interface IShipModel {
   className: string;
+  visualProfileId?: string;
   speed: number;
   maxFuel: number;
   fuelRate: number;

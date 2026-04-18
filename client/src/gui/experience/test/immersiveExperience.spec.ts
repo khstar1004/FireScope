@@ -67,6 +67,19 @@ describe("immersiveExperience", () => {
 
     expect(
       inferImmersiveExperienceProfile({
+        kind: "facility",
+        id: "facility-2",
+        name: "Forward Tor Screen",
+        className: "Tor-M2",
+        sideName: "RED",
+        latitude: 0,
+        longitude: 0,
+        altitude: 0,
+      })
+    ).toBe("defense");
+
+    expect(
+      inferImmersiveExperienceProfile({
         kind: "weapon",
         id: "weapon-2",
         name: "K9 Thunder",

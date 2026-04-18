@@ -10,10 +10,22 @@ const DEFAULT_HYBRID_OVERLAY_OPACITY = 0.42;
 const DEFAULT_LABEL_OVERLAY_OPACITY = 1;
 
 type BaseTileSource = OSM | TileJSON | XYZ;
+export type BaseMapModeId =
+  | "hybrid"
+  | "satellite"
+  | "basic"
+  | "evening"
+  | "osm";
+
+export interface BaseMapModeOption {
+  id: BaseMapModeId;
+  label: string;
+}
 
 export default class BaseMapLayers {
   layers: TileLayer<BaseTileSource>[];
   modeLayerIndexes: number[][];
+  modes: (BaseMapModeOption & { layerIndexes: number[] })[];
   projection: Projection;
   currentLayerIndex: number;
 
@@ -22,16 +34,19 @@ export default class BaseMapLayers {
     mapTilerBasicUrl?: string,
     mapTilerSatelliteUrl?: string,
     hybridLabelUrl?: string,
+    eveningMapUrl?: string,
     zIndex?: number
   ) {
     this.layers = [];
     this.modeLayerIndexes = [];
+    this.modes = [];
     let basicLayerIndex: number | null = null;
     let satelliteLayerIndex: number | null = null;
     let hybridLayerIndex: number | null = null;
+    let eveningLayerIndex: number | null = null;
 
     const basicLayerSource = mapTilerBasicUrl
-      ? this.createMapTilerBasicSource(mapTilerBasicUrl)
+      ? this.createMapTilerRasterSource(mapTilerBasicUrl)
       : null;
 
     if (basicLayerSource) {
@@ -65,18 +80,34 @@ export default class BaseMapLayers {
       }
     }
 
+    if (eveningMapUrl) {
+      eveningLayerIndex =
+        this.layers.push(
+          this.createTileLayer(
+            this.createMapTilerRasterSource(eveningMapUrl),
+            zIndex
+          )
+        ) - 1;
+    }
+
     const osmLayerIndex = this.layers.push(this.createBaseOsmLayer(zIndex)) - 1;
 
     if (satelliteLayerIndex !== null && hybridLayerIndex !== null) {
-      this.modeLayerIndexes.push([satelliteLayerIndex, hybridLayerIndex]);
+      this.registerMode("hybrid", "하이브리드", [
+        satelliteLayerIndex,
+        hybridLayerIndex,
+      ]);
     }
     if (satelliteLayerIndex !== null) {
-      this.modeLayerIndexes.push([satelliteLayerIndex]);
+      this.registerMode("satellite", "위성", [satelliteLayerIndex]);
     }
     if (basicLayerIndex !== null) {
-      this.modeLayerIndexes.push([basicLayerIndex]);
+      this.registerMode("basic", "표준", [basicLayerIndex]);
     }
-    this.modeLayerIndexes.push([osmLayerIndex]);
+    if (eveningLayerIndex !== null) {
+      this.registerMode("evening", "저녁", [eveningLayerIndex]);
+    }
+    this.registerMode("osm", "OSM", [osmLayerIndex]);
 
     this.projection = projection ?? defaultProjection!;
     this.currentLayerIndex = 0;
@@ -87,7 +118,7 @@ export default class BaseMapLayers {
     return this.createTileLayer(new OSM(), zIndex);
   };
 
-  createMapTilerBasicSource = (url: string) => {
+  createMapTilerRasterSource = (url: string) => {
     return new OSM({
       url: url,
       crossOrigin: "anonymous",
@@ -121,6 +152,11 @@ export default class BaseMapLayers {
     return this.createTileLayer(mapTilerSatelliteSource, zIndex);
   };
 
+  registerMode = (id: BaseMapModeId, label: string, layerIndexes: number[]) => {
+    this.modeLayerIndexes.push(layerIndexes);
+    this.modes.push({ id, label, layerIndexes });
+  };
+
   applyCurrentMode = () => {
     const visibleLayerIndexes = new Set(
       this.modeLayerIndexes[this.currentLayerIndex] ?? []
@@ -135,5 +171,28 @@ export default class BaseMapLayers {
     this.currentLayerIndex =
       (this.currentLayerIndex + 1) % this.modeLayerIndexes.length;
     this.applyCurrentMode();
+  };
+
+  setMode = (modeId: BaseMapModeId) => {
+    const modeIndex = this.modes.findIndex((mode) => mode.id === modeId);
+
+    if (modeIndex === -1) {
+      return;
+    }
+
+    this.currentLayerIndex = modeIndex;
+    this.applyCurrentMode();
+  };
+
+  getCurrentModeId = (): BaseMapModeId => {
+    return this.modes[this.currentLayerIndex]?.id ?? "osm";
+  };
+
+  getCurrentModeLabel = () => {
+    return this.modes[this.currentLayerIndex]?.label ?? "OSM";
+  };
+
+  getAvailableModes = (): BaseMapModeOption[] => {
+    return this.modes.map(({ id, label }) => ({ id, label }));
   };
 }

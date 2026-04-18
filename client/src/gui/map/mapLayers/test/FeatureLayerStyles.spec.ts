@@ -2,10 +2,14 @@ import {
   aircraftStyle,
   facilityStyle,
   featureLabelStyle,
+  weaponTrajectoryStyle,
 } from "@/gui/map/mapLayers/FeatureLayerStyles";
 import DroneMapIconSvg from "@/gui/assets/svg/drone_map_24dp.svg";
 import FlightIconSvg from "@/gui/assets/svg/flight_black_24dp.svg";
 import TankMapIconSvg from "@/gui/assets/svg/tank_map_24dp.svg";
+import ChevronRightSvg from "@/gui/assets/svg/chevron_right_black_24dp.svg";
+import Feature from "ol/Feature";
+import { LineString } from "ol/geom";
 
 function createFeatureLike(properties: Record<string, unknown>) {
   return {
@@ -80,5 +84,32 @@ describe("FeatureLayerStyles", () => {
     expect(styles[0].getText().getText()).toBe("Blue Destroyer");
     expect(styles[1].getText().getText()).toContain("WARN 60/100");
     expect(styles[1].getText().getText()).toContain("[|||||...]");
+  });
+
+  test("adds an arrowhead only for active weapon trajectories", () => {
+    const activeStyles = weaponTrajectoryStyle(
+      new Feature({
+        trajectoryKind: "active",
+        sideColor: "blue",
+        geometry: new LineString([
+          [0, 0],
+          [10, 12],
+        ]),
+      })
+    ) as any[];
+    const projectedStyles = weaponTrajectoryStyle(
+      new Feature({
+        trajectoryKind: "projected",
+        sideColor: "blue",
+        geometry: new LineString([
+          [0, 0],
+          [10, 12],
+        ]),
+      })
+    ) as any[];
+
+    expect(activeStyles).toHaveLength(3);
+    expect((activeStyles[2].getImage() as any).getSrc()).toBe(ChevronRightSvg);
+    expect(projectedStyles).toHaveLength(2);
   });
 });

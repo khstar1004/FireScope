@@ -41,6 +41,7 @@ export default function MultipleFeatureSelector({
     featureType:
       | "aircraft"
       | "airbase"
+      | "army"
       | "ship"
       | "facility"
       | "referencePoint"

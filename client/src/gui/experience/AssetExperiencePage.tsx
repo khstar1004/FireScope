@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
@@ -12,6 +12,7 @@ import {
   AssetExperienceSummary,
   inferAircraftExperienceCraft,
 } from "@/gui/experience/assetExperience";
+import { buildBundleViewerSceneProps } from "@/gui/experience/bundleSceneProps";
 import {
   getImmersiveExperienceModelOptions,
   selectAssetExperienceModel,
@@ -384,11 +385,18 @@ export default function AssetExperiencePage({
     preferredImmersiveModel ??
     bundleModel ??
     null;
+  const sceneProps = useMemo(
+    () =>
+      asset && activeModel
+        ? buildBundleViewerSceneProps(asset, activeModel, "detail")
+        : [],
+    [activeModel, asset]
+  );
 
   useEffect(() => {
-    void preloadBundleViewer(activeModel);
+    void preloadBundleViewer(activeModel, sceneProps);
     void preloadTacticalSim(activeModel);
-  }, [activeModel?.path]);
+  }, [activeModel?.path, sceneProps]);
 
   if (!asset) {
     return (
@@ -792,6 +800,7 @@ export default function AssetExperiencePage({
               accentColor={theme.accentColor}
               glowColor={theme.glowColor}
               viewerChrome="minimal"
+              sceneProps={sceneProps}
               sx={{
                 minHeight: { xs: 360, md: 520 },
                 borderRadius: 4,

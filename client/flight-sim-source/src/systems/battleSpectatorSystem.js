@@ -49,6 +49,61 @@ const DEFAULT_UNIT_MODEL = {
 	facility: '/3d-bundles/tank/models/t-50_war_thunder.glb'
 };
 
+const UNIT_MODEL_URI_BY_ID = {
+	'aircraft-apache':
+		'/3d-bundles/aircraft/models/boeing_ah-64d_apache_combat_helicopter.glb',
+	'aircraft-blackhawk':
+		'/3d-bundles/aircraft/models/sikorsky_uh-60m_blackhawk.glb',
+	'aircraft-f15-basic': '/3d-bundles/aircraft/models/f-15.glb',
+	'aircraft-f15-lowpoly': '/3d-bundles/aircraft/models/low_poly_f-15.glb',
+	'aircraft-f15-strike':
+		'/3d-bundles/aircraft/models/mcdonnell_douglas_f-15_strike_eagle.glb',
+	'aircraft-f16':
+		'/3d-bundles/aircraft/models/lockheed_martin_f-16ef_fighting_falcon.glb',
+	'aircraft-f35':
+		'/3d-bundles/aircraft/models/f-35_lightning_ii_-_fighter_jet_-_free.glb',
+	'aircraft-kf21':
+		'/3d-bundles/aircraft/models/kf-21a_boramae_fighter_jet.glb',
+	'artillery-d30': '/3d-bundles/artillery/models/d-30_howitzer.glb',
+	'artillery-howitzer':
+		'/3d-bundles/artillery/models/howitzer_artillery_tank.glb',
+	'artillery-hyunmoo':
+		'/3d-bundles/artillery/models/hyunmoo5irbmlauncher.glb',
+	'artillery-k9':
+		'/3d-bundles/artillery/models/k9_thunder_artillery.glb',
+	'artillery-k9-variant':
+		'/3d-bundles/artillery/models/k9_thunder_artillery (1).glb',
+	'artillery-nasams':
+		'/3d-bundles/artillery/models/nasams_1_surface-to-air_missile_system.glb',
+	'artillery-paladin':
+		'/3d-bundles/artillery/models/m109a6_paladin_self-propelled_howitzer.glb',
+	'artillery-patriot':
+		'/3d-bundles/artillery/models/mim-104_patriot_surface-to-air_missile_sam.glb',
+	'artillery-roketsan':
+		'/3d-bundles/artillery/models/roketsan_missiles.glb',
+	'artillery-thaad': '/3d-bundles/artillery/models/thaad-2.glb',
+	'drone-animated': '/3d-bundles/drone/models/animated_drone.glb',
+	'drone-quad': '/3d-bundles/drone/models/drone.glb',
+	'ship-carrier':
+		'/3d-bundles/ships/hms_queen_elizabeth_r08_aircraft_carrier.glb',
+	'ship-destroyer': '/3d-bundles/ships/type-45_destroyer_class.glb',
+	'ship-submarine': '/3d-bundles/ships/uss_texas_ssn-775_submarine.glb',
+	'tank-km900': '/3d-bundles/tank/models/south_korean_km900_apc.glb',
+	'tank-m113': '/3d-bundles/tank/models/m113a1.glb',
+	'tank-m577': '/3d-bundles/tank/models/m577_command_vehicle.glb',
+	'tank-tracked-armor': '/3d-bundles/tank/models/t-50_war_thunder.glb'
+};
+
+const WEAPON_MODEL_URI_BY_ID = {
+	'weapon-air-to-air-missile': '/3d-bundles/missile/aim-120c_amraam.glb',
+	'weapon-surface-missile': '/3d-bundles/missile/aim-120c_amraam.glb',
+	'weapon-artillery-shell': '/3d-bundles/artillery/models/artillery_shell.glb'
+};
+const TRAJECTORY_WEAPON_SIGNATURE =
+	/\b(aim-|agm-|asm|sam|aam|atgm|jdam|jassm|tomahawk|hyunmoo|guided|missile|rocket)\b/i;
+const NON_TRAJECTORY_WEAPON_SIGNATURE =
+	/\b(shell|round|bullet|cannon|gun|30mm|20mm|40mm|57mm|76mm|90mm|105mm|120mm|125mm|127mm|130mm|152mm|155mm)\b/i;
+
 const DEFAULT_LOD_LEVEL = 'balanced';
 const UNIT_SAMPLE_SECONDS = 0.35;
 const WEAPON_SAMPLE_SECONDS = 0.28;
@@ -71,6 +126,9 @@ const LOD_CONFIG = {
 		unitTrailWidth: 2.6,
 		weaponImpactLinkDistance: 150000,
 		weaponImpactLinkWidth: 3.2,
+		weaponTrajectoryDistance: 165000,
+		weaponTrajectoryWidth: 3.8,
+		weaponTrajectoryProjectedWidth: 2.9,
 		weaponTrailTime: 6,
 		weaponPathWidth: 5,
 		weaponGlowPower: 0.24,
@@ -99,6 +157,9 @@ const LOD_CONFIG = {
 		unitTrailWidth: 2.1,
 		weaponImpactLinkDistance: 105000,
 		weaponImpactLinkWidth: 2.7,
+		weaponTrajectoryDistance: 118000,
+		weaponTrajectoryWidth: 3.1,
+		weaponTrajectoryProjectedWidth: 2.3,
 		weaponTrailTime: 4.2,
 		weaponPathWidth: 4,
 		weaponGlowPower: 0.2,
@@ -127,6 +188,9 @@ const LOD_CONFIG = {
 		unitTrailWidth: 1.6,
 		weaponImpactLinkDistance: 76000,
 		weaponImpactLinkWidth: 2.1,
+		weaponTrajectoryDistance: 82000,
+		weaponTrajectoryWidth: 2.3,
+		weaponTrajectoryProjectedWidth: 1.8,
 		weaponTrailTime: 2.8,
 		weaponPathWidth: 3,
 		weaponGlowPower: 0.16,
@@ -364,9 +428,66 @@ function findFirstMatchingModel(signature, candidates, fallbackModel) {
 	return fallbackModel;
 }
 
+function resolveUnitModelFromProfileId(unit, totalUnits, lodConfig) {
+	const uri = UNIT_MODEL_URI_BY_ID[unit?.modelId];
+	if (!uri || unit?.entityType === 'airbase') {
+		return null;
+	}
+
+	if (
+		(unit.entityType === 'facility' || unit.entityType === 'army') &&
+		totalUnits > lodConfig.facilityModelBudget
+	) {
+		return null;
+	}
+
+	if (unit.entityType === 'ship') {
+		return {
+			uri,
+			scale: unit.modelId === 'ship-submarine' ? 1.1 : 1.9,
+			minimumPixelSize: 36,
+			maximumScale: 280
+		};
+	}
+
+	if (unit.entityType === 'aircraft') {
+		return {
+			uri,
+			scale:
+				unit.modelId === 'drone-animated' || unit.modelId === 'drone-quad'
+					? 1.2
+					: 0.9,
+			minimumPixelSize: 34,
+			maximumScale: 220
+		};
+	}
+
+	return {
+		uri,
+		scale:
+			unit.modelId === 'artillery-patriot' ||
+			unit.modelId === 'artillery-nasams' ||
+			unit.modelId === 'artillery-thaad' ||
+			unit.modelId === 'artillery-hyunmoo'
+				? 1.15
+				: 0.9,
+		minimumPixelSize: 28,
+		maximumScale: 180
+	};
+}
+
 function resolveUnitModel(unit, totalUnits, lodConfig) {
 	if (unit.entityType === 'airbase') {
 		return null;
+	}
+
+	const resolvedByProfileId = resolveUnitModelFromProfileId(
+		unit,
+		totalUnits,
+		lodConfig
+	);
+	if (resolvedByProfileId) {
+		return resolvedByProfileId;
 	}
 
 	const signature = buildSignature(unit);
@@ -397,7 +518,7 @@ function resolveUnitModel(unit, totalUnits, lodConfig) {
 	}
 
 	if (
-		unit.entityType === 'facility' &&
+		(unit.entityType === 'facility' || unit.entityType === 'army') &&
 		totalUnits <= lodConfig.facilityModelBudget
 	) {
 		return {
@@ -418,6 +539,10 @@ function resolveUnitModel(unit, totalUnits, lodConfig) {
 }
 
 function resolveWeaponModel(weapon) {
+	if (weapon?.modelId && WEAPON_MODEL_URI_BY_ID[weapon.modelId]) {
+		return WEAPON_MODEL_URI_BY_ID[weapon.modelId];
+	}
+
 	return findFirstMatchingModel(
 		buildSignature(weapon),
 		WEAPON_MODEL_MAP,
@@ -523,6 +648,92 @@ function resolveWeaponImpactPoint(state, weapon) {
 	}
 
 	return null;
+}
+
+function isTrajectoryWeapon(weapon) {
+	if (!weapon) {
+		return false;
+	}
+
+	if (
+		weapon.modelId === 'weapon-air-to-air-missile' ||
+		weapon.modelId === 'weapon-surface-missile'
+	) {
+		return true;
+	}
+	if (weapon.modelId === 'weapon-artillery-shell') {
+		return false;
+	}
+
+	const signature = buildSignature(weapon);
+	if (NON_TRAJECTORY_WEAPON_SIGNATURE.test(signature)) {
+		return false;
+	}
+
+	return TRAJECTORY_WEAPON_SIGNATURE.test(signature);
+}
+
+function shouldShowWeaponTrajectoryCorridor(weapon, followTargetId, lodLevel) {
+	if (isTrackedTarget(followTargetId, 'weapon', weapon.id)) {
+		return true;
+	}
+
+	if (!isTrajectoryWeapon(weapon)) {
+		return false;
+	}
+
+	return lodLevel !== 'performance';
+}
+
+function resolveWeaponTrajectoryTargetPoint(state, weapon) {
+	const impactPoint = resolveWeaponImpactPoint(state, weapon);
+	if (impactPoint) {
+		return impactPoint;
+	}
+
+	return offsetPointByHeadingMeters(
+		weapon,
+		weapon.headingDeg,
+		clamp(Math.max(140, Number(weapon.speedKts) || 0) * 24, 2600, 18000),
+		0,
+		Math.max(0, Number(weapon.altitudeMeters) || 0)
+	);
+}
+
+function normalizePointSnapshot(point) {
+	if (
+		!point ||
+		!Number.isFinite(Number(point.longitude)) ||
+		!Number.isFinite(Number(point.latitude))
+	) {
+		return null;
+	}
+
+	return {
+		longitude: Number(point.longitude),
+		latitude: Number(point.latitude),
+		altitudeMeters: Math.max(0, Number(point.altitudeMeters) || 0)
+	};
+}
+
+function normalizeWeaponInventoryItem(item) {
+	if (
+		!item ||
+		typeof item.id !== 'string' ||
+		typeof item.name !== 'string' ||
+		typeof item.className !== 'string'
+	) {
+		return null;
+	}
+
+	return {
+		id: item.id,
+		name: item.name,
+		className: item.className,
+		quantity: Math.max(0, Number(item.quantity) || 0),
+		maxQuantity: Math.max(0, Number(item.maxQuantity) || 0),
+		modelId: typeof item.modelId === 'string' ? item.modelId : undefined
+	};
 }
 
 function shouldShowWeaponImpactLink(weapon, followTargetId, lodLevel) {
@@ -770,6 +981,10 @@ function normalizeUnit(unit) {
 		name: unit.name,
 		className: typeof unit.className === 'string' ? unit.className : 'Unknown',
 		entityType: unit.entityType,
+		modelId: typeof unit.modelId === 'string' ? unit.modelId : undefined,
+		profileHint:
+			typeof unit.profileHint === 'string' ? unit.profileHint : 'base',
+		groundUnit: unit.groundUnit === true,
 		sideId: typeof unit.sideId === 'string' ? unit.sideId : 'unknown',
 		sideName: typeof unit.sideName === 'string' ? unit.sideName : '미상',
 		sideColor: typeof unit.sideColor === 'string' ? unit.sideColor : 'silver',
@@ -780,6 +995,39 @@ function normalizeUnit(unit) {
 		speedKts: Math.max(0, Number(unit.speedKts) || 0),
 		weaponCount: Math.max(0, Number(unit.weaponCount) || 0),
 		hpFraction: clamp(Number(unit.hpFraction) || 0, 0, 1),
+		damageFraction: clamp(Number(unit.damageFraction) || 0, 0, 1),
+		detectionRangeNm: Math.max(0, Number(unit.detectionRangeNm) || 0),
+		detectionArcDegrees: Math.max(0, Number(unit.detectionArcDegrees) || 0),
+		detectionHeadingDeg: Number(unit.detectionHeadingDeg) || 0,
+		engagementRangeNm: Math.max(0, Number(unit.engagementRangeNm) || 0),
+		currentFuel:
+			typeof unit.currentFuel === 'number' && Number.isFinite(unit.currentFuel)
+				? unit.currentFuel
+				: undefined,
+		maxFuel:
+			typeof unit.maxFuel === 'number' && Number.isFinite(unit.maxFuel)
+				? unit.maxFuel
+				: undefined,
+		fuelFraction:
+			typeof unit.fuelFraction === 'number' && Number.isFinite(unit.fuelFraction)
+				? clamp(unit.fuelFraction, 0, 1)
+				: undefined,
+		route: Array.isArray(unit.route)
+			? unit.route.map(normalizePointSnapshot).filter(Boolean)
+			: [],
+		desiredRoute: Array.isArray(unit.desiredRoute)
+			? unit.desiredRoute.map(normalizePointSnapshot).filter(Boolean)
+			: [],
+		weaponInventory: Array.isArray(unit.weaponInventory)
+			? unit.weaponInventory.map(normalizeWeaponInventoryItem).filter(Boolean)
+			: [],
+		aircraftCount: Math.max(0, Number(unit.aircraftCount) || 0),
+		homeBaseId:
+			typeof unit.homeBaseId === 'string' ? unit.homeBaseId : undefined,
+		rtb: unit.rtb === true,
+		statusFlags: Array.isArray(unit.statusFlags)
+			? unit.statusFlags.filter((flag) => typeof flag === 'string')
+			: [],
 		selected: unit.selected === true,
 		targetId: typeof unit.targetId === 'string' ? unit.targetId : null
 	};
@@ -801,6 +1049,7 @@ function normalizeWeapon(weapon) {
 		name: weapon.name,
 		className:
 			typeof weapon.className === 'string' ? weapon.className : weapon.name,
+		modelId: typeof weapon.modelId === 'string' ? weapon.modelId : undefined,
 		launcherId:
 			typeof weapon.launcherId === 'string' ? weapon.launcherId : 'unknown-launcher',
 		launcherName:
@@ -825,6 +1074,7 @@ function normalizeWeapon(weapon) {
 		),
 		headingDeg: Number(weapon.headingDeg) || 0,
 		speedKts: Math.max(0, Number(weapon.speedKts) || 0),
+		hpFraction: clamp(Number(weapon.hpFraction) || 0, 0, 1),
 		targetId: typeof weapon.targetId === 'string' ? weapon.targetId : null,
 		targetLatitude: Number.isFinite(Number(weapon.targetLatitude))
 			? Number(weapon.targetLatitude)
@@ -1825,6 +2075,293 @@ export class BattleSpectatorSystem {
 			new Cesium.DistanceDisplayCondition(0, lodConfig.weaponImpactLinkDistance);
 	}
 
+	createWeaponTrajectoryEntities(weapon) {
+		const lodLevel = this.state.view?.lodLevel ?? DEFAULT_LOD_LEVEL;
+		if (
+			!shouldShowWeaponTrajectoryCorridor(
+				weapon,
+				this.state.view?.followTargetId,
+				lodLevel
+			)
+		) {
+			return null;
+		}
+
+		const lodConfig = getLodConfig(lodLevel);
+		const emphasized = isTrackedTarget(
+			this.state.view?.followTargetId,
+			'weapon',
+			weapon.id
+		);
+		const launchPoint = {
+			longitude: weapon.launchLongitude,
+			latitude: weapon.launchLatitude,
+			altitudeMeters: weapon.launchAltitudeMeters ?? 0
+		};
+		const currentPoint = {
+			longitude: weapon.longitude,
+			latitude: weapon.latitude,
+			altitudeMeters: weapon.altitudeMeters ?? 0
+		};
+		const targetPoint = resolveWeaponTrajectoryTargetPoint(this.state, weapon);
+		const projectedPositions = targetPoint
+			? buildArcPolylinePositions(
+					launchPoint,
+					targetPoint,
+					estimateLinkArcLiftMeters(launchPoint, targetPoint) *
+						(emphasized ? 1.08 : 0.94)
+			  )
+			: null;
+		const progressPositions = buildArcPolylinePositions(
+			launchPoint,
+			currentPoint,
+			Math.max(estimateLinkArcLiftMeters(launchPoint, currentPoint) * 0.74, 320)
+		);
+		if (!projectedPositions && !progressPositions) {
+			return null;
+		}
+
+		return {
+			projectedEntity: projectedPositions
+				? this.dataSource.entities.add({
+						id: `battle-weapon-trajectory-projected-${weapon.id}`,
+						polyline: {
+							positions: projectedPositions,
+							width: emphasized
+								? lodConfig.weaponTrajectoryProjectedWidth + 0.6
+								: lodConfig.weaponTrajectoryProjectedWidth,
+							material: new Cesium.PolylineDashMaterialProperty({
+								color: colorForSide(
+									weapon.sideColor,
+									emphasized ? 0.62 : 0.38
+								),
+								dashLength: emphasized ? 18 : 22,
+								gapColor: colorForSide(weapon.sideColor, 0.06)
+							}),
+							arcType: Cesium.ArcType.NONE,
+							clampToGround: false,
+							distanceDisplayCondition: new Cesium.DistanceDisplayCondition(
+								0,
+								lodConfig.weaponTrajectoryDistance
+							)
+						}
+				  })
+				: null,
+			progressEntity: progressPositions
+				? this.dataSource.entities.add({
+						id: `battle-weapon-trajectory-progress-${weapon.id}`,
+						polyline: {
+							positions: progressPositions,
+							width: emphasized
+								? lodConfig.weaponTrajectoryWidth + 0.8
+								: lodConfig.weaponTrajectoryWidth,
+							material: new Cesium.PolylineGlowMaterialProperty({
+								glowPower: emphasized ? 0.26 : 0.18,
+								color: colorForSide(
+									weapon.sideColor,
+									emphasized ? 0.96 : 0.74
+								)
+							}),
+							arcType: Cesium.ArcType.NONE,
+							clampToGround: false,
+							distanceDisplayCondition: new Cesium.DistanceDisplayCondition(
+								0,
+								lodConfig.weaponTrajectoryDistance
+							)
+						}
+				  })
+				: null,
+			launchEntity: this.dataSource.entities.add({
+				id: `battle-weapon-trajectory-launch-${weapon.id}`,
+				position: cartesianFromSnapshot(launchPoint),
+				point: {
+					pixelSize: emphasized ? 9 : 7,
+					color: colorForSide(weapon.sideColor, emphasized ? 0.92 : 0.7),
+					outlineColor: Cesium.Color.WHITE.withAlpha(0.88),
+					outlineWidth: 1.8,
+					disableDepthTestDistance: Number.POSITIVE_INFINITY
+				}
+			})
+		};
+	}
+
+	removeWeaponTrajectoryEntities(record) {
+		if (!record?.trajectoryEntities) {
+			return;
+		}
+
+		if (record.trajectoryEntities.projectedEntity) {
+			this.dataSource.entities.remove(record.trajectoryEntities.projectedEntity);
+		}
+		if (record.trajectoryEntities.progressEntity) {
+			this.dataSource.entities.remove(record.trajectoryEntities.progressEntity);
+		}
+		if (record.trajectoryEntities.launchEntity) {
+			this.dataSource.entities.remove(record.trajectoryEntities.launchEntity);
+		}
+
+		record.trajectoryEntities = null;
+	}
+
+	updateWeaponTrajectoryEntities(record, weapon) {
+		const lodLevel = this.state.view?.lodLevel ?? DEFAULT_LOD_LEVEL;
+		const shouldShow = shouldShowWeaponTrajectoryCorridor(
+			weapon,
+			this.state.view?.followTargetId,
+			lodLevel
+		);
+		if (!shouldShow) {
+			this.removeWeaponTrajectoryEntities(record);
+			return;
+		}
+
+		const lodConfig = getLodConfig(lodLevel);
+		const emphasized = isTrackedTarget(
+			this.state.view?.followTargetId,
+			'weapon',
+			weapon.id
+		);
+		const launchPoint = {
+			longitude: weapon.launchLongitude,
+			latitude: weapon.launchLatitude,
+			altitudeMeters: weapon.launchAltitudeMeters ?? 0
+		};
+		const currentPoint = {
+			longitude: weapon.longitude,
+			latitude: weapon.latitude,
+			altitudeMeters: weapon.altitudeMeters ?? 0
+		};
+		const targetPoint = resolveWeaponTrajectoryTargetPoint(this.state, weapon);
+		const projectedPositions = targetPoint
+			? buildArcPolylinePositions(
+					launchPoint,
+					targetPoint,
+					estimateLinkArcLiftMeters(launchPoint, targetPoint) *
+						(emphasized ? 1.08 : 0.94)
+			  )
+			: null;
+		const progressPositions = buildArcPolylinePositions(
+			launchPoint,
+			currentPoint,
+			Math.max(estimateLinkArcLiftMeters(launchPoint, currentPoint) * 0.74, 320)
+		);
+		if (!projectedPositions && !progressPositions) {
+			this.removeWeaponTrajectoryEntities(record);
+			return;
+		}
+
+		if (!record.trajectoryEntities) {
+			record.trajectoryEntities = this.createWeaponTrajectoryEntities(weapon);
+			return;
+		}
+
+		if (!projectedPositions) {
+			if (record.trajectoryEntities.projectedEntity) {
+				this.dataSource.entities.remove(record.trajectoryEntities.projectedEntity);
+				record.trajectoryEntities.projectedEntity = null;
+			}
+		} else if (!record.trajectoryEntities.projectedEntity) {
+			record.trajectoryEntities.projectedEntity = this.dataSource.entities.add({
+				id: `battle-weapon-trajectory-projected-${weapon.id}`,
+				polyline: {
+					positions: projectedPositions,
+					width: lodConfig.weaponTrajectoryProjectedWidth,
+					material: new Cesium.PolylineDashMaterialProperty({
+						color: colorForSide(weapon.sideColor, 0.38),
+						dashLength: 22,
+						gapColor: colorForSide(weapon.sideColor, 0.06)
+					}),
+					arcType: Cesium.ArcType.NONE,
+					clampToGround: false,
+					distanceDisplayCondition: new Cesium.DistanceDisplayCondition(
+						0,
+						lodConfig.weaponTrajectoryDistance
+					)
+				}
+			});
+		} else {
+			record.trajectoryEntities.projectedEntity.polyline.positions =
+				projectedPositions;
+			record.trajectoryEntities.projectedEntity.polyline.width = emphasized
+				? lodConfig.weaponTrajectoryProjectedWidth + 0.6
+				: lodConfig.weaponTrajectoryProjectedWidth;
+			record.trajectoryEntities.projectedEntity.polyline.material =
+				new Cesium.PolylineDashMaterialProperty({
+					color: colorForSide(weapon.sideColor, emphasized ? 0.62 : 0.38),
+					dashLength: emphasized ? 18 : 22,
+					gapColor: colorForSide(weapon.sideColor, 0.06)
+				});
+			record.trajectoryEntities.projectedEntity.polyline.distanceDisplayCondition =
+				new Cesium.DistanceDisplayCondition(
+					0,
+					lodConfig.weaponTrajectoryDistance
+				);
+		}
+
+		if (!progressPositions) {
+			if (record.trajectoryEntities.progressEntity) {
+				this.dataSource.entities.remove(record.trajectoryEntities.progressEntity);
+				record.trajectoryEntities.progressEntity = null;
+			}
+		} else if (!record.trajectoryEntities.progressEntity) {
+			record.trajectoryEntities.progressEntity = this.dataSource.entities.add({
+				id: `battle-weapon-trajectory-progress-${weapon.id}`,
+				polyline: {
+					positions: progressPositions,
+					width: lodConfig.weaponTrajectoryWidth,
+					material: new Cesium.PolylineGlowMaterialProperty({
+						glowPower: 0.18,
+						color: colorForSide(weapon.sideColor, 0.74)
+					}),
+					arcType: Cesium.ArcType.NONE,
+					clampToGround: false,
+					distanceDisplayCondition: new Cesium.DistanceDisplayCondition(
+						0,
+						lodConfig.weaponTrajectoryDistance
+					)
+				}
+			});
+		} else {
+			record.trajectoryEntities.progressEntity.polyline.positions =
+				progressPositions;
+			record.trajectoryEntities.progressEntity.polyline.width = emphasized
+				? lodConfig.weaponTrajectoryWidth + 0.8
+				: lodConfig.weaponTrajectoryWidth;
+			record.trajectoryEntities.progressEntity.polyline.material =
+				new Cesium.PolylineGlowMaterialProperty({
+					glowPower: emphasized ? 0.26 : 0.18,
+					color: colorForSide(weapon.sideColor, emphasized ? 0.96 : 0.74)
+				});
+			record.trajectoryEntities.progressEntity.polyline.distanceDisplayCondition =
+				new Cesium.DistanceDisplayCondition(
+					0,
+					lodConfig.weaponTrajectoryDistance
+				);
+		}
+
+		if (!record.trajectoryEntities.launchEntity) {
+			record.trajectoryEntities.launchEntity = this.dataSource.entities.add({
+				id: `battle-weapon-trajectory-launch-${weapon.id}`,
+				position: cartesianFromSnapshot(launchPoint),
+				point: {
+					pixelSize: emphasized ? 9 : 7,
+					color: colorForSide(weapon.sideColor, emphasized ? 0.92 : 0.7),
+					outlineColor: Cesium.Color.WHITE.withAlpha(0.88),
+					outlineWidth: 1.8,
+					disableDepthTestDistance: Number.POSITIVE_INFINITY
+				}
+			});
+		} else {
+			record.trajectoryEntities.launchEntity.position =
+				cartesianFromSnapshot(launchPoint);
+			record.trajectoryEntities.launchEntity.point.pixelSize = emphasized ? 9 : 7;
+			record.trajectoryEntities.launchEntity.point.color = colorForSide(
+				weapon.sideColor,
+				emphasized ? 0.92 : 0.7
+			);
+		}
+	}
+
 	createProjectedCourseEntity(unit) {
 		if (!shouldShowProjectedCourse(unit, this.state.view?.followTargetId)) {
 			return null;
@@ -2116,7 +2653,8 @@ export class BattleSpectatorSystem {
 			positionProperty,
 			lastWeapon: weapon,
 			guideEntity: this.createWeaponGuideEntity(weapon),
-			impactLinkEntity: this.createWeaponImpactLinkEntity(weapon)
+			impactLinkEntity: this.createWeaponImpactLinkEntity(weapon),
+			trajectoryEntities: this.createWeaponTrajectoryEntities(weapon)
 		};
 	}
 
@@ -2144,6 +2682,7 @@ export class BattleSpectatorSystem {
 		}
 		this.updateWeaponGuideEntity(record, weapon);
 		this.updateWeaponImpactLinkEntity(record, weapon);
+		this.updateWeaponTrajectoryEntities(record, weapon);
 	}
 
 	createImpactEffect(weapon) {
@@ -2239,6 +2778,7 @@ export class BattleSpectatorSystem {
 			if (record.impactLinkEntity) {
 				this.dataSource.entities.remove(record.impactLinkEntity);
 			}
+			this.removeWeaponTrajectoryEntities(record);
 			this.dataSource.entities.remove(record.entity);
 			this.weaponRecords.delete(weaponId);
 		}
@@ -3022,6 +3562,7 @@ export class BattleSpectatorSystem {
 			if (record.impactLinkEntity) {
 				this.dataSource.entities.remove(record.impactLinkEntity);
 			}
+			this.removeWeaponTrajectoryEntities(record);
 			this.dataSource.entities.remove(record.entity);
 		}
 		for (const record of this.linkRecords.values()) {

@@ -1,6 +1,13 @@
 // import Aircraft from "@/game/units/Aircraft";
 import Weapon from "@/game/units/Weapon";
 import { convertColorNameToSideColor, SIDE_COLOR } from "@/utils/colors";
+import {
+  computeDamage,
+  getHealthFraction,
+  resolveCurrentHp,
+  resolveDefense,
+  resolveMaxHp,
+} from "@/game/units/combatStats";
 
 interface IArmy {
   id: string;
@@ -22,6 +29,9 @@ interface IArmy {
   weapons?: Weapon[];
   // aircraft?: Aircraft[];
   desiredRoute?: number[][];
+  maxHp?: number;
+  currentHp?: number;
+  defense?: number;
 }
 
 export default class Army {
@@ -44,6 +54,9 @@ export default class Army {
   weapons: Weapon[];
   // aircraft: Aircraft[];
   desiredRoute: number[][] = [];
+  maxHp: number;
+  currentHp: number;
+  defense: number;
 
   constructor(parameters: IArmy) {
     this.id = parameters.id;
@@ -65,6 +78,9 @@ export default class Army {
     this.weapons = parameters.weapons ?? [];
     // this.aircraft = parameters.aircraft ?? [];
     this.desiredRoute = parameters.desiredRoute ?? [];
+    this.maxHp = resolveMaxHp("facility", parameters.maxHp);
+    this.currentHp = resolveCurrentHp(parameters.currentHp, this.maxHp);
+    this.defense = resolveDefense("facility", parameters.defense);
   }
 
   getTotalWeaponQuantity(): number {
@@ -91,5 +107,27 @@ export default class Army {
 
   getDetectionRange(): number {
     return this.range;
+  }
+
+  getDetectionArcDegrees(): number {
+    return 360;
+  }
+
+  getDetectionHeading(): number {
+    return this.heading;
+  }
+
+  getHealthFraction(): number {
+    return getHealthFraction(this.currentHp, this.maxHp);
+  }
+
+  applyDamage(rawAttackPower: number): number {
+    const damage = computeDamage(rawAttackPower, this.defense);
+    this.currentHp = Math.max(this.currentHp - damage, 0);
+    return damage;
+  }
+
+  isDestroyed(): boolean {
+    return this.currentHp <= 0;
   }
 }

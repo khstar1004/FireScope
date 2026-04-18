@@ -16,6 +16,7 @@ export enum SimulationLogType {
 
 export type SimulationLogEntityType =
   | "aircraft"
+  | "army"
   | "facility"
   | "ship"
   | "airbase"
@@ -136,6 +137,16 @@ export default class SimulationLogs {
       return filteredLogs.slice(0, numMessages);
     }
     return filteredLogs;
+  }
+
+  replaceLogs(logs: SimulationLog[]) {
+    this.logs = Array.isArray(logs)
+      ? logs.map((log) => ({
+          ...log,
+          metadata: log.metadata ? { ...log.metadata } : undefined,
+        }))
+      : [];
+    this.hasNewLogs = true;
   }
 
   clearLogs() {

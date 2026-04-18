@@ -297,6 +297,69 @@ export const weaponStyle = function (feature: FeatureLike) {
   return ringStyle ? [ringStyle, iconStyle] : iconStyle;
 };
 
+export const weaponTrajectoryStyle = function (feature: FeatureLike) {
+  const properties = feature.getProperties();
+  const trajectoryKind = properties.trajectoryKind;
+  const isProjected = trajectoryKind === "projected";
+  const sideColor = String(properties.sideColor ?? SIDE_COLOR.BLACK);
+  const strokeColor =
+    colorNameToColorArray(sideColor, isProjected ? 0.28 : 0.78) ??
+    (isProjected ? "rgba(0, 0, 0, 0.28)" : "rgba(0, 0, 0, 0.78)");
+  const glowColor =
+    colorNameToColorArray(sideColor, isProjected ? 0.12 : 0.24) ??
+    (isProjected ? "rgba(0, 0, 0, 0.12)" : "rgba(0, 0, 0, 0.24)");
+  const styles = [
+    new Style({
+      stroke: new Stroke({
+        color: glowColor,
+        width: isProjected ? 4.5 : 6,
+        lineCap: "round",
+        lineDash: isProjected ? [10, 12] : undefined,
+      }),
+    }),
+    new Style({
+      stroke: new Stroke({
+        color: strokeColor,
+        width: isProjected ? 1.5 : 2.4,
+        lineCap: "round",
+        lineDash: isProjected ? [10, 12] : undefined,
+      }),
+    }),
+  ];
+
+  if (isProjected) {
+    return styles;
+  }
+
+  const lineString = feature.getGeometry() as LineString;
+  const coordinates = lineString.getCoordinates();
+  if (coordinates.length < 2) {
+    return styles;
+  }
+
+  const end = coordinates[coordinates.length - 1];
+  const previous = coordinates[coordinates.length - 2];
+  const dx = end[0] - previous[0];
+  const dy = end[1] - previous[1];
+  const rotation = Math.atan2(dy, dx);
+
+  styles.push(
+    new Style({
+      geometry: new Point(end),
+      image: new Icon({
+        src: ChevronRightSvg,
+        anchor: [0.75, 0.5],
+        rotateWithView: true,
+        rotation: -rotation,
+        scale: 0.92,
+        color: sideColor,
+      }),
+    })
+  );
+
+  return styles;
+};
+
 export const featureLabelStyle = function (feature: FeatureLike) {
   const properties = feature.getProperties() as Record<string, unknown>;
   const labelStyles = [

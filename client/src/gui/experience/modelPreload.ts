@@ -1,4 +1,6 @@
 import type { BundleModelSelection } from "@/gui/experience/bundleModels";
+import type { BundleViewerSceneProp } from "@/gui/experience/bundleSceneProps";
+import type { BundleViewerComparisonSelection } from "@/gui/experience/BundleModelViewport";
 
 const bundleViewerShellAssets = [
   "/3d-bundles/viewer/index.html",
@@ -27,8 +29,17 @@ function uniqueUrls(urls: Array<string | null | undefined>) {
   return [...new Set(urls.filter((url): url is string => Boolean(url)))];
 }
 
-export function buildBundleViewerPreloadUrls(modelPath?: string | null) {
-  return uniqueUrls([...bundleViewerShellAssets, modelPath]);
+export function buildBundleViewerPreloadUrls(
+  modelPath?: string | null,
+  sceneProps: BundleViewerSceneProp[] = [],
+  comparisonSelections: BundleViewerComparisonSelection[] = []
+) {
+  return uniqueUrls([
+    ...bundleViewerShellAssets,
+    modelPath,
+    ...sceneProps.map((prop) => prop.path),
+    ...comparisonSelections.map((selection) => selection.path),
+  ]);
 }
 
 export function buildTacticalSimPreloadUrls(modelPath?: string | null) {
@@ -50,16 +61,26 @@ export async function preloadStaticAsset(url: string) {
   return request;
 }
 
-export async function preloadAssetGroup(urls: Array<string | null | undefined>) {
+export async function preloadAssetGroup(
+  urls: Array<string | null | undefined>
+) {
   await Promise.allSettled(
     uniqueUrls(urls).map((url) => preloadStaticAsset(url))
   );
 }
 
 export function preloadBundleViewer(
-  selection?: Pick<BundleModelSelection, "path"> | null
+  selection?: Pick<BundleModelSelection, "path"> | null,
+  sceneProps: BundleViewerSceneProp[] = [],
+  comparisonSelections: BundleViewerComparisonSelection[] = []
 ) {
-  return preloadAssetGroup(buildBundleViewerPreloadUrls(selection?.path));
+  return preloadAssetGroup(
+    buildBundleViewerPreloadUrls(
+      selection?.path,
+      sceneProps,
+      comparisonSelections
+    )
+  );
 }
 
 export function preloadTacticalSim(

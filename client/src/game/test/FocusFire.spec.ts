@@ -601,11 +601,12 @@ describe("focus fire mode", () => {
     expect(imported.enabled).toBe(true);
     expect(imported.model.modelFamily).toBe("tree-ensemble");
     expect(imported.model.source).toBe("telemetry-tree-ensemble");
+    expect(imported.model.origin).toBe("imported-json");
     expect(imported.model.treeEnsemble?.trainer).toBe("LightGBM LambdaMART");
     expect(imported.model.treeEnsemble?.trees).toHaveLength(1);
     expect(summary.recommendation?.rerankerApplied).toBe(true);
     expect(summary.recommendation?.selectionModelLabel).toContain(
-      "AI TreeRank"
+      "AI LambdaRank"
     );
   });
 

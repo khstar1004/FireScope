@@ -8,6 +8,7 @@ import { Style } from "ol/style";
 import Aircraft from "@/game/units/Aircraft";
 import Facility from "@/game/units/Facility";
 import Airbase from "@/game/units/Airbase";
+import Army from "@/game/units/Army";
 import {
   DEFAULT_OL_PROJECTION_CODE,
   NAUTICAL_MILES_TO_METERS,
@@ -21,6 +22,7 @@ import {
   threatRangeStyle,
   threatRangePlacementStyle,
   weaponStyle,
+  weaponTrajectoryStyle,
   featureLabelStyle,
   shipStyle,
   referencePointStyle,
@@ -31,10 +33,21 @@ import Ship from "@/game/units/Ship";
 import ReferencePoint from "@/game/units/ReferencePoint";
 import { SIDE_COLOR } from "@/utils/colors";
 import { normalizeAngleDegrees } from "@/utils/threatCoverage";
+import Scenario from "@/game/Scenario";
+import {
+  resolveUnitVisualProfileId,
+  type UnitVisualProfileId,
+} from "@/game/db/unitVisualProfiles";
 
 export type FeatureEntityState = {
   id: string;
-  type: "aircraft" | "airbase" | "facility" | "ship" | "referencePoint";
+  type:
+    | "aircraft"
+    | "airbase"
+    | "army"
+    | "facility"
+    | "ship"
+    | "referencePoint";
   name: string;
   sideId: string;
   sideColor: SIDE_COLOR;
@@ -42,14 +55,20 @@ export type FeatureEntityState = {
 
 type GameEntity =
   | Aircraft
+  | Army
   | Facility
   | Airbase
   | Weapon
   | Ship
   | ReferencePoint;
-type CombatEntity = Aircraft | Facility | Airbase | Weapon | Ship;
-type GameEntityWithRange = Aircraft | Facility | Ship;
-type GameEntityWithRoute = Aircraft | Ship;
+type CombatEntity = Aircraft | Army | Facility | Airbase | Weapon | Ship;
+type GameEntityWithRange = Aircraft | Army | Facility | Ship;
+type GameEntityWithRoute = Aircraft | Army | Ship;
+type WeaponTrajectoryKind = "projected" | "active";
+type TrajectoryTarget = {
+  longitude: number;
+  latitude: number;
+};
 
 export type FacilityPlacementPreview = {
   latitude: number;
@@ -97,6 +116,144 @@ function buildProjectedSectorCoordinates(
 
   coordinates.push([centerX, centerY]);
   return coordinates;
+}
+
+function hashString(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index);
+    hash |= 0;
+  }
+  return hash;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function resolveWeaponTrajectoryProfileId(
+  weapon: Weapon
+): UnitVisualProfileId | undefined {
+  return resolveUnitVisualProfileId({
+    entityType: "weapon",
+    className: weapon.className,
+    name: weapon.name,
+  });
+}
+
+function isTrajectoryWeaponProfile(profileId?: UnitVisualProfileId) {
+  return (
+    profileId === "weapon-air-to-air-missile" ||
+    profileId === "weapon-surface-missile"
+  );
+}
+
+function resolveWeaponTargetCoordinates(
+  weapon: Weapon,
+  scenario: Scenario
+): TrajectoryTarget | null {
+  const target =
+    scenario.getAircraft(weapon.targetId) ??
+    scenario.getArmy(weapon.targetId) ??
+    scenario.getFacility(weapon.targetId) ??
+    scenario.getWeapon(weapon.targetId) ??
+    scenario.getShip(weapon.targetId) ??
+    scenario.getAirbase(weapon.targetId) ??
+    scenario.getReferencePoint(weapon.targetId);
+
+  if (target) {
+    return {
+      longitude: target.longitude,
+      latitude: target.latitude,
+    };
+  }
+
+  const lastWaypoint = weapon.route[weapon.route.length - 1];
+  if (
+    Array.isArray(lastWaypoint) &&
+    Number.isFinite(lastWaypoint[0]) &&
+    Number.isFinite(lastWaypoint[1])
+  ) {
+    return {
+      latitude: Number(lastWaypoint[0]),
+      longitude: Number(lastWaypoint[1]),
+    };
+  }
+
+  return null;
+}
+
+function buildQuadraticBezierCoordinates(
+  start: number[],
+  end: number[],
+  weaponId: string,
+  profileId: UnitVisualProfileId,
+  ratio = 1
+) {
+  const dx = end[0] - start[0];
+  const dy = end[1] - start[1];
+  const distance = Math.hypot(dx, dy);
+  if (distance < 1) {
+    return [start, end];
+  }
+
+  const directionX = dx / distance;
+  const directionY = dy / distance;
+  const perpendicularX = -directionY;
+  const perpendicularY = directionX;
+  const hash = hashString(weaponId);
+  const arcDirection = hash % 2 === 0 ? 1 : -1;
+  const spreadBucket = ((Math.abs(hash) % 5) - 2) * 0.14;
+  const offsetBase = profileId === "weapon-air-to-air-missile" ? 0.15 : 0.1;
+  const offsetMagnitude = clamp(
+    distance * offsetBase,
+    5000,
+    profileId === "weapon-air-to-air-missile" ? 70000 : 42000
+  );
+  const controlPoint = [
+    (start[0] + end[0]) / 2 +
+      perpendicularX * offsetMagnitude * (1 + spreadBucket) * arcDirection,
+    (start[1] + end[1]) / 2 +
+      perpendicularY * offsetMagnitude * (1 + spreadBucket) * arcDirection,
+  ];
+  const sampledRatio = clamp(ratio, 0, 1);
+  const sampleCount = Math.max(
+    10,
+    Math.min(28, Math.ceil((distance / 1000) * 0.28))
+  );
+  const totalSteps = Math.max(2, Math.ceil(sampleCount * sampledRatio));
+  const coordinates: number[][] = [];
+
+  for (let step = 0; step <= totalSteps; step += 1) {
+    const t = sampledRatio * (step / totalSteps);
+    const inv = 1 - t;
+    coordinates.push([
+      inv * inv * start[0] +
+        2 * inv * t * controlPoint[0] +
+        t * t * end[0],
+      inv * inv * start[1] +
+        2 * inv * t * controlPoint[1] +
+        t * t * end[1],
+    ]);
+  }
+
+  return coordinates;
+}
+
+function buildWeaponTrajectoryFeature(
+  coordinates: number[][],
+  weapon: Weapon,
+  kind: WeaponTrajectoryKind
+) {
+  return new Feature({
+    type: "weaponTrajectory",
+    trajectoryKind: kind,
+    id: `${weapon.id}-${kind}`,
+    weaponId: weapon.id,
+    weaponName: weapon.name,
+    geometry: new LineString(coordinates),
+    sideColor: weapon.sideColor,
+  });
 }
 
 class FeatureLayer {
@@ -241,6 +398,52 @@ export class FacilityLayer extends FeatureLayer {
   addFacilityFeature(facility: Facility) {
     this.layerSource.addFeature(this.createFacilityFeature(facility));
     this.featureCount += 1;
+  }
+}
+
+export class ArmyLayer extends FeatureLayer {
+  constructor(projection?: Projection, zIndex?: number) {
+    super(facilityStyle, projection, zIndex);
+    this.layer.set("name", "armyLayer");
+  }
+
+  createArmyFeature(army: Army) {
+    const armyFeature = new Feature({
+      type: "army",
+      geometry: new Point(
+        fromLonLat([army.longitude, army.latitude], this.projection)
+      ),
+      id: army.id,
+      name: army.name,
+      className: army.className,
+      heading: army.heading,
+      selected: army.selected,
+      sideId: army.sideId,
+      sideColor: army.sideColor,
+      currentHp: army.currentHp,
+      maxHp: army.maxHp,
+      healthRatio: army.getHealthFraction(),
+    });
+    armyFeature.setId(army.id);
+    return armyFeature;
+  }
+
+  refresh(armies: Army[]) {
+    const armyFeatures = armies.map((army) => this.createArmyFeature(army));
+    this.refreshFeatures(armyFeatures);
+  }
+
+  addArmyFeature(army: Army) {
+    this.layerSource.addFeature(this.createArmyFeature(army));
+    this.featureCount += 1;
+  }
+
+  updateArmyFeature(armyId: string, armySelected: boolean, armyHeading: number) {
+    const feature = this.findFeatureByKey("id", armyId);
+    if (feature) {
+      feature.set("selected", armySelected);
+      feature.set("heading", armyHeading);
+    }
   }
 }
 
@@ -508,6 +711,88 @@ export class WeaponLayer extends FeatureLayer {
   }
 }
 
+export class WeaponTrajectoryLayer extends FeatureLayer {
+  constructor(projection?: Projection, zIndex?: number) {
+    super(weaponTrajectoryStyle, projection, zIndex);
+    this.layer.set("name", "weaponTrajectoryLayer");
+  }
+
+  createTrajectoryFeatures(weapon: Weapon, scenario: Scenario) {
+    const profileId = resolveWeaponTrajectoryProfileId(weapon);
+    if (!isTrajectoryWeaponProfile(profileId)) {
+      return [];
+    }
+
+    const launchLongitude = weapon.launchLongitude ?? weapon.longitude;
+    const launchLatitude = weapon.launchLatitude ?? weapon.latitude;
+    const start = fromLonLat(
+      [launchLongitude, launchLatitude],
+      this.projection
+    );
+    const current = fromLonLat(
+      [weapon.longitude, weapon.latitude],
+      this.projection
+    );
+    const activeDistance = Math.hypot(current[0] - start[0], current[1] - start[1]);
+    if (activeDistance < 1) {
+      return [];
+    }
+
+    const targetCoordinates = resolveWeaponTargetCoordinates(weapon, scenario);
+    const projectedTarget = targetCoordinates
+      ? fromLonLat(
+          [targetCoordinates.longitude, targetCoordinates.latitude],
+          this.projection
+        )
+      : null;
+    const totalDistance = projectedTarget
+      ? Math.hypot(projectedTarget[0] - start[0], projectedTarget[1] - start[1])
+      : activeDistance;
+    const progressRatio =
+      projectedTarget && totalDistance > 0
+        ? clamp(activeDistance / totalDistance, 0.04, 0.98)
+        : 1;
+    const activeCoordinates = buildQuadraticBezierCoordinates(
+      start,
+      projectedTarget ?? current,
+      weapon.id,
+      profileId,
+      progressRatio
+    );
+
+    activeCoordinates[activeCoordinates.length - 1] = current;
+
+    const features = [
+      buildWeaponTrajectoryFeature(activeCoordinates, weapon, "active"),
+    ];
+
+    if (projectedTarget && totalDistance > activeDistance + 1) {
+      features.unshift(
+        buildWeaponTrajectoryFeature(
+          buildQuadraticBezierCoordinates(
+            start,
+            projectedTarget,
+            weapon.id,
+            profileId,
+            1
+          ),
+          weapon,
+          "projected"
+        )
+      );
+    }
+
+    return features;
+  }
+
+  refresh(weaponList: Weapon[], scenario: Scenario) {
+    const trajectoryFeatures = weaponList.flatMap((weapon) =>
+      this.createTrajectoryFeatures(weapon, scenario)
+    );
+    this.refreshFeatures(trajectoryFeatures);
+  }
+}
+
 export class FeatureLabelLayer extends FeatureLayer {
   constructor(projection?: Projection, zIndex?: number) {
     super(featureLabelStyle, projection, zIndex);
@@ -517,6 +802,8 @@ export class FeatureLabelLayer extends FeatureLayer {
   getFeatureType(entity: GameEntity) {
     if (entity instanceof Aircraft) {
       return "aircraft";
+    } else if (entity instanceof Army) {
+      return "army";
     } else if (entity instanceof Facility) {
       return "facility";
     } else if (entity instanceof Airbase) {
@@ -542,7 +829,9 @@ export class FeatureLabelLayer extends FeatureLayer {
       ),
       sideColor: entity.sideColor,
       selected:
-        (entity instanceof Aircraft || entity instanceof Ship) &&
+        (entity instanceof Aircraft ||
+          entity instanceof Army ||
+          entity instanceof Ship) &&
         entity.selected,
       ...(isCombatEntity(entity)
         ? {

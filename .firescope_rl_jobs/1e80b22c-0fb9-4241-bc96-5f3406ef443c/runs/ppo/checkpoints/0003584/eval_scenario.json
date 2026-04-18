@@ -1,0 +1,216 @@
+{
+  "currentScenario": {
+    "airbases": [
+      {
+        "aircraft": [],
+        "altitude": 0,
+        "className": "Airbase",
+        "currentHp": 150.0,
+        "defense": 20.0,
+        "id": "red-airbase",
+        "latitude": 34.45,
+        "longitude": 127.72,
+        "maxHp": 150.0,
+        "name": "Red Airbase",
+        "sideColor": "red",
+        "sideId": "red-side"
+      }
+    ],
+    "aircraft": [
+      {
+        "altitude": 10000,
+        "className": "F-15E Strike Eagle",
+        "currentFuel": 17888.33333333343,
+        "currentHp": 100.0,
+        "defense": 10.0,
+        "fuelRate": 6700,
+        "heading": 38.88579461621589,
+        "homeBaseId": "",
+        "id": "blue-striker-1",
+        "latitude": 34.58190800731491,
+        "longitude": 127.67873668723801,
+        "maxFuel": 18000,
+        "maxHp": 100.0,
+        "name": "Blue Striker 1",
+        "range": 40,
+        "route": [
+          [
+            34.624003952727506,
+            127.72
+          ]
+        ],
+        "rtb": false,
+        "selected": false,
+        "sideColor": "blue",
+        "sideId": "blue-side",
+        "speed": 600,
+        "targetId": "",
+        "weapons": [
+          {
+            "altitude": 10000,
+            "attackPower": 95.0,
+            "className": "AGM-65D Maverick",
+            "currentFuel": 30,
+            "currentHp": 25.0,
+            "currentQuantity": 2,
+            "defense": 0.0,
+            "fuelRate": 300,
+            "heading": 90,
+            "id": "blue-striker-1-maverick",
+            "latitude": 34.58190800731491,
+            "lethality": 0.95,
+            "longitude": 127.67873668723801,
+            "maxFuel": 30,
+            "maxHp": 25.0,
+            "maxQuantity": 2,
+            "name": "AGM-65D Maverick",
+            "range": 54,
+            "route": [],
+            "sideColor": "blue",
+            "sideId": "blue-side",
+            "speed": 540,
+            "targetId": "None"
+          }
+        ]
+      },
+      {
+        "altitude": 10000,
+        "className": "F-15E Strike Eagle",
+        "currentFuel": 17888.33333333343,
+        "currentHp": 100.0,
+        "defense": 10.0,
+        "fuelRate": 6700,
+        "heading": 72,
+        "homeBaseId": "",
+        "id": "blue-striker-2",
+        "latitude": 34.455,
+        "longitude": 127.58,
+        "maxFuel": 18000,
+        "maxHp": 100.0,
+        "name": "Blue Striker 2",
+        "range": 40,
+        "route": [],
+        "rtb": false,
+        "selected": false,
+        "sideColor": "blue",
+        "sideId": "blue-side",
+        "speed": 600,
+        "targetId": "",
+        "weapons": [
+          {
+            "altitude": 10000,
+            "attackPower": 95.0,
+            "className": "AGM-65D Maverick",
+            "currentFuel": 30,
+            "currentHp": 25.0,
+            "currentQuantity": 2,
+            "defense": 0.0,
+            "fuelRate": 300,
+            "heading": 90,
+            "id": "blue-striker-2-maverick",
+            "latitude": 34.455,
+            "lethality": 0.95,
+            "longitude": 127.58,
+            "maxFuel": 30,
+            "maxHp": 25.0,
+            "maxQuantity": 2,
+            "name": "AGM-65D Maverick",
+            "range": 54,
+            "route": [],
+            "sideColor": "blue",
+            "sideId": "blue-side",
+            "speed": 540,
+            "targetId": "None"
+          }
+        ]
+      }
+    ],
+    "currentTime": 1712361660,
+    "doctrine": {
+      "blue-side": {
+        "Aircraft RTB when out of range of homebase": false,
+        "Aircraft RTB when strike mission complete": false,
+        "Aircraft attack hostile aircraft": false,
+        "Aircraft chase hostile aircraft": false,
+        "SAMs attack hostile aircraft": true,
+        "Ships attack hostile aircraft": true
+      },
+      "red-side": {
+        "Aircraft RTB when out of range of homebase": false,
+        "Aircraft RTB when strike mission complete": false,
+        "Aircraft attack hostile aircraft": true,
+        "Aircraft chase hostile aircraft": true,
+        "SAMs attack hostile aircraft": true,
+        "Ships attack hostile aircraft": true
+      }
+    },
+    "duration": 7200,
+    "facilities": [
+      {
+        "altitude": 0,
+        "className": "Surface-to-Air Missile Site",
+        "currentHp": 120.0,
+        "defense": 15.0,
+        "id": "red-sam-site",
+        "latitude": 34.38,
+        "longitude": 127.42,
+        "maxHp": 120.0,
+        "name": "SAM Site Alpha",
+        "range": 25,
+        "sideColor": "red",
+        "sideId": "red-side",
+        "weapons": []
+      }
+    ],
+    "id": "fixed-target-strike-scenario",
+    "missions": [],
+    "name": "Fixed Target Strike Training",
+    "referencePoints": [],
+    "relationships": {
+      "allies": {
+        "blue-side": [],
+        "red-side": []
+      },
+      "hostiles": {
+        "blue-side": [
+          "red-side"
+        ],
+        "red-side": [
+          "blue-side"
+        ]
+      }
+    },
+    "ships": [],
+    "sides": [
+      {
+        "color": "blue",
+        "id": "blue-side",
+        "name": "BLUE",
+        "totalScore": 0
+      },
+      {
+        "color": "red",
+        "id": "red-side",
+        "name": "RED",
+        "totalScore": 0
+      }
+    ],
+    "startTime": 1712361600,
+    "timeCompression": 1,
+    "weapons": []
+  },
+  "currentSideId": "blue-side",
+  "selectedUnitId": "",
+  "mapView": {
+    "defaultCenter": [
+      127.2,
+      34.3
+    ],
+    "currentCameraCenter": [
+      127.2,
+      34.3
+    ],
+    "defaultZoom": 6,
+    "currentCameraZoom": 6
+  }
+}

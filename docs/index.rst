@@ -36,3 +36,4 @@ panopticon documentation
    Gameplay/iran_vs_us_scenarios_ko
    Gameplay/scenario_rl_playbook_ko
    Gameplay/commander_resource_deployment_optimization_ko
+   Gameplay/seungjin_training_layout_ko

@@ -1,4 +1,5 @@
 import LayersIcon from "@mui/icons-material/Layers";
+import MapOutlinedIcon from "@mui/icons-material/MapOutlined";
 import { Box, Tooltip } from "@mui/material";
 import { Popover } from "@/gui/shared/ui/MuiComponents";
 import Button from "@mui/material/Button";
@@ -8,9 +9,14 @@ import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
 import React, { useState } from "react";
 import { colorPalette } from "@/utils/constants";
-import { useAuth0 } from "@auth0/auth0-react";
+import type {
+  BaseMapModeId,
+  BaseMapModeOption,
+} from "@/gui/map/mapLayers/BaseMapLayers";
 
 interface LayerVisibilityPanelToggleProps {
+  baseMapModes: BaseMapModeOption[];
+  activeBaseMapModeId: BaseMapModeId;
   featureLabelVisibility: boolean;
   toggleFeatureLabelVisibility: (featureLabelVisibility: boolean) => void;
   threatRangeVisibility: boolean;
@@ -25,8 +31,6 @@ interface LayerVisibilityPanelToggleProps {
 export default function LayerVisibilityPanelToggle(
   props: Readonly<LayerVisibilityPanelToggleProps>
 ) {
-  const { isAuthenticated } = useAuth0();
-
   const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -39,6 +43,9 @@ export default function LayerVisibilityPanelToggle(
 
   const open = Boolean(anchorEl);
   const id = open ? "layer-visibility-panel" : undefined;
+  const currentBaseMapMode =
+    props.baseMapModes.find((mode) => mode.id === props.activeBaseMapModeId) ??
+    props.baseMapModes[0];
 
   const toggleStyle = {
     border: 1,
@@ -60,9 +67,13 @@ export default function LayerVisibilityPanelToggle(
     backdropFilter: "blur(16px)",
     borderRadius: "10px",
     boxShadow: "0 14px 28px rgba(0, 0, 0, 0.24)",
-    position: "absolute",
-    top: "4em",
-    right: "0.2em",
+  };
+  const mapModeButtonStyle = {
+    ...openLayersPanelButtonStyle,
+    color: "var(--fs-text)",
+    fontWeight: 600,
+    paddingX: 1.1,
+    textTransform: "none",
   };
   const layersVisibilityPanelStyle = {
     backgroundColor: colorPalette.lightGray,
@@ -77,22 +88,21 @@ export default function LayerVisibilityPanelToggle(
       <CardActions>
         <Stack spacing={1} direction="column">
           <Tooltip
-            title={
-              isAuthenticated
-                ? "지도 전환. 단축키: 5"
-                : "더 많은 지도를 보려면 로그인하세요"
-            }
+            title="지도 모드를 빠르게 순환합니다. 단축키: 6"
             placement="right"
           >
             <Button
               variant="outlined"
               sx={toggleStyle}
-              onClick={props.toggleBaseMapLayer}
+              onClick={() => {
+                props.toggleBaseMapLayer();
+                handleClose();
+              }}
             >
-              기본 지도 전환
+              지도 모드 순환
             </Button>
           </Tooltip>
-          <Tooltip title="항로 표시 전환. 단축키: 6" placement="right">
+          <Tooltip title="항로 표시 전환. 단축키: 7" placement="right">
             <Button
               variant="outlined"
               sx={toggleStyle}
@@ -103,7 +113,7 @@ export default function LayerVisibilityPanelToggle(
               항로 표시 전환
             </Button>
           </Tooltip>
-          <Tooltip title="위협 반경 표시 전환. 단축키: 7" placement="right">
+          <Tooltip title="위협 반경 표시 전환. 단축키: 8" placement="right">
             <Button
               variant="outlined"
               sx={toggleStyle}
@@ -114,7 +124,7 @@ export default function LayerVisibilityPanelToggle(
               위협 반경 전환
             </Button>
           </Tooltip>
-          <Tooltip title="라벨 표시 전환. 단축키: 8" placement="right">
+          <Tooltip title="라벨 표시 전환. 단축키: 9" placement="right">
             <Button
               variant="outlined"
               sx={toggleStyle}
@@ -145,23 +155,45 @@ export default function LayerVisibilityPanelToggle(
 
   return (
     <>
-      <div
-        style={{
+      <Box
+        sx={{
           position: "absolute",
-          top: "1em",
-          right: "1em",
+          top: "calc(env(safe-area-inset-top, 0px) + 4.5rem)",
+          right: 16,
           fontSize: "small",
           zIndex: 1000,
         }}
       >
-        <Box sx={openLayersPanelButtonStyle}>
-          <Tooltip title="레이어 제어" placement="left">
-            <IconButton disableRipple onClick={handleClick} size="medium">
-              <LayersIcon />
-            </IconButton>
+        <Stack direction="row" spacing={1}>
+          <Tooltip
+            title="클릭할 때마다 지도 모드를 전환합니다."
+            placement="left"
+          >
+            <Button
+              disableRipple
+              size="small"
+              startIcon={<MapOutlinedIcon fontSize="small" />}
+              onClick={props.toggleBaseMapLayer}
+              disabled={props.baseMapModes.length <= 1}
+              sx={{
+                ...mapModeButtonStyle,
+                minWidth: "auto",
+                maxWidth: "min(42vw, 180px)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              지도: {currentBaseMapMode?.label ?? "OSM"}
+            </Button>
           </Tooltip>
-        </Box>
-      </div>
+          <Box sx={openLayersPanelButtonStyle}>
+            <Tooltip title="레이어 제어" placement="left">
+              <IconButton disableRipple onClick={handleClick} size="medium">
+                <LayersIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </Stack>
+      </Box>
 
       <Popover
         id={id}

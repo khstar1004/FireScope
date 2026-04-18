@@ -53,7 +53,7 @@ describe("bundleModels", () => {
     expect(selectAssetExperienceModel(asset)?.label).toBe("Patriot");
   });
 
-  test("matches ground assets to the closest tracked armor bundle model", () => {
+  test("matches K2 ground assets to the dedicated K2 bundle model", () => {
     const asset: AssetExperienceSummary = {
       kind: "weapon",
       id: "ground-1",
@@ -66,11 +66,11 @@ describe("bundleModels", () => {
     };
 
     expect(selectImmersiveExperienceModel(asset, "ground")?.label).toBe(
-      "Tracked Armor"
+      "K2 Black Panther"
     );
   });
 
-  test("matches ship assets to the maritime bundle catalog", () => {
+  test("matches ship assets to the Korean destroyer bundle catalog", () => {
     const asset: AssetExperienceSummary = {
       kind: "ship",
       id: "ship-1",
@@ -82,7 +82,71 @@ describe("bundleModels", () => {
       altitude: 0,
     };
 
-    expect(selectAssetExperienceModel(asset)?.label).toBe("Type 45 Destroyer");
+    expect(selectAssetExperienceModel(asset)?.label).toBe(
+      "Yi Sun-shin Class Destroyer"
+    );
+  });
+
+  test("uses conceptual preview fallback for airbase assets without a dedicated bundle", () => {
+    const asset: AssetExperienceSummary = {
+      kind: "airbase",
+      id: "base-hangar",
+      name: "Seoul Air Base",
+      className: "Seoul Air Base",
+      sideName: "BLUE",
+      latitude: 0,
+      longitude: 0,
+      altitude: 0,
+    };
+
+    expect(selectAssetExperienceModel(asset)).toBeNull();
+  });
+
+  test("maps Cheongung-II to the closest available air-defense bundle", () => {
+    const asset: AssetExperienceSummary = {
+      kind: "facility",
+      id: "cheongung-2",
+      name: "천궁-II 방호권",
+      className: "Cheongung-II (KM-SAM Block II)",
+      sideName: "BLUE",
+      latitude: 0,
+      longitude: 0,
+      altitude: 0,
+    };
+
+    expect(selectAssetExperienceModel(asset)?.label).toBe("Patriot");
+  });
+
+  test("maps long-range foreign SAM systems to the closest defense proxy bundle", () => {
+    const asset: AssetExperienceSummary = {
+      kind: "facility",
+      id: "s400-1",
+      name: "Capital S-400 Belt",
+      className: "S-400 Triumf",
+      sideName: "RED",
+      latitude: 0,
+      longitude: 0,
+      altitude: 0,
+    };
+
+    expect(selectAssetExperienceModel(asset)?.label).toBe("Patriot");
+  });
+
+  test("keeps concept-only short-range SAM systems out of artillery bundle fallbacks", () => {
+    const asset: AssetExperienceSummary = {
+      kind: "facility",
+      id: "tor-1",
+      name: "Harbor Tor Screen",
+      className: "Tor-M2",
+      sideName: "RED",
+      latitude: 0,
+      longitude: 0,
+      altitude: 0,
+    };
+
+    expect(selectAssetExperienceModel(asset)).toBeNull();
+    expect(getImmersiveExperienceModelOptions(asset, "defense")).toEqual([]);
+    expect(selectImmersiveExperienceModel(asset, "defense")).toBeNull();
   });
 
   test("exposes KF-21, helicopter, and drone models in the base experience catalog", () => {
@@ -130,7 +194,7 @@ describe("bundleModels", () => {
     );
   });
 
-  test("exposes newly staged artillery models in the fires catalog", () => {
+  test("keeps the fires catalog limited to artillery and strike bundles", () => {
     const asset: AssetExperienceSummary = {
       kind: "facility",
       id: "fires-1",
@@ -147,8 +211,61 @@ describe("bundleModels", () => {
     expect(options.some((option) => option.label === "D-30 Howitzer")).toBe(
       true
     );
-    expect(
-      options.some((option) => option.label === "Roketsan Missiles")
-    ).toBe(true);
+    expect(options.some((option) => option.label === "Roketsan Missiles")).toBe(
+      true
+    );
+    expect(options.some((option) => option.label === "Patriot")).toBe(false);
+    expect(options.some((option) => option.label === "NASAMS Battery")).toBe(
+      false
+    );
+    expect(options.some((option) => option.label === "THAAD")).toBe(false);
+  });
+
+  test("exposes K2, K21, and Stryker models in the ground catalog", () => {
+    const asset: AssetExperienceSummary = {
+      kind: "facility",
+      id: "ground-catalog",
+      name: "Mechanized Brigade",
+      className: "Armored Battalion",
+      sideName: "BLUE",
+      latitude: 0,
+      longitude: 0,
+      altitude: 0,
+    };
+
+    const options = getImmersiveExperienceModelOptions(asset, "ground");
+
+    expect(options.some((option) => option.label === "K2 Black Panther")).toBe(
+      true
+    );
+    expect(options.some((option) => option.label === "K21 IFV")).toBe(true);
+    expect(options.some((option) => option.label === "M1126 Stryker")).toBe(
+      true
+    );
+  });
+
+  test("keeps the defense catalog limited to air-defense bundles", () => {
+    const asset: AssetExperienceSummary = {
+      kind: "facility",
+      id: "defense-catalog",
+      name: "Capital Defense Belt",
+      className: "Cheongung-II (KM-SAM Block II)",
+      sideName: "BLUE",
+      latitude: 0,
+      longitude: 0,
+      altitude: 0,
+    };
+
+    const options = getImmersiveExperienceModelOptions(asset, "defense");
+
+    expect(options.some((option) => option.label === "Patriot")).toBe(true);
+    expect(options.some((option) => option.label === "NASAMS Battery")).toBe(
+      true
+    );
+    expect(options.some((option) => option.label === "THAAD")).toBe(true);
+    expect(options.some((option) => option.label === "K9 Thunder")).toBe(false);
+    expect(options.some((option) => option.label === "Hyunmoo Launcher")).toBe(
+      false
+    );
   });
 });

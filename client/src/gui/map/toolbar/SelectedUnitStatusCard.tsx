@@ -8,7 +8,7 @@ import { colorPalette } from "@/utils/constants";
 import { colorNameToHex, SIDE_COLOR } from "@/utils/colors";
 
 export interface SelectedCombatantSummary {
-  type: "aircraft" | "airbase" | "facility" | "ship" | "weapon";
+  type: "aircraft" | "airbase" | "army" | "facility" | "ship" | "weapon";
   name: string;
   className: string;
   sideName: string;
@@ -22,6 +22,7 @@ export interface SelectedCombatantSummary {
 const COMBATANT_TYPE_LABEL: Record<SelectedCombatantSummary["type"], string> = {
   aircraft: "항공기",
   airbase: "기지",
+  army: "지상군",
   facility: "시설",
   ship: "함정",
   weapon: "무장",

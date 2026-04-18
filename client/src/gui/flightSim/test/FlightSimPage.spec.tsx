@@ -36,11 +36,13 @@ function createGameWithFocusFireSummary(): Game {
 
 function createBattleSpectatorState(): FlightSimBattleSpectatorState {
   return {
+    schemaVersion: 2,
     scenarioId: "battle-demo",
     scenarioName: "전장 관전자 데모",
     currentTime: 1770000000,
     currentSideId: "blue-side",
     currentSideName: "청군",
+    selectedUnitId: "unit-1",
     centerLongitude: 126.978,
     centerLatitude: 37.5665,
     units: [
@@ -49,6 +51,9 @@ function createBattleSpectatorState(): FlightSimBattleSpectatorState {
         name: "KF-21 #201",
         className: "KF-21 Boramae",
         entityType: "aircraft",
+        modelId: "aircraft-kf21",
+        profileHint: "base",
+        groundUnit: false,
         sideId: "blue-side",
         sideName: "청군",
         sideColor: "blue",
@@ -59,6 +64,30 @@ function createBattleSpectatorState(): FlightSimBattleSpectatorState {
         speedKts: 340,
         weaponCount: 4,
         hpFraction: 1,
+        damageFraction: 0,
+        detectionRangeNm: 60,
+        detectionArcDegrees: 360,
+        detectionHeadingDeg: 90,
+        engagementRangeNm: 50,
+        currentFuel: 12000,
+        maxFuel: 12000,
+        fuelFraction: 1,
+        route: [],
+        desiredRoute: [],
+        weaponInventory: [
+          {
+            id: "store-1",
+            name: "AIM-120 AMRAAM",
+            className: "AIM-120 AMRAAM",
+            quantity: 4,
+            maxQuantity: 4,
+            modelId: "weapon-air-to-air-missile",
+          },
+        ],
+        aircraftCount: undefined,
+        homeBaseId: "airbase-1",
+        rtb: false,
+        statusFlags: ["selected", "engaged"],
         selected: true,
         targetId: "unit-2",
       },
@@ -67,6 +96,9 @@ function createBattleSpectatorState(): FlightSimBattleSpectatorState {
         name: "적 포대",
         className: "K9 Thunder",
         entityType: "facility",
+        modelId: "artillery-k9",
+        profileHint: "fires",
+        groundUnit: false,
         sideId: "red-side",
         sideName: "적군",
         sideColor: "red",
@@ -77,6 +109,15 @@ function createBattleSpectatorState(): FlightSimBattleSpectatorState {
         speedKts: 0,
         weaponCount: 0,
         hpFraction: 0.86,
+        damageFraction: 0.14,
+        detectionRangeNm: 40,
+        detectionArcDegrees: 360,
+        detectionHeadingDeg: 10,
+        engagementRangeNm: 20,
+        route: [],
+        desiredRoute: [],
+        weaponInventory: [],
+        statusFlags: ["engaged", "empty-launcher"],
         selected: false,
         targetId: "unit-1",
       },
@@ -86,6 +127,7 @@ function createBattleSpectatorState(): FlightSimBattleSpectatorState {
         id: "weapon-1",
         name: "AIM-120 AMRAAM #1",
         className: "AIM-120 AMRAAM",
+        modelId: "weapon-air-to-air-missile",
         launcherId: "unit-1",
         launcherName: "KF-21 #201",
         sideId: "blue-side",
@@ -99,6 +141,7 @@ function createBattleSpectatorState(): FlightSimBattleSpectatorState {
         launchAltitudeMeters: 8000,
         headingDeg: 88,
         speedKts: 600,
+        hpFraction: 1,
         targetId: "target-1",
         targetLatitude: 37.61,
         targetLongitude: 127.05,
@@ -154,6 +197,7 @@ function createBattleSpectatorState(): FlightSimBattleSpectatorState {
       facilities: 1,
       airbases: 0,
       ships: 0,
+      groundUnits: 0,
       weaponsInFlight: 1,
       sides: 2,
     },
@@ -172,7 +216,15 @@ function cloneBattleSpectatorState(
 ): FlightSimBattleSpectatorState {
   return {
     ...state,
-    units: state.units.map((unit) => ({ ...unit })),
+    units: state.units.map((unit) => ({
+      ...unit,
+      route: unit.route.map((point) => ({ ...point })),
+      desiredRoute: unit.desiredRoute.map((point) => ({ ...point })),
+      weaponInventory: unit.weaponInventory.map((inventory) => ({
+        ...inventory,
+      })),
+      statusFlags: [...unit.statusFlags],
+    })),
     weapons: state.weapons.map((weapon) => ({ ...weapon })),
     recentEvents: state.recentEvents.map((event) => ({ ...event })),
     stats: { ...state.stats },
@@ -281,7 +333,7 @@ describe("FlightSimPage", () => {
     });
   });
 
-  test("sends battle spectator runtime state for live battle observer sessions", async () => {
+  test("sends battle spectator runtime state and auto-focuses the latest engagement", async () => {
     const postMessageSpy = vi.fn();
     const battleSpectator = createBattleSpectatorState();
     const { container } = render(
@@ -322,7 +374,7 @@ describe("FlightSimPage", () => {
             scenarioId: "battle-demo",
             scenarioName: "전장 관전자 데모",
             view: expect.objectContaining({
-              followTargetId: null,
+              followTargetId: "weapon:weapon-1",
               lodLevel: "balanced",
             }),
           }),
@@ -330,10 +382,6 @@ describe("FlightSimPage", () => {
         window.location.origin
       );
     });
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "최신 교전으로 점프" })
-    );
 
     await waitFor(() => {
       expect(postMessageSpy).toHaveBeenCalledWith(
@@ -450,8 +498,10 @@ describe("FlightSimPage", () => {
     expect(screen.getByText("위협 상위 유닛")).toBeInTheDocument();
     expect(screen.getByText("전투 확인")).toBeInTheDocument();
     expect(screen.getByText("실시간 탄체 추적 가능")).toBeInTheDocument();
+    expect(screen.getByText("탄체 궤적 관제")).toBeInTheDocument();
     expect(screen.getByText("교전 밀집구역")).toBeInTheDocument();
     expect(screen.getByText("유닛별 교전 템포")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "전장 개관" })).toBeInTheDocument();
     expect(
       screen.getAllByText((content) => content.includes("현재 표적")).length
     ).toBeGreaterThan(0);
@@ -466,6 +516,9 @@ describe("FlightSimPage", () => {
     ).toBeGreaterThan(0);
 
     const iframeElement = container.querySelector("iframe") as HTMLIFrameElement;
+    const followTargetSelect = container.querySelector(
+      "select"
+    ) as HTMLSelectElement;
     Object.defineProperty(iframeElement, "contentWindow", {
       configurable: true,
       value: {
@@ -476,20 +529,33 @@ describe("FlightSimPage", () => {
     fireEvent.load(iframeElement);
     await flushEffects();
 
-    fireEvent.click(screen.getByRole("button", { name: "관련 탄체 추적" }));
+    postMessageSpy.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "전장 개관" }));
 
     await waitFor(() => {
       expect(postMessageSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: "firescope-battle-spectator-update",
+          type: "firescope-battle-spectator-command",
           payload: expect.objectContaining({
-            view: expect.objectContaining({
-              followTargetId: "weapon:weapon-1",
-            }),
+            command: "jump-to-point",
+            longitude: 126.978,
+            latitude: 37.5665,
           }),
         }),
         window.location.origin
       );
+    });
+
+    await waitFor(() => {
+      expect(followTargetSelect.value).toBe("");
+    });
+
+    postMessageSpy.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "관련 탄체 추적" }));
+    await flushEffects();
+
+    await waitFor(() => {
+      expect(followTargetSelect.value).toBe("weapon:weapon-1");
     });
 
     await waitFor(() => {

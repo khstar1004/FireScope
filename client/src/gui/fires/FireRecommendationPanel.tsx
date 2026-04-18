@@ -3,10 +3,15 @@ import type {
   FireRecommendationTargetPriority,
   FocusFireRecommendation,
 } from "@/game/Game";
+import {
+  describeFocusFireRerankerModel,
+  type FocusFireRerankerModel,
+} from "@/game/focusFireReranker";
 import { getDisplayName } from "@/utils/koreanCatalog";
 
 interface FireRecommendationPanelProps {
   recommendation: FocusFireRecommendation | null;
+  rerankerModel?: FocusFireRerankerModel | null;
   objectiveName?: string | null;
   objectiveLatitude?: number | null;
   objectiveLongitude?: number | null;
@@ -204,6 +209,7 @@ export function FireRecommendationPriorityList({
 
 export default function FireRecommendationPanel({
   recommendation,
+  rerankerModel,
   objectiveName,
   objectiveLatitude,
   objectiveLongitude,
@@ -211,6 +217,9 @@ export default function FireRecommendationPanel({
   onRecordFeedback,
 }: Readonly<FireRecommendationPanelProps>) {
   const topOption = recommendation?.options[0];
+  const modelDescriptor = rerankerModel
+    ? describeFocusFireRerankerModel(rerankerModel)
+    : null;
 
   if (!recommendation) {
     return (
@@ -300,6 +309,25 @@ export default function FireRecommendationPanel({
       <Typography sx={{ fontSize: 12.5, color: "text.secondary" }}>
         선택 모델: {recommendation.selectionModelLabel}
       </Typography>
+      {modelDescriptor && (
+        <>
+          <Typography sx={{ fontSize: 12.5, color: "text.secondary" }}>
+            모델 유형: {modelDescriptor.displayName} · {modelDescriptor.familyLabel}
+          </Typography>
+          <Typography sx={{ fontSize: 12.5, color: "text.secondary" }}>
+            모델 출처: {modelDescriptor.originLabel} · {modelDescriptor.sourceLabel}
+          </Typography>
+          <Typography sx={{ fontSize: 12.5, color: "text.secondary" }}>
+            모델 저장: {modelDescriptor.storageLabel}
+          </Typography>
+          <Typography sx={{ fontSize: 12.5, color: "text.secondary" }}>
+            다운로드: {modelDescriptor.downloadLabel}
+          </Typography>
+          <Typography sx={{ fontSize: 12.5, color: "text.secondary" }}>
+            주요 입력: {modelDescriptor.topFeatureLabels.join(" / ")}
+          </Typography>
+        </>
+      )}
       {topOption?.aiReasonSummary && (
         <Typography sx={{ fontSize: 12.5, color: "text.secondary" }}>
           AI 판단: {topOption.aiReasonSummary}

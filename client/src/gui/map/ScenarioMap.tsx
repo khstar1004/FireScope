@@ -49,14 +49,18 @@ import { ToastContext } from "@/gui/contextProviders/contexts/ToastContext";
 import { SetRecordingStepContext } from "@/gui/contextProviders/contexts/RecordingStepContext";
 import AirbaseCard from "@/gui/map/feature/AirbaseCard";
 import AircraftCard from "@/gui/map/feature/AircraftCard";
+import ArmyCard from "@/gui/map/feature/ArmyCard";
 import FacilityCard from "@/gui/map/feature/FacilityCard";
 import ShipCard from "@/gui/map/feature/ShipCard";
 import WeaponCard from "@/gui/map/feature/WeaponCard";
-import BaseMapLayers from "@/gui/map/mapLayers/BaseMapLayers";
+import BaseMapLayers, {
+  type BaseMapModeId,
+} from "@/gui/map/mapLayers/BaseMapLayers";
 import { routeDrawLineStyle } from "@/gui/map/mapLayers/FeatureLayerStyles";
 import {
   AirbasesLayer,
   AircraftLayer,
+  ArmyLayer,
   FacilityLayer,
   FeatureLabelLayer,
   FacilityPlacementLayer,
@@ -65,6 +69,7 @@ import {
   ThreatRangeLayer,
   ThreatPlacementLayer,
   WeaponLayer,
+  WeaponTrajectoryLayer,
   ReferencePointLayer,
   FeatureEntityState,
   FacilityPlacementPreview,
@@ -92,6 +97,7 @@ import MapContextMenu from "@/gui/map/MapContextMenu";
 import { UnitDbContext } from "@/gui/contextProviders/contexts/UnitDbContext";
 import Aircraft from "@/game/units/Aircraft";
 import Airbase from "@/game/units/Airbase";
+import Army from "@/game/units/Army";
 import Facility from "@/game/units/Facility";
 import Ship from "@/game/units/Ship";
 import Weapon from "@/game/units/Weapon";
@@ -212,13 +218,15 @@ function createScenarioBaseMapLayers(
   projection?: Projection,
   mapTilerBasicUrl?: string,
   mapTilerSatelliteUrl?: string,
-  hybridLabelUrl?: string
+  hybridLabelUrl?: string,
+  eveningMapUrl?: string
 ) {
   return new BaseMapLayers(
     projection,
     mapTilerBasicUrl,
     mapTilerSatelliteUrl,
-    hybridLabelUrl
+    hybridLabelUrl,
+    eveningMapUrl
   );
 }
 
@@ -250,6 +258,7 @@ export default function ScenarioMap({
   const [drawerOpen, setDrawerOpen] = useState(true);
   const [focusFireDockOpen, setFocusFireDockOpen] = useState(false);
   const mapTilerBasicUrl = `https://api.maptiler.com/maps/basic-v2/256/{z}/{x}/{y}.png?key=${MAPTILER_DEFAULT_KEY}`;
+  const mapTilerEveningUrl = `https://api.maptiler.com/maps/dataviz-dark/256/{z}/{x}/{y}.png?key=${MAPTILER_DEFAULT_KEY}`;
   const mapTilerSatelliteJsonUrl = `https://api.maptiler.com/tiles/satellite-v2/tiles.json?key=${MAPTILER_DEFAULT_KEY}`;
   const vworldHybridUrl = import.meta.env.VITE_VWORLD_API_KEY
     ? `https://api.vworld.kr/req/wmts/1.0.0/${import.meta.env.VITE_VWORLD_API_KEY}/Hybrid/{z}/{y}/{x}.png`
@@ -259,8 +268,15 @@ export default function ScenarioMap({
       projection,
       mapTilerBasicUrl,
       mapTilerSatelliteJsonUrl,
-      vworldHybridUrl
+      vworldHybridUrl,
+      mapTilerEveningUrl
     )
+  );
+  const [baseMapModeId, setBaseMapModeId] = useState<BaseMapModeId>(() =>
+    baseMapLayers.getCurrentModeId()
+  );
+  const baseMapModeIdRef = useRef<BaseMapModeId>(
+    baseMapLayers.getCurrentModeId()
   );
   const [aircraftLayer, setAircraftLayer] = useState(
     new AircraftLayer(projection, 3)
@@ -271,6 +287,7 @@ export default function ScenarioMap({
   const [facilityLayer, setFacilityLayer] = useState(
     new FacilityLayer(projection, 1)
   );
+  const [armyLayer, setArmyLayer] = useState(new ArmyLayer(projection, 1));
   const [threatRangeLayer, setThreatRangeLayer] = useState(
     new ThreatRangeLayer(projection)
   );
@@ -286,8 +303,14 @@ export default function ScenarioMap({
   const [shipRouteLayer, setShipRouteLayer] = useState(
     new RouteLayer("shipRouteLayer", projection)
   );
+  const [armyRouteLayer, setArmyRouteLayer] = useState(
+    new RouteLayer("armyRouteLayer", projection)
+  );
   const [weaponLayer, setWeaponLayer] = useState(
     new WeaponLayer(projection, 2)
+  );
+  const [weaponTrajectoryLayer, setWeaponTrajectoryLayer] = useState(
+    new WeaponTrajectoryLayer(projection, 1.8)
   );
   const [shipLayer, setShipLayer] = useState(new ShipLayer(projection, 1));
   const [referencePointLayer, setReferencePointLayer] = useState(
@@ -328,6 +351,12 @@ export default function ScenarioMap({
     top: 0,
     left: 0,
     facilityId: "",
+  });
+  const [openArmyCard, setOpenArmyCard] = useState({
+    open: false,
+    top: 0,
+    left: 0,
+    armyId: "",
   });
   const [openShipCard, setOpenShipCard] = useState({
     open: false,
@@ -445,12 +474,15 @@ export default function ScenarioMap({
       ...baseMapLayers.layers,
       aircraftLayer.layer,
       facilityLayer.layer,
+      armyLayer.layer,
       airbasesLayer.layer,
       threatRangeLayer.layer,
       threatPlacementLayer.layer,
       facilityPlacementLayer.layer,
       aircraftRouteLayer.layer,
       shipRouteLayer.layer,
+      armyRouteLayer.layer,
+      weaponTrajectoryLayer.layer,
       weaponLayer.layer,
       featureLabelLayer.layer,
       shipLayer.layer,
@@ -859,8 +891,10 @@ export default function ScenarioMap({
             projection,
             cfg.basicUrl ?? mapTilerBasicUrl,
             cfg.satelliteJson ?? mapTilerSatelliteJsonUrl,
-            cfg.vworldHybridUrl ?? vworldHybridUrl
+            cfg.vworldHybridUrl ?? vworldHybridUrl,
+            mapTilerEveningUrl
           );
+          bml.setMode(baseMapModeIdRef.current);
           setTheMap((prevMap) => {
             prevMap.setLayers([
               ...bml.layers,
@@ -872,6 +906,7 @@ export default function ScenarioMap({
               facilityPlacementLayer.layer,
               aircraftRouteLayer.layer,
               shipRouteLayer.layer,
+              weaponTrajectoryLayer.layer,
               weaponLayer.layer,
               featureLabelLayer.layer,
               shipLayer.layer,
@@ -880,6 +915,8 @@ export default function ScenarioMap({
             return prevMap;
           });
           setBaseMapLayers(bml);
+          baseMapModeIdRef.current = bml.getCurrentModeId();
+          setBaseMapModeId(bml.getCurrentModeId());
         }
       } catch (error) {
         console.error("Error fetching map config:", error);
@@ -1187,6 +1224,7 @@ export default function ScenarioMap({
   function getSelectedFeatureType(featureId: string): string {
     let featureType = "";
     if (game.currentScenario.getAircraft(featureId)) featureType = "aircraft";
+    else if (game.currentScenario.getArmy(featureId)) featureType = "army";
     else if (game.currentScenario.getFacility(featureId))
       featureType = "facility";
     else if (game.currentScenario.getAirbase(featureId))
@@ -1201,7 +1239,7 @@ export default function ScenarioMap({
     }
 
     const featuresAtPixel = getFeaturesAtPixel(pixel).filter((feature) =>
-      ["aircraft", "facility", "airbase", "ship"].includes(
+      ["aircraft", "army", "facility", "airbase", "ship"].includes(
         feature.getProperties()?.type
       )
     );
@@ -1212,6 +1250,7 @@ export default function ScenarioMap({
     const targetId = featuresAtPixel[0].get("id");
     const target =
       game.currentScenario.getAircraft(targetId) ??
+      game.currentScenario.getArmy(targetId) ??
       game.currentScenario.getFacility(targetId) ??
       game.currentScenario.getShip(targetId) ??
       game.currentScenario.getAirbase(targetId);
@@ -1230,6 +1269,7 @@ export default function ScenarioMap({
     const selectedFeatures: Feature[] = [];
     const includedFeatureTypes = [
       "aircraft",
+      "army",
       "facility",
       "airbase",
       "ship",
@@ -1289,6 +1329,8 @@ export default function ScenarioMap({
     );
     if (selectedFeatureType === "aircraft" && routeMeasurementDrawLine) {
       context = "moveAircraft";
+    } else if (selectedFeatureType === "army" && routeMeasurementDrawLine) {
+      context = "moveArmy";
     } else if (selectedFeatureType === "ship" && routeMeasurementDrawLine) {
       context = "moveShip";
     } else if (game.selectedUnitId && teleportingUnit) {
@@ -1305,6 +1347,12 @@ export default function ScenarioMap({
       context = "aircraftSelectedAttackTarget";
     } else if (
       game.selectingTarget &&
+      attackerFeatureType === "army" &&
+      featuresAtPixel.length === 1
+    ) {
+      context = "armySelectedAttackTarget";
+    } else if (
+      game.selectingTarget &&
       attackerFeatureType === "ship" &&
       featuresAtPixel.length === 1
     ) {
@@ -1315,6 +1363,12 @@ export default function ScenarioMap({
       featuresAtPixel.length !== 1
     ) {
       context = "aircraftCancelledAttack";
+    } else if (
+      game.selectingTarget &&
+      attackerFeatureType === "army" &&
+      featuresAtPixel.length !== 1
+    ) {
+      context = "armyCancelledAttack";
     } else if (
       game.selectingTarget &&
       attackerFeatureType === "ship" &&
@@ -1345,6 +1399,10 @@ export default function ScenarioMap({
     switch (mapClickContext) {
       case "moveAircraft": {
         moveAircraft(game.selectedUnitId, event.coordinate);
+        break;
+      }
+      case "moveArmy": {
+        moveArmy(game.selectedUnitId, event.coordinate);
         break;
       }
       case "moveShip": {
@@ -1396,7 +1454,25 @@ export default function ScenarioMap({
         setCurrentGameStatusToContext("표적을 지정했습니다.");
         break;
       }
+      case "armySelectedAttackTarget": {
+        const targetFeature = featuresAtPixel[0];
+        const targetId = targetFeature.getProperties()?.id;
+        game.handleArmyAttack(
+          game.currentAttackParams.currentAttackerId,
+          targetId,
+          game.currentAttackParams.currentWeaponId,
+          game.currentAttackParams.currentWeaponQuantity,
+          game.currentAttackParams.autoAttack
+        );
+        resetAttack();
+        setCurrentGameStatusToContext("표적을 지정했습니다.");
+        break;
+      }
       case "aircraftCancelledAttack": {
+        resetAttack();
+        break;
+      }
+      case "armyCancelledAttack": {
         resetAttack();
         break;
       }
@@ -1477,6 +1553,29 @@ export default function ScenarioMap({
           top: airbasePixels[1],
           left: airbasePixels[0],
           airbaseId: currentSelectedFeatureId,
+        });
+      } else if (
+        currentSelectedFeatureType === "army" &&
+        game.currentScenario.getArmy(currentSelectedFeatureId)
+      ) {
+        if (game.eraserMode) {
+          removeArmy(currentSelectedFeatureId);
+          return;
+        }
+        game.selectedUnitId = "";
+        const army = game.currentScenario.getArmy(currentSelectedFeatureId);
+        if (army) {
+          army.selected = false;
+          armyLayer.updateArmyFeature(army.id, army.selected, army.heading);
+        }
+        const armyGeometry = feature.getGeometry() as Point;
+        const armyCoordinate = armyGeometry.getCoordinates();
+        const armyPixels = theMap.getPixelFromCoordinate(armyCoordinate);
+        setOpenArmyCard({
+          open: true,
+          top: armyPixels[1],
+          left: armyPixels[0],
+          armyId: currentSelectedFeatureId,
         });
       } else if (
         currentSelectedFeatureType === "facility" &&
@@ -1799,12 +1898,14 @@ export default function ScenarioMap({
       "rangeRing",
       "route",
       "aircraftFeatureLabel",
+      "armyFeatureLabel",
       "facilityFeatureLabel",
       "airbaseFeatureLabel",
       "shipFeatureLabel",
     ];
     const includedFeatureTypes = [
       "aircraft",
+      "army",
       "facility",
       "airbase",
       "ship",
@@ -1842,6 +1943,7 @@ export default function ScenarioMap({
     const entityTypes = [
       "aircraft",
       "airbase",
+      "army",
       "facility",
       "ship",
       "referencePoint",
@@ -2067,7 +2169,9 @@ export default function ScenarioMap({
     setSimulationOutcomeNarrativeSource("fallback");
     setSimulationOutcomeLoading(true);
     setIsGameOver(true);
-    setCurrentGameStatusToContext(`${summary.endReason} · ${summary.activeSideSummary}`);
+    setCurrentGameStatusToContext(
+      `${summary.endReason} · ${summary.activeSideSummary}`
+    );
 
     const narrative = await requestSimulationOutcomeNarrative(summary);
     if (simulationOutcomeRequestIdRef.current !== requestId) {
@@ -2211,19 +2315,23 @@ export default function ScenarioMap({
 
   function drawNextFrame(observation: Scenario) {
     aircraftLayer.refresh(observation.aircraft);
+    weaponTrajectoryLayer.refresh(observation.weapons, observation);
     weaponLayer.refresh(observation.weapons);
     shipLayer.refresh(observation.ships);
+    armyLayer.refresh(observation.armies);
     facilityLayer.refresh(observation.facilities);
     airbasesLayer.refresh(observation.airbases);
     refreshRouteLayer(observation);
     if (featureLabelVisible) {
       featureLabelLayer.refreshSubset(observation.aircraft, "aircraft");
+      featureLabelLayer.refreshSubset(observation.armies, "army");
       featureLabelLayer.refreshSubset(observation.ships, "ship");
       featureLabelLayer.refreshSubset(observation.facilities, "facility");
       featureLabelLayer.refreshSubset(observation.airbases, "airbase");
     }
     if (threatRangeVisible)
       threatRangeLayer.refresh([
+        ...observation.armies,
         ...observation.facilities,
         ...observation.ships,
       ]);
@@ -2391,6 +2499,18 @@ export default function ScenarioMap({
       });
       cardClosed = true;
     } else if (
+      feature.type === "army" &&
+      openArmyCard.open &&
+      openArmyCard.armyId === feature.id
+    ) {
+      setOpenArmyCard({
+        open: false,
+        top: 0,
+        left: 0,
+        armyId: "",
+      });
+      cardClosed = true;
+    } else if (
       feature.type === "facility" &&
       openFacilityCard.open &&
       openFacilityCard.facilityId === feature.id
@@ -2453,6 +2573,15 @@ export default function ScenarioMap({
     if (featureLabelVisible) featureLabelLayer.removeFeatureById(facilityId);
   }
 
+  function removeArmy(armyId: string) {
+    game.removeArmy(armyId);
+    armyLayer.removeFeatureById(armyId);
+    armyRouteLayer.removeFeatureById(armyId);
+    threatRangeLayer.removeFeatureById(armyId);
+    handleFeatureEntityStateAction({ id: armyId }, "remove");
+    if (featureLabelVisible) featureLabelLayer.removeFeatureById(armyId);
+  }
+
   function removeAircraft(aircraftId: string) {
     game.removeAircraft(aircraftId);
     aircraftLayer.removeFeatureById(aircraftId);
@@ -2506,6 +2635,9 @@ export default function ScenarioMap({
         break;
       case "airbase":
         removeAirbase(feature.id);
+        break;
+      case "army":
+        removeArmy(feature.id);
         break;
       case "facility":
         removeFacility(feature.id);
@@ -2600,6 +2732,13 @@ export default function ScenarioMap({
     const destinationLatitude = coordinates[1];
     const destinationLongitude = coordinates[0];
     game.moveShip(shipId, destinationLatitude, destinationLongitude);
+  }
+
+  function moveArmy(armyId: string, coordinates: number[]) {
+    coordinates = toLonLat(coordinates, theMap.getView().getProjection());
+    const destinationLatitude = coordinates[1];
+    const destinationLongitude = coordinates[0];
+    game.moveArmy(armyId, destinationLatitude, destinationLongitude);
   }
 
   function launchAircraftFromShip(shipId: string, aircraftIds: string[]) {
@@ -2728,6 +2867,34 @@ export default function ScenarioMap({
     changeCursorType("crosshair");
   }
 
+  function handleArmyAttack(
+    armyId: string,
+    weaponId: string,
+    weaponQuantity: number
+  ) {
+    game.selectingTarget = true;
+    game.currentAttackParams = {
+      autoAttack: false,
+      currentAttackerId: armyId,
+      currentWeaponId: weaponId,
+      currentWeaponQuantity: weaponQuantity,
+    };
+    setCurrentGameStatusToContext("공격할 적 표적을 선택하세요.");
+    changeCursorType("crosshair");
+  }
+
+  function handleArmyAutoAttack(armyId: string) {
+    game.selectingTarget = true;
+    game.currentAttackParams = {
+      autoAttack: true,
+      currentAttackerId: armyId,
+      currentWeaponId: "",
+      currentWeaponQuantity: 0,
+    };
+    setCurrentGameStatusToContext("공격할 적 표적을 선택하세요.");
+    changeCursorType("crosshair");
+  }
+
   function queueAircraftForMovement(aircraftId: string) {
     game.selectedUnitId = aircraftId;
     const aircraft = game.currentScenario.getAircraft(aircraftId);
@@ -2768,6 +2935,26 @@ export default function ScenarioMap({
       );
       setCurrentGameStatusToContext(
         "지도를 클릭해 함정 항로를 지정하세요. 같은 지점을 두 번 클릭하거나 Esc를 누르면 종료됩니다."
+      );
+    }
+  }
+
+  function queueArmyForMovement(armyId: string) {
+    game.selectedUnitId = armyId;
+    const army = game.currentScenario.getArmy(armyId);
+    if (army) {
+      army.selected = true;
+      armyLayer.updateArmyFeature(army.id, army.selected, army.heading);
+      armyRouteLayer.removeFeatureById(army.id);
+      addRouteMeasurementInteraction(
+        fromLonLat(
+          [army.longitude, army.latitude],
+          projection ?? defaultProjection!
+        ),
+        army.sideColor
+      );
+      setCurrentGameStatusToContext(
+        "지도를 클릭해 지상군 항로를 지정하세요. 같은 지점을 두 번 클릭하거나 Esc를 누르면 종료됩니다."
       );
     }
   }
@@ -2857,6 +3044,36 @@ export default function ScenarioMap({
   ) {
     return game.currentScenario.updateFacilityWeaponQuantity(
       facilityId,
+      weaponId,
+      increment
+    );
+  }
+
+  function handleAddWeaponToArmy(armyId: string, weaponClassName: string) {
+    const weaponTemplate = unitDbContext
+      .getWeaponDb()
+      .find((weapon) => weapon.className === weaponClassName);
+    return game.currentScenario.addWeaponToArmy(
+      armyId,
+      weaponTemplate?.className,
+      weaponTemplate?.speed,
+      weaponTemplate?.maxFuel,
+      weaponTemplate?.fuelRate,
+      weaponTemplate?.lethality
+    );
+  }
+
+  function handleDeleteWeaponFromArmy(armyId: string, weaponId: string) {
+    return game.currentScenario.deleteWeaponFromArmy(armyId, weaponId);
+  }
+
+  function handleUpdateArmyWeaponQuantity(
+    armyId: string,
+    weaponId: string,
+    increment: number
+  ) {
+    return game.currentScenario.updateArmyWeaponQuantity(
+      armyId,
       weaponId,
       increment
     );
@@ -3125,13 +3342,19 @@ export default function ScenarioMap({
 
   function refreshAllLayers() {
     aircraftLayer.refresh(game.currentScenario.aircraft);
+    armyLayer.refresh(game.currentScenario.armies);
     facilityLayer.refresh(game.currentScenario.facilities);
     airbasesLayer.refresh(game.currentScenario.airbases);
     if (threatRangeVisible)
       threatRangeLayer.refresh([
+        ...game.currentScenario.armies,
         ...game.currentScenario.facilities,
         ...game.currentScenario.ships,
       ]);
+    weaponTrajectoryLayer.refresh(
+      game.currentScenario.weapons,
+      game.currentScenario
+    );
     weaponLayer.refresh(game.currentScenario.weapons);
     shipLayer.refresh(game.currentScenario.ships);
     referencePointLayer.refresh(game.currentScenario.referencePoints);
@@ -3142,6 +3365,7 @@ export default function ScenarioMap({
   function refreshFeatureLabelLayer() {
     featureLabelLayer.refresh([
       ...game.currentScenario.aircraft,
+      ...game.currentScenario.armies,
       ...game.currentScenario.facilities,
       ...game.currentScenario.airbases,
       ...game.currentScenario.ships,
@@ -3151,6 +3375,7 @@ export default function ScenarioMap({
 
   function refreshThreatRangeLayer() {
     threatRangeLayer.refresh([
+      ...game.currentScenario.armies,
       ...game.currentScenario.facilities,
       ...game.currentScenario.ships,
     ]);
@@ -3159,14 +3384,17 @@ export default function ScenarioMap({
   function refreshRouteLayer(observation: Scenario) {
     if (
       !observation.getAircraft(game.selectedUnitId) &&
+      !observation.getArmy(game.selectedUnitId) &&
       !observation.getShip(game.selectedUnitId)
     ) {
       cleanUpRouteDrawLineAndMeasurementTooltip();
       aircraftRouteLayer.refresh(observation.aircraft);
+      armyRouteLayer.refresh(observation.armies);
       shipRouteLayer.refresh(observation.ships);
       return;
     }
     aircraftRouteLayer.refresh(observation.aircraft);
+    armyRouteLayer.refresh(observation.armies);
     shipRouteLayer.refresh(observation.ships);
   }
 
@@ -3214,6 +3442,28 @@ export default function ScenarioMap({
       refreshThreatRangeLayer();
     }
     featureLabelLayer.updateFeatureLabelFeature(facilityId, facilityName);
+  }
+
+  function updateArmy(
+    armyId: string,
+    armyName: string,
+    armyClassName: string,
+    armySpeed: number,
+    armyCurrentFuel: number,
+    armyRange: number
+  ) {
+    game.currentScenario.updateArmy(
+      armyId,
+      armyName,
+      armyClassName,
+      armySpeed,
+      armyCurrentFuel,
+      armyRange
+    );
+    if (threatRangeVisible) {
+      refreshThreatRangeLayer();
+    }
+    featureLabelLayer.updateFeatureLabelFeature(armyId, armyName);
   }
 
   function updateAirbase(airbaseId: string, airbaseName: string) {
@@ -3282,9 +3532,11 @@ export default function ScenarioMap({
     if (on) {
       refreshRouteLayer(game.currentScenario);
       aircraftRouteLayer.layer.setVisible(true);
+      armyRouteLayer.layer.setVisible(true);
       shipRouteLayer.layer.setVisible(true);
     } else {
       aircraftRouteLayer.layer.setVisible(false);
+      armyRouteLayer.layer.setVisible(false);
       shipRouteLayer.layer.setVisible(false);
     }
   }
@@ -3300,6 +3552,7 @@ export default function ScenarioMap({
     }
     featureLabelLayer.refresh([
       ...game.currentScenario.aircraft,
+      ...game.currentScenario.armies,
       ...game.currentScenario.facilities,
       ...game.currentScenario.airbases,
       ...game.currentScenario.ships,
@@ -3309,6 +3562,8 @@ export default function ScenarioMap({
 
   function toggleBaseMapLayer() {
     baseMapLayers.toggleLayer();
+    baseMapModeIdRef.current = baseMapLayers.getCurrentModeId();
+    setBaseMapModeId(baseMapLayers.getCurrentModeId());
   }
 
   function createRouteMeasurementTooltip() {
@@ -3393,6 +3648,11 @@ export default function ScenarioMap({
       ship.selected = !ship.selected;
       shipLayer.updateShipFeature(ship.id, ship.selected, ship.heading);
     }
+    const army = game.currentScenario.getArmy(game.selectedUnitId);
+    if (army) {
+      army.selected = !army.selected;
+      armyLayer.updateArmyFeature(army.id, army.selected, army.heading);
+    }
     game.commitRoute(game.selectedUnitId);
     game.selectedUnitId = "";
     setCurrentGameStatusToContext(
@@ -3457,7 +3717,7 @@ export default function ScenarioMap({
   }
 
   function buildSelectedCombatantSummary(
-    combatant: Aircraft | Airbase | Facility | Ship | Weapon,
+    combatant: Aircraft | Airbase | Army | Facility | Ship | Weapon,
     type: SelectedCombatantSummary["type"]
   ): SelectedCombatantSummary {
     return {
@@ -3480,6 +3740,9 @@ export default function ScenarioMap({
     }
     if (selectedShip) {
       return buildSelectedCombatantSummary(selectedShip, "ship");
+    }
+    if (selectedArmy) {
+      return buildSelectedCombatantSummary(selectedArmy, "army");
     }
     if (selectedFacility) {
       return buildSelectedCombatantSummary(selectedFacility, "facility");
@@ -3506,6 +3769,13 @@ export default function ScenarioMap({
     );
     if (selectedShipFromMap) {
       return buildSelectedCombatantSummary(selectedShipFromMap, "ship");
+    }
+
+    const selectedArmyFromMap = game.currentScenario.getArmy(
+      game.selectedUnitId
+    );
+    if (selectedArmyFromMap) {
+      return buildSelectedCombatantSummary(selectedArmyFromMap, "army");
     }
 
     const selectedFacilityFromMap = game.currentScenario.getFacility(
@@ -3537,6 +3807,9 @@ export default function ScenarioMap({
     : undefined;
   const selectedFacility = openFacilityCard.open
     ? game.currentScenario.getFacility(openFacilityCard.facilityId)
+    : undefined;
+  const selectedArmy = openArmyCard.open
+    ? game.currentScenario.getArmy(openArmyCard.armyId)
     : undefined;
   const selectedAircraft = openAircraftCard.open
     ? game.currentScenario.getAircraft(openAircraftCard.aircraftId)
@@ -3662,6 +3935,8 @@ export default function ScenarioMap({
       />
 
       <LayerVisibilityPanelToggle
+        baseMapModes={baseMapLayers.getAvailableModes()}
+        activeBaseMapModeId={baseMapModeId}
         featureLabelVisibility={featureLabelVisible}
         toggleFeatureLabelVisibility={toggleFeatureLabelVisibility}
         threatRangeVisibility={threatRangeVisible}
@@ -3781,7 +4056,11 @@ export default function ScenarioMap({
 
       <Main open={drawerOpen}>
         <DrawerHeader />
-        <div ref={mapRef} id="map"></div>
+        <div
+          ref={mapRef}
+          id="map"
+          className={baseMapModeId === "evening" ? "scenario-map--evening" : ""}
+        ></div>
       </Main>
 
       {selectedAirbase && (
@@ -3841,6 +4120,32 @@ export default function ScenarioMap({
               top: 0,
               left: 0,
               facilityId: "",
+            });
+            setKeyboardShortcutsEnabled(true);
+          }}
+        />
+      )}
+      {selectedArmy && (
+        <ArmyCard
+          army={selectedArmy}
+          sideName={game.currentScenario.getSideName(selectedArmy.sideId)}
+          handleDeleteArmy={removeArmy}
+          handleMoveArmy={queueArmyForMovement}
+          handleArmyAttack={handleArmyAttack}
+          handleArmyAutoAttack={handleArmyAutoAttack}
+          handleTeleportUnit={queueUnitForTeleport}
+          handleEditArmy={updateArmy}
+          handleAddWeapon={handleAddWeaponToArmy}
+          handleDeleteWeapon={handleDeleteWeaponFromArmy}
+          handleUpdateWeaponQuantity={handleUpdateArmyWeaponQuantity}
+          anchorPositionTop={openArmyCard.top}
+          anchorPositionLeft={openArmyCard.left}
+          handleCloseOnMap={() => {
+            setOpenArmyCard({
+              open: false,
+              top: 0,
+              left: 0,
+              armyId: "",
             });
             setKeyboardShortcutsEnabled(true);
           }}
@@ -4118,6 +4423,7 @@ export default function ScenarioMap({
             !target ||
             !(
               target instanceof Aircraft ||
+              target instanceof Army ||
               target instanceof Facility ||
               target instanceof Ship ||
               target instanceof Airbase
@@ -4134,6 +4440,7 @@ export default function ScenarioMap({
               targetLatitude={target.latitude}
               targetLongitude={target.longitude}
               recommendation={recommendation}
+              rerankerModel={game.getFocusFireRerankerState().model}
               handleCloseOnMap={() => {
                 setOpenTargetFireRecommendation({
                   open: false,

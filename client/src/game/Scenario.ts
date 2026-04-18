@@ -1,5 +1,6 @@
 import Aircraft from "@/game/units/Aircraft";
 import Airbase from "@/game/units/Airbase";
+import Army from "@/game/units/Army";
 import Facility from "@/game/units/Facility";
 import Side from "@/game/Side";
 import Weapon from "@/game/units/Weapon";
@@ -32,6 +33,7 @@ interface IScenario {
   sides?: Side[];
   timeCompression?: number;
   aircraft?: Aircraft[];
+  armies?: Army[];
   ships?: Ship[];
   facilities?: Facility[];
   airbases?: Airbase[];
@@ -52,6 +54,7 @@ export default class Scenario {
   sides: Side[];
   timeCompression: number;
   aircraft: Aircraft[];
+  armies: Army[];
   ships: Ship[];
   facilities: Facility[];
   airbases: Airbase[];
@@ -71,6 +74,7 @@ export default class Scenario {
     this.sides = parameters.sides ?? [];
     this.timeCompression = parameters.timeCompression ?? 1;
     this.aircraft = parameters.aircraft ?? [];
+    this.armies = parameters.armies ?? [];
     this.facilities = parameters.facilities ?? [];
     this.airbases = parameters.airbases ?? [];
     this.weapons = parameters.weapons ?? [];
@@ -158,6 +162,10 @@ export default class Scenario {
 
   getFacility(facilityId: string | null): Facility | undefined {
     return this.facilities.find((facility) => facility.id === facilityId);
+  }
+
+  getArmy(armyId: string | null): Army | undefined {
+    return this.armies.find((army) => army.id === armyId);
   }
 
   getAirbase(airbaseId: string | null): Airbase | undefined {
@@ -318,6 +326,21 @@ export default class Scenario {
     return facilityWeapons;
   }
 
+  deleteWeaponFromArmy(armyId: string, weaponId: string): Weapon[] {
+    const army = this.getArmy(armyId);
+    let armyWeapons: Weapon[] = [];
+    if (army) {
+      const weaponIndex = army.weapons.findIndex(
+        (weapon) => weapon.id === weaponId
+      );
+      if (weaponIndex !== -1) {
+        army.weapons.splice(weaponIndex, 1);
+      }
+      armyWeapons = army.weapons;
+    }
+    return armyWeapons;
+  }
+
   updateFacilityWeaponQuantity(
     facilityId: string,
     weaponId: string,
@@ -336,6 +359,22 @@ export default class Scenario {
       facilityWeapons = facility.weapons;
     }
     return facilityWeapons;
+  }
+
+  updateArmyWeaponQuantity(armyId: string, weaponId: string, increment: number) {
+    const army = this.getArmy(armyId);
+    let armyWeapons: Weapon[] = [];
+    if (army) {
+      const weapon = army.weapons.find((weapon) => weapon.id === weaponId);
+      if (weapon) {
+        weapon.currentQuantity += increment;
+        if (weapon.currentQuantity < 0) {
+          weapon.currentQuantity = 0;
+        }
+      }
+      armyWeapons = army.weapons;
+    }
+    return armyWeapons;
   }
 
   addWeaponToFacility(
@@ -390,6 +429,58 @@ export default class Scenario {
       facilityWeapons.push(weapon);
     }
     return facilityWeapons;
+  }
+
+  addWeaponToArmy(
+    armyId: string,
+    weaponClassName?: string,
+    weaponSpeed?: number,
+    weaponMaxFuel?: number,
+    weaponFuelRate?: number,
+    weaponLethality?: number
+  ): Weapon[] {
+    const army = this.getArmy(armyId);
+    let armyWeapons: Weapon[] = [];
+    if (army) {
+      armyWeapons = army.weapons;
+      if (
+        !(
+          weaponClassName &&
+          weaponSpeed &&
+          weaponMaxFuel &&
+          weaponFuelRate &&
+          weaponLethality
+        )
+      ) {
+        return armyWeapons;
+      }
+      if (army.weapons.find((weapon) => weapon.className === weaponClassName)) {
+        return armyWeapons;
+      }
+      const weapon = new Weapon({
+        id: randomUUID(),
+        launcherId: "None",
+        name: weaponClassName,
+        sideId: army.sideId,
+        className: weaponClassName,
+        latitude: 0.0,
+        longitude: 0.0,
+        altitude: 10000.0,
+        heading: 90.0,
+        speed: weaponSpeed,
+        currentFuel: weaponMaxFuel,
+        maxFuel: weaponMaxFuel,
+        fuelRate: weaponFuelRate,
+        range: 100,
+        sideColor: army.sideColor,
+        targetId: null,
+        lethality: weaponLethality,
+        maxQuantity: 1,
+        currentQuantity: 1,
+      });
+      armyWeapons.push(weapon);
+    }
+    return armyWeapons;
   }
 
   deleteWeaponFromShip(shipId: string, weaponId: string): Weapon[] {
@@ -520,6 +611,24 @@ export default class Scenario {
     }
   }
 
+  updateArmy(
+    armyId: string,
+    armyName: string,
+    armyClassName: string,
+    armySpeed: number,
+    armyCurrentFuel: number,
+    armyRange: number
+  ) {
+    const army = this.getArmy(armyId);
+    if (army) {
+      army.name = armyName;
+      army.className = armyClassName;
+      army.speed = armySpeed;
+      army.currentFuel = armyCurrentFuel;
+      army.range = armyRange;
+    }
+  }
+
   updateAirbase(airbaseId: string, airbaseName: string) {
     const airbase = this.getAirbase(airbaseId);
     if (airbase) {
@@ -607,6 +716,11 @@ export default class Scenario {
     this.facilities.forEach((facility) => {
       if (this.isHostile(facility.sideId, sideId)) {
         targets.push(facility);
+      }
+    });
+    this.armies.forEach((army) => {
+      if (this.isHostile(army.sideId, sideId)) {
+        targets.push(army);
       }
     });
     this.ships.forEach((ship) => {

@@ -86,11 +86,17 @@ export interface FocusFireRerankerExplanation {
   negativeSignals: string[];
 }
 
+export type FocusFireRerankerModelOrigin =
+  | "built-in"
+  | "trained-in-app"
+  | "imported-json";
+
 export interface FocusFireRerankerModel {
   version: number;
   trainedAt: string;
   source: "default" | "telemetry-pairwise" | "telemetry-tree-ensemble";
   modelFamily: "linear" | "tree-ensemble";
+  origin: FocusFireRerankerModelOrigin;
   sampleCount: number;
   operatorFeedbackCount: number;
   ruleSeedCount: number;
@@ -113,6 +119,20 @@ export interface FocusFireRerankedCandidate<TCandidate> {
   rerankerScore: number;
   rawRerankerScore: number;
   confidenceScore: number;
+}
+
+export interface FocusFireRerankerModelDescriptor {
+  displayName: string;
+  originLabel: string;
+  sourceLabel: string;
+  familyLabel: string;
+  trainerLabel: string;
+  storageLabel: string;
+  downloadLabel: string;
+  trainedAtLabel: string;
+  featureCount: number;
+  treeCount: number;
+  topFeatureLabels: string[];
 }
 
 const DEFAULT_FEATURE_WEIGHTS: FocusFireRerankerFeatureVector = {
@@ -202,6 +222,27 @@ const FEATURE_SIGNAL_LABELS: Record<
   },
 };
 
+const FEATURE_DISPLAY_LABELS: Record<FocusFireRerankerFeatureName, string> = {
+  heuristicScore: "규칙 점수",
+  effectCoverage: "효과 충족",
+  effectBalance: "효과 균형",
+  expectedStrikeEffect: "예상 효과량",
+  weaponEfficiency: "탄약 효율",
+  shotDensity: "발수 밀도",
+  launcherDensity: "발포 부대 수",
+  immediateReadyRatio: "즉시 발사 비율",
+  repositionRatio: "기동 필요 비율",
+  blockedRatio: "차단 비율",
+  distanceReadiness: "거리 여건",
+  etaReadiness: "발사 ETA",
+  threatSafety: "위협 안전도",
+  responseTempo: "대응 속도",
+  threatAdjustedCoverage: "위험 보정 효과",
+};
+
+export const FOCUS_FIRE_BUILTIN_MODEL_LOCATION =
+  "client/src/game/focusFireReranker.ts";
+
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
 }
@@ -251,6 +292,7 @@ export function createDefaultFocusFireRerankerModel(): FocusFireRerankerModel {
     trainedAt: new Date(0).toISOString(),
     source: "default",
     modelFamily: "linear",
+    origin: "built-in",
     sampleCount: 0,
     operatorFeedbackCount: 0,
     ruleSeedCount: 0,
@@ -261,6 +303,140 @@ export function createDefaultFocusFireRerankerModel(): FocusFireRerankerModel {
       ...DEFAULT_FEATURE_WEIGHTS,
     },
     treeEnsemble: null,
+  };
+}
+
+function collectTreeFeatureUsageCounts(
+  node: FocusFireRerankerTreeNode,
+  counts: Partial<Record<FocusFireRerankerFeatureName, number>>
+) {
+  if (node.feature) {
+    counts[node.feature] = (counts[node.feature] ?? 0) + 1;
+  }
+  if (node.left) {
+    collectTreeFeatureUsageCounts(node.left, counts);
+  }
+  if (node.right) {
+    collectTreeFeatureUsageCounts(node.right, counts);
+  }
+}
+
+function formatFocusFireRerankerTrainedAtLabel(trainedAt: string) {
+  const trainedDate = new Date(trainedAt);
+  if (!Number.isFinite(trainedDate.getTime())) {
+    return "알 수 없음";
+  }
+  if (trainedDate.getTime() <= 0) {
+    return "내장 기본값";
+  }
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(trainedDate);
+}
+
+function getFocusFireRerankerTopFeatureLabels(
+  model: FocusFireRerankerModel,
+  maxCount = 3
+) {
+  if (model.modelFamily === "tree-ensemble") {
+    const treeFeatureCounts: Partial<
+      Record<FocusFireRerankerFeatureName, number>
+    > = {};
+
+    for (const tree of model.treeEnsemble?.trees ?? []) {
+      if ("root" in tree) {
+        collectTreeFeatureUsageCounts(tree.root, treeFeatureCounts);
+        continue;
+      }
+
+      treeFeatureCounts[tree.feature] =
+        (treeFeatureCounts[tree.feature] ?? 0) + 1;
+    }
+
+    return Object.entries(treeFeatureCounts)
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, maxCount)
+      .map(
+        ([featureName]) =>
+          FEATURE_DISPLAY_LABELS[featureName as FocusFireRerankerFeatureName]
+      );
+  }
+
+  return FOCUS_FIRE_RERANKER_FEATURE_NAMES.map((featureName) => ({
+    featureName,
+    weight: Math.abs(model.weights[featureName]),
+  }))
+    .sort((left, right) => right.weight - left.weight)
+    .slice(0, maxCount)
+    .map((entry) => FEATURE_DISPLAY_LABELS[entry.featureName]);
+}
+
+export function describeFocusFireRerankerModel(
+  model: FocusFireRerankerModel
+): FocusFireRerankerModelDescriptor {
+  const origin =
+    model.origin ??
+    (model.source === "default" ? "built-in" : "imported-json");
+  const treeCount = model.treeEnsemble?.trees.length ?? 0;
+  const topFeatureLabels = getFocusFireRerankerTopFeatureLabels(model);
+  const originLabel =
+    origin === "built-in"
+      ? "앱 내장"
+      : origin === "trained-in-app"
+        ? "앱 내 학습"
+        : "외부 JSON 불러오기";
+  const sourceLabel =
+    model.source === "default"
+      ? "기본 규칙 시드"
+      : model.source === "telemetry-pairwise"
+        ? "운용 기록 pairwise 학습"
+        : "트리 앙상블 랭킹";
+  const familyLabel =
+    model.modelFamily === "tree-ensemble"
+      ? `트리 앙상블 (${treeCount}개 트리)`
+      : `선형 랭커 (${FOCUS_FIRE_RERANKER_FEATURE_NAMES.length}개 특징)`;
+  const trainerLabel =
+    model.modelFamily === "tree-ensemble"
+      ? model.treeEnsemble?.trainer ?? "외부 트리 모델"
+      : model.source === "telemetry-pairwise"
+        ? "앱 내 pairwise trainer"
+        : "수동 설계 가중치";
+  const storageLabel =
+    origin === "built-in"
+      ? `앱 번들 코드 ${FOCUS_FIRE_BUILTIN_MODEL_LOCATION}`
+      : origin === "trained-in-app"
+        ? "현재 게임 메모리, 시나리오 저장/내보내기 JSON"
+        : "불러온 JSON이 현재 게임 메모리와 시나리오 JSON에 반영됨";
+  const downloadLabel =
+    origin === "imported-json" ? "사용자가 선택한 JSON 파일" : "별도 다운로드 없음";
+  const displayName =
+    origin === "built-in"
+      ? "내장 기본 선형 랭커"
+      : model.modelFamily === "tree-ensemble"
+        ? trainerLabel.includes("LightGBM")
+          ? "외부 LambdaMART 트리 랭커"
+          : "외부 트리 앙상블 랭커"
+        : "앱 학습 선형 랭커";
+
+  return {
+    displayName,
+    originLabel,
+    sourceLabel,
+    familyLabel,
+    trainerLabel,
+    storageLabel,
+    downloadLabel,
+    trainedAtLabel: formatFocusFireRerankerTrainedAtLabel(model.trainedAt),
+    featureCount: FOCUS_FIRE_RERANKER_FEATURE_NAMES.length,
+    treeCount,
+    topFeatureLabels,
   };
 }
 
@@ -701,6 +877,7 @@ export function trainFocusFireRerankerFromTelemetry(
     trainedAt: new Date().toISOString(),
     source: "telemetry-pairwise",
     modelFamily: "linear",
+    origin: "trained-in-app",
     sampleCount: telemetryRecords.length,
     operatorFeedbackCount: linearSeedModel.operatorFeedbackCount,
     ruleSeedCount: linearSeedModel.ruleSeedCount,

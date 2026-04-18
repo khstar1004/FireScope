@@ -41,6 +41,7 @@ import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import RlLabLineChart from "@/gui/rl/RlLabLineChart";
 import RlLabCommanderPanel from "@/gui/rl/RlLabCommanderPanel";
+import RlLabInfoButton from "@/gui/rl/RlLabInfoButton";
 import { RL_LAB_PALETTE } from "@/gui/rl/rlLabPalette";
 import {
   RL_CHECKPOINT_SPECTATOR_KEY,
@@ -50,6 +51,8 @@ import {
   analyzeRlScenario,
   validateRlScenarioSelection,
 } from "@/gui/rl/rlLabScenarioSupport";
+import rlFirstSuccessDemoJson from "@/scenarios/rl_first_success_demo.json";
+import rlBattleOptimizationDemoJson from "@/scenarios/rl_battle_optimization_demo.json";
 import {
   RL_LAB_SUPPORTED_ALGORITHMS,
   applyTrainingRequestToForm,
@@ -59,6 +62,7 @@ import {
   retainAllowedIds,
   toggleIdSelection,
 } from "@/gui/rl/rlLabTrainingSupport";
+import RlBattleWatchPanel from "@/gui/rl/RlBattleWatchPanel";
 
 interface RlCapabilities {
   available: boolean;
@@ -74,6 +78,7 @@ interface RlCapabilities {
     evalEpisodes: number;
     evalSeedCount: number;
     curriculumEnabled: boolean;
+    guidedLaunchBootstrapSteps: number;
     seed: number;
     progressEvalFrequency: number;
     progressEvalEpisodes: number;
@@ -330,13 +335,17 @@ interface RlJobSnapshot {
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
+  scenarioName?: string | null;
+  displayLabel?: string | null;
   request: {
+    experimentLabel?: string;
     algorithms?: string[];
     timesteps: number;
     maxEpisodeSteps: number;
     evalEpisodes: number;
     evalSeedCount?: number;
     curriculumEnabled?: boolean;
+    guidedLaunchBootstrapSteps?: number;
     seed: number;
     progressEvalFrequency: number;
     progressEvalEpisodes: number;
@@ -384,12 +393,14 @@ interface RewardConfigForm {
 }
 
 interface TrainingForm {
+  experimentLabel: string;
   algorithms: string[];
   timesteps: number;
   maxEpisodeSteps: number;
   evalEpisodes: number;
   evalSeedCount: number;
   curriculumEnabled: boolean;
+  guidedLaunchBootstrapSteps: number;
   seed: number;
   progressEvalFrequency: number;
   progressEvalEpisodes: number;
@@ -432,12 +443,14 @@ interface RlLabPageProps {
 }
 
 const fallbackForm: TrainingForm = {
+  experimentLabel: "",
   algorithms: ["ppo"],
   timesteps: 4096,
   maxEpisodeSteps: 240,
   evalEpisodes: 1,
   evalSeedCount: 3,
   curriculumEnabled: false,
+  guidedLaunchBootstrapSteps: 12,
   seed: 7,
   progressEvalFrequency: 512,
   progressEvalEpisodes: 1,
@@ -464,6 +477,13 @@ const fallbackForm: TrainingForm = {
     failurePenalty: -150,
   },
 };
+
+const rlFirstSuccessDemoText = JSON.stringify(rlFirstSuccessDemoJson, null, 2);
+const rlBattleOptimizationDemoText = JSON.stringify(
+  rlBattleOptimizationDemoJson,
+  null,
+  2
+);
 
 const trainingPresets: TrainingPreset[] = [
   {
@@ -611,6 +631,7 @@ function buildCommandPreview(form: TrainingForm) {
     `--eval-episodes ${form.evalEpisodes}`,
     `--eval-seed-count ${form.evalSeedCount}`,
     ...(form.curriculumEnabled ? ["--curriculum-enabled"] : []),
+    `--guided-launch-bootstrap-steps ${form.guidedLaunchBootstrapSteps}`,
     `--seed ${form.seed}`,
     `--progress-eval-frequency ${form.progressEvalFrequency}`,
     `--progress-eval-episodes ${form.progressEvalEpisodes}`,
@@ -852,6 +873,55 @@ const PRIMARY_BUTTON_SX = {
   "&:hover": { backgroundColor: RL_LAB_PALETTE.accentHover },
 } as const;
 
+const DASHBOARD_GRID_SX = {
+  display: "grid",
+  gap: 1.25,
+  gridTemplateColumns: {
+    xs: "repeat(2, minmax(0, 1fr))",
+    md: "repeat(3, minmax(0, 1fr))",
+    xl: "repeat(6, minmax(0, 1fr))",
+  },
+} as const;
+
+const DASHBOARD_CARD_SX = {
+  p: 1.5,
+  borderRadius: 3,
+  border: `1px solid ${RL_LAB_PALETTE.surfaceStrongBorder}`,
+  backgroundColor: RL_LAB_PALETTE.surfaceRaisedStrong,
+  color: RL_LAB_PALETTE.text,
+  minHeight: 122,
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "space-between",
+} as const;
+
+const CHART_GRID_SX = {
+  display: "grid",
+  gap: 1.5,
+  gridTemplateColumns: {
+    xs: "minmax(0, 1fr)",
+    xl: "repeat(2, minmax(0, 1fr))",
+  },
+} as const;
+
+const ACCORDION_SX = {
+  borderRadius: 3,
+  border: `1px solid ${RL_LAB_PALETTE.surfaceBorder}`,
+  backgroundColor: RL_LAB_PALETTE.surfaceBackground,
+  color: RL_LAB_PALETTE.text,
+  boxShadow: RL_LAB_PALETTE.shadow,
+  overflow: "hidden",
+  "&::before": {
+    display: "none",
+  },
+  "& .MuiAccordionSummary-root": {
+    minHeight: 68,
+  },
+  "& .MuiAccordionSummary-content": {
+    my: 1,
+  },
+} as const;
+
 const TABLE_CONTAINER_SX = {
   overflowX: "auto",
   "& .MuiTable-root": {
@@ -867,6 +937,87 @@ const TABLE_CONTAINER_SX = {
     fontWeight: 700,
   },
 } as const;
+
+interface RlDashboardMetricCardProps {
+  label: string;
+  value: string;
+  meta?: string;
+  info?: string;
+}
+
+function RlDashboardMetricCard(props: Readonly<RlDashboardMetricCardProps>) {
+  return (
+    <Box sx={DASHBOARD_CARD_SX}>
+      <Stack
+        direction="row"
+        sx={{ justifyContent: "space-between", alignItems: "flex-start" }}
+      >
+        <Typography variant="caption" sx={{ color: RL_LAB_PALETTE.mutedText }}>
+          {props.label}
+        </Typography>
+        {props.info ? (
+          <RlLabInfoButton
+            title={props.label}
+            content={props.info}
+            label={`${props.label} 설명`}
+          />
+        ) : null}
+      </Stack>
+
+      <Box sx={{ minWidth: 0 }}>
+        <Typography
+          variant="h5"
+          sx={{
+            fontWeight: 700,
+            letterSpacing: "-0.03em",
+            ...BREAK_TEXT_SX,
+          }}
+        >
+          {props.value}
+        </Typography>
+        {props.meta ? (
+          <Typography
+            variant="body2"
+            sx={{ color: RL_LAB_PALETTE.mutedText, mt: 0.5, ...BREAK_TEXT_SX }}
+          >
+            {props.meta}
+          </Typography>
+        ) : null}
+      </Box>
+    </Box>
+  );
+}
+
+interface RlAccordionHeaderProps {
+  title: string;
+  info?: string;
+}
+
+function RlAccordionHeader(props: Readonly<RlAccordionHeaderProps>) {
+  return (
+    <Stack
+      direction="row"
+      sx={{
+        flex: 1,
+        minWidth: 0,
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 1,
+      }}
+    >
+      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+        {props.title}
+      </Typography>
+      {props.info ? (
+        <RlLabInfoButton
+          title={props.title}
+          content={props.info}
+          label={`${props.title} 설명`}
+        />
+      ) : null}
+    </Stack>
+  );
+}
 
 export default function RlLabPage(props: Readonly<RlLabPageProps>) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -917,6 +1068,7 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
             : "기본 고정 표적 타격 시나리오와 추천 학습 구성을 불러왔습니다."
         );
         const baseForm: TrainingForm = {
+          experimentLabel: "",
           algorithms: normalizeAlgorithmIds(
             payload.defaultForm.algorithms,
             payload.supportedAlgorithms ?? [...RL_LAB_SUPPORTED_ALGORITHMS]
@@ -926,6 +1078,8 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
           evalEpisodes: payload.defaultForm.evalEpisodes,
           evalSeedCount: payload.defaultForm.evalSeedCount,
           curriculumEnabled: payload.defaultForm.curriculumEnabled,
+          guidedLaunchBootstrapSteps:
+            payload.defaultForm.guidedLaunchBootstrapSteps,
           seed: payload.defaultForm.seed,
           progressEvalFrequency: payload.defaultForm.progressEvalFrequency,
           progressEvalEpisodes: payload.defaultForm.progressEvalEpisodes,
@@ -1203,8 +1357,98 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
   const latestRewardBreakdownLabels = formatRewardBreakdownLabels(
     finalEvaluation?.reward_breakdown ?? latestCheckpoint?.reward_breakdown
   );
+  const battleWatchAssignmentLabels = useMemo(() => {
+    const assignments =
+      finalEvaluation?.selected_target_assignments ??
+      latestCheckpoint?.selected_target_assignments ??
+      {};
+    const labels = Object.entries(assignments).map(
+      ([allyId, assignedTargetId]) => `${allyId} -> ${assignedTargetId}`
+    );
+    if (labels.length > 0) {
+      return labels;
+    }
+
+    const fallbackTargetLabel = formatSelectedTargets(
+      finalEvaluation?.selected_target_id,
+      finalEvaluation?.selected_target_ids ?? latestCheckpoint?.selected_target_ids
+    );
+    return fallbackTargetLabel !== "-" ? [`표적 ${fallbackTargetLabel}`] : [];
+  }, [
+    finalEvaluation?.selected_target_assignments,
+    finalEvaluation?.selected_target_id,
+    finalEvaluation?.selected_target_ids,
+    latestCheckpoint?.selected_target_assignments,
+    latestCheckpoint?.selected_target_ids,
+  ]);
+  const battleWatchWinRateLabel = formatPercent(
+    finalEvaluation?.success_rate ??
+      finalEvaluation?.win_rate ??
+      latestCheckpoint?.eval_success_rate
+  );
+  const battleWatchRewardLabel = formatMetricNumber(
+    finalEvaluation?.mean_reward ?? latestCheckpoint?.eval_mean_reward,
+    1
+  );
+  const battleWatchTargetLabel = formatSelectedTargets(
+    finalEvaluation?.selected_target_id,
+    finalEvaluation?.selected_target_ids ?? latestCheckpoint?.selected_target_ids
+  );
+  const battleWatchLaunchCount =
+    finalEvaluation?.launch_count ?? latestCheckpoint?.launch_count ?? 0;
+  const battleWatchCheckpointStep =
+    latestReplayCheckpoint?.timesteps ?? latestCheckpoint?.timesteps ?? null;
+  const dashboardProgressLabel = job?.progress
+    ? `${job.progress.current_timesteps} / ${job.progress.timesteps_target}`
+    : `${form.timesteps} step`;
+  const dashboardModeLabel =
+    job?.summary?.training_mode ??
+    job?.progress?.training_mode ??
+    (form.curriculumEnabled ? "curriculum" : "standard");
+  const dashboardSurvivalLabel = formatPercent(finalEvaluation?.survivability, 1);
+  const dashboardReadyLabel = formatMetricNumber(
+    finalEvaluation?.time_to_ready,
+    1
+  );
+  const dashboardDoneLabel =
+    finalEvaluation?.done_reason ?? latestCheckpoint?.done_reason ?? "-";
+  const dashboardExperimentLabel =
+    (job?.displayLabel ?? form.experimentLabel.trim()) || "실험 라벨 없음";
   const commandPreview = buildCommandPreview(form);
   const perSeedEvaluations = finalEvaluation?.per_seed_evaluations ?? [];
+  const noLaunchTimeoutHint = useMemo(() => {
+    const launchCount =
+      finalEvaluation?.launch_count ?? latestCheckpoint?.launch_count;
+    const doneReason =
+      finalEvaluation?.done_reason ?? latestCheckpoint?.done_reason;
+    const doneReasonDetail =
+      finalEvaluation?.done_reason_detail ??
+      latestCheckpoint?.done_reason_detail;
+    if (
+      doneReason !== "truncated" ||
+      doneReasonDetail !== "max_episode_steps" ||
+      (launchCount ?? 0) > 0
+    ) {
+      return null;
+    }
+    const selectedTargetId = `${
+      finalEvaluation?.selected_target_id ??
+      latestCheckpoint?.selected_target_id ??
+      ""
+    }`.trim();
+    return {
+      selectedTargetId: selectedTargetId || null,
+    };
+  }, [
+    finalEvaluation?.done_reason,
+    finalEvaluation?.done_reason_detail,
+    finalEvaluation?.launch_count,
+    finalEvaluation?.selected_target_id,
+    latestCheckpoint?.done_reason,
+    latestCheckpoint?.done_reason_detail,
+    latestCheckpoint?.launch_count,
+    latestCheckpoint?.selected_target_id,
+  ]);
   const perSeedSuccessRatePoints = useMemo(
     () =>
       perSeedEvaluations.map((evaluation, index) => ({
@@ -1223,6 +1467,7 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
       | "maxEpisodeSteps"
       | "evalEpisodes"
       | "evalSeedCount"
+      | "guidedLaunchBootstrapSteps"
       | "seed"
       | "progressEvalFrequency"
       | "progressEvalEpisodes",
@@ -1307,6 +1552,40 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
       }));
     });
     setScenarioMessage(`학습 프리셋 '${preset.label}'을 적용했습니다.`);
+  };
+
+  const applyNoLaunchTimeoutRecovery = () => {
+    startTransition(() => {
+      setForm((prev) => {
+        const fallbackTargetIds = parseCommaSeparatedIds(prev.targetIds);
+        const selectedTargetId =
+          noLaunchTimeoutHint?.selectedTargetId ?? fallbackTargetIds[0] ?? null;
+        const nextTargetIds = selectedTargetId
+          ? [selectedTargetId]
+          : fallbackTargetIds;
+        let nextHighValueTargetIds = retainAllowedIds(
+          parseCommaSeparatedIds(prev.highValueTargetIds),
+          nextTargetIds
+        );
+        if (nextHighValueTargetIds.length === 0 && selectedTargetId) {
+          nextHighValueTargetIds = [selectedTargetId];
+        }
+        return {
+          ...prev,
+          timesteps: Math.max(prev.timesteps, 1024),
+          maxEpisodeSteps: Math.max(prev.maxEpisodeSteps, 240),
+          guidedLaunchBootstrapSteps: Math.max(
+            prev.guidedLaunchBootstrapSteps,
+            12
+          ),
+          targetIds: formatCommaSeparatedIds(nextTargetIds),
+          highValueTargetIds: formatCommaSeparatedIds(nextHighValueTargetIds),
+        };
+      });
+    });
+    setScenarioMessage(
+      "최근 평가에서 발사 없이 시간 제한에 걸려 episode 길이를 늘리고 표적 구성을 단순화했습니다."
+    );
   };
 
   const resetRewardConfig = () => {
@@ -1460,12 +1739,14 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
         },
         body: JSON.stringify({
           scenarioText: form.scenarioText,
+          experimentLabel: form.experimentLabel.trim() || undefined,
           algorithms: form.algorithms,
           timesteps: form.timesteps,
           maxEpisodeSteps: form.maxEpisodeSteps,
           evalEpisodes: form.evalEpisodes,
           evalSeedCount: form.evalSeedCount,
           curriculumEnabled: form.curriculumEnabled,
+          guidedLaunchBootstrapSteps: form.guidedLaunchBootstrapSteps,
           seed: form.seed,
           progressEvalFrequency: form.progressEvalFrequency,
           progressEvalEpisodes: form.progressEvalEpisodes,
@@ -1594,6 +1875,17 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
     );
   };
 
+  const handleLoadFirstSuccessDemo = () => {
+    applyBaselineSetup(rlFirstSuccessDemoText, "성공 체감 데모");
+  };
+
+  const handleLoadBattleOptimizationDemo = () => {
+    applyBaselineSetup(
+      rlBattleOptimizationDemoText,
+      "전투·배치 최적화 데모"
+    );
+  };
+
   const handleLoadMapScenario = () => {
     const importedScenario = window.sessionStorage.getItem(RL_LAB_SCENARIO_KEY);
     if (!importedScenario) {
@@ -1689,30 +1981,55 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
               boxShadow: RL_LAB_PALETTE.shadow,
             }}
           >
-            <Stack spacing={1.5}>
+            <Stack spacing={2}>
               <Stack
                 direction={{ xs: "column", md: "row" }}
                 sx={{ justifyContent: "space-between", gap: 1.5 }}
               >
-                <Box>
-                  <Typography
-                    variant="overline"
-                    sx={{ letterSpacing: "0.12em", opacity: 0.78 }}
-                  >
-                    FIRE SCOPE RL DESIGN
-                  </Typography>
+                <Stack spacing={1}>
+                  <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                    <Typography
+                      variant="overline"
+                      sx={{ letterSpacing: "0.12em", opacity: 0.72 }}
+                    >
+                      FIRE SCOPE RL LAB
+                    </Typography>
+                    <RlLabInfoButton
+                      tone="dark"
+                      title="강화학습 설계 탭"
+                      content={
+                        "상단은 결과 대시보드입니다.\n승률, 보상, 표적, 발사 수, 체크포인트를 먼저 보고, 필요할 때만 아래 설계 섹션을 열어 시나리오와 보상을 조정하면 됩니다."
+                      }
+                    />
+                  </Stack>
                   <Typography variant="h4" sx={{ fontWeight: 700 }}>
                     고정표적 타격 강화학습 설계
                   </Typography>
-                  <Typography sx={{ mt: 1, maxWidth: 920, opacity: 0.88 }}>
-                    시나리오 JSON, 타격 대상, 보상 계수, 학습 길이를 UI에서
-                    조정한 뒤 로컬 Python RL 학습을 바로 실행합니다. PPO, A2C,
-                    SAC, DDPG, TD3를 같은 시나리오에서 비교할 수 있고 학습 중간
-                    평가 보상과 episode reward를 그래프로 보고, 중간 checkpoint
-                    리플레이와 완료 후 평가 리플레이를 지도에서 다시 열 수
-                    있습니다.
-                  </Typography>
-                </Box>
+                  <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={dashboardExperimentLabel}
+                      sx={{
+                        color: RL_LAB_PALETTE.heroText,
+                        borderColor: "rgba(248, 250, 252, 0.18)",
+                        backgroundColor: "rgba(248, 250, 252, 0.08)",
+                      }}
+                    />
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={`시나리오 ${
+                        scenarioAnalysis.scenarioName ?? "불러오기 대기"
+                      }`}
+                      sx={{
+                        color: RL_LAB_PALETTE.heroText,
+                        borderColor: "rgba(248, 250, 252, 0.18)",
+                        backgroundColor: "rgba(248, 250, 252, 0.08)",
+                      }}
+                    />
+                  </Stack>
+                </Stack>
 
                 <Stack direction="row" spacing={1} sx={WRAP_ROW_SX}>
                   <Chip
@@ -1726,13 +2043,93 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                     onClick={props.onBack}
                     sx={{
                       color: RL_LAB_PALETTE.heroText,
-                      borderColor: "rgba(248, 244, 234, 0.42)",
+                      borderColor: "rgba(248, 250, 252, 0.32)",
                     }}
                   >
                     지도 복귀
                   </Button>
                 </Stack>
               </Stack>
+
+              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+                <Button
+                  variant="contained"
+                  startIcon={<PlayArrowIcon />}
+                  onClick={handleLoadFirstSuccessDemo}
+                  sx={PRIMARY_BUTTON_SX}
+                >
+                  성공 체감 데모
+                </Button>
+                <Button
+                  variant="contained"
+                  startIcon={<PlayArrowIcon />}
+                  onClick={handleLoadBattleOptimizationDemo}
+                  sx={PRIMARY_BUTTON_SX}
+                >
+                  전투·배치 최적화 데모
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={handleApplyDefaultBaselineSetup}
+                  sx={{
+                    color: RL_LAB_PALETTE.heroText,
+                    borderColor: "rgba(248, 250, 252, 0.32)",
+                  }}
+                >
+                  체험 기본 세팅
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<PlayArrowIcon />}
+                  onClick={handleStartTraining}
+                  disabled={
+                    startingJob || job?.status === "running" || !readyToTrain
+                  }
+                  sx={{
+                    color: RL_LAB_PALETTE.heroText,
+                    borderColor: "rgba(248, 250, 252, 0.32)",
+                  }}
+                >
+                  학습 시작
+                </Button>
+              </Stack>
+
+              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+                <Chip
+                  variant="outlined"
+                  label={`알고리즘 ${form.algorithms
+                    .map(formatAlgorithmLabel)
+                    .join(", ")}`}
+                  sx={{
+                    color: RL_LAB_PALETTE.heroText,
+                    borderColor: "rgba(248, 250, 252, 0.18)",
+                    backgroundColor: "rgba(248, 250, 252, 0.08)",
+                  }}
+                />
+                <Chip
+                  variant="outlined"
+                  label={`진행 ${dashboardProgressLabel}`}
+                  sx={{
+                    color: RL_LAB_PALETTE.heroText,
+                    borderColor: "rgba(248, 250, 252, 0.18)",
+                    backgroundColor: "rgba(248, 250, 252, 0.08)",
+                  }}
+                />
+                <Chip
+                  variant="outlined"
+                  label={`체크포인트 ${
+                    battleWatchCheckpointStep !== null
+                      ? battleWatchCheckpointStep
+                      : "-"
+                  }`}
+                  sx={{
+                    color: RL_LAB_PALETTE.heroText,
+                    borderColor: "rgba(248, 250, 252, 0.18)",
+                    backgroundColor: "rgba(248, 250, 252, 0.08)",
+                  }}
+                />
+              </Stack>
+
               {(job?.status === "running" || startingJob) && <LinearProgress />}
             </Stack>
           </Paper>
@@ -1749,36 +2146,139 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
 
           <Paper elevation={0} sx={SURFACE_PAPER_SX}>
             <Stack spacing={1.5}>
-              <Box>
+              <Stack
+                direction={{ xs: "column", md: "row" }}
+                sx={{ justifyContent: "space-between", gap: 1 }}
+              >
                 <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                  초심자 빠른 시작
+                  학습 대시보드
                 </Typography>
-                <Typography variant="body2" sx={{ ...MUTED_TEXT_SX, mt: 0.5 }}>
-                  1. 시나리오를 불러오면 강화학습 설계가 세력, 기체, 표적을 자동
-                  분석합니다. 2. 추천 구성 적용 또는 학습 프리셋 선택. 3. 바로
-                  학습 시작 후 결과를 확인하면 됩니다.
-                </Typography>
+                <RlLabInfoButton
+                  title="학습 대시보드"
+                  content={
+                    "강화학습에서 먼저 볼 것은 승률, 보상, 선택 표적, 발사 수, 체크포인트입니다.\n아래 카드와 그래프를 먼저 보고, 결과가 마음에 들지 않을 때만 하단의 시나리오·학습·보상 설정을 조정하면 됩니다."
+                  }
+                />
+              </Stack>
+
+              <Box sx={DASHBOARD_GRID_SX}>
+                <RlDashboardMetricCard
+                  label="상태"
+                  value={formatStatusLabel(job?.status)}
+                  meta={`Mode ${dashboardModeLabel}`}
+                  info="현재 학습 상태와 학습 모드를 보여줍니다. running이면 정책이 계속 업데이트되고 있는 중입니다."
+                />
+                <RlDashboardMetricCard
+                  label="승률"
+                  value={battleWatchWinRateLabel}
+                  meta={`Done ${dashboardDoneLabel}`}
+                  info="체크포인트 또는 최종 평가 기준 성공률입니다. 가장 먼저 확인할 핵심 지표입니다."
+                />
+                <RlDashboardMetricCard
+                  label="평가 보상"
+                  value={battleWatchRewardLabel}
+                  meta={`체크포인트 ${battleWatchCheckpointStep ?? "-"}`}
+                  info="보상 함수 전체 합계입니다. 승률과 함께 보면 정책이 보상 구조를 제대로 타고 있는지 판단할 수 있습니다."
+                />
+                <RlDashboardMetricCard
+                  label="선택 표적"
+                  value={battleWatchTargetLabel}
+                  meta={`발사 ${battleWatchLaunchCount}`}
+                  info="지금 정책이 집중하는 표적입니다. 표적이 안정되면 행동 정책도 덜 흔들리는 경우가 많습니다."
+                />
+                <RlDashboardMetricCard
+                  label="생존율"
+                  value={dashboardSurvivalLabel}
+                  meta={`Ready ${dashboardReadyLabel}`}
+                  info="아군 보존 정도와 발사 준비 시간을 같이 봅니다. 승률이 높아도 손실이 크면 전술 품질은 낮을 수 있습니다."
+                />
+                <RlDashboardMetricCard
+                  label="학습 진행"
+                  value={dashboardProgressLabel}
+                  meta={formatAlgorithmLabel(currentAlgorithm)}
+                  info="현재 알고리즘과 목표 step 대비 진행량입니다. checkpoint가 쌓일수록 위 그래프도 더 의미 있어집니다."
+                />
               </Box>
 
               <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
                 <Button
-                  variant="contained"
-                  startIcon={<PlayArrowIcon />}
-                  onClick={handleApplyDefaultBaselineSetup}
-                  sx={PRIMARY_BUTTON_SX}
+                  variant="outlined"
+                  startIcon={<MapIcon />}
+                  onClick={() => {
+                    void handleStartCheckpointSpectatorOnMap().catch((error) => {
+                      setPageError(
+                        error instanceof Error
+                          ? error.message
+                          : "Checkpoint spectator could not start."
+                      );
+                    });
+                  }}
+                  disabled={!jobId}
                 >
-                  체험 기본 세팅
+                  메인 맵 자동 감시
                 </Button>
                 <Button
                   variant="outlined"
                   startIcon={<MapIcon />}
+                  onClick={() => {
+                    if (!latestReplayCheckpoint) {
+                      return;
+                    }
+                    void handleOpenCheckpointReplayOnMap(
+                      latestReplayCheckpoint
+                    ).catch((error) => {
+                      setPageError(
+                        error instanceof Error
+                          ? error.message
+                          : "Checkpoint replay load failed."
+                      );
+                    });
+                  }}
+                  disabled={!latestReplayCheckpoint}
+                >
+                  최신 체크포인트 리플레이
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<MapIcon />}
+                  onClick={() => {
+                    void handleOpenReplayOnMap().catch((error) => {
+                      setPageError(
+                        error instanceof Error
+                          ? error.message
+                          : "Evaluation replay load failed."
+                      );
+                    });
+                  }}
+                  disabled={!job?.artifacts.evalRecording}
+                >
+                  평가 리플레이 열기
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<RefreshIcon />}
+                  onClick={() => {
+                    void refreshJob().catch((error) => {
+                      setPageError(
+                        error instanceof Error
+                          ? error.message
+                          : "RL job refresh failed."
+                      );
+                    });
+                  }}
+                  disabled={!jobId}
+                >
+                  새로고침
+                </Button>
+                <Button
+                  variant="outlined"
                   onClick={handleApplyMapBaselineSetup}
                   disabled={!hasImportedMapScenario}
                 >
                   지도 시나리오 기본 세팅
                 </Button>
                 <Button
-                  variant="contained"
+                  variant="outlined"
                   startIcon={<AutoFixHighOutlinedIcon />}
                   onClick={() =>
                     applyRecommendedScenarioSetup(
@@ -1787,34 +2287,15 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                     )
                   }
                   disabled={scenarioAnalysis.status !== "valid"}
-                  sx={PRIMARY_BUTTON_SX}
                 >
                   추천 구성 적용
-                </Button>
-                {trainingPresets.map((preset) => (
-                  <Button
-                    key={preset.key}
-                    variant="outlined"
-                    title={preset.description}
-                    onClick={() => applyTrainingPreset(preset)}
-                  >
-                    {preset.label}
-                  </Button>
-                ))}
-                <Button variant="outlined" onClick={resetRewardConfig}>
-                  보상 기본값 복원
                 </Button>
               </Stack>
 
               <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
                 <Chip
-                  color="primary"
+                  variant="outlined"
                   label={`기본 체험 ${baselinePreset.label} · ${baselinePreset.values.timesteps} step`}
-                />
-                <Chip
-                  label={`시나리오 ${
-                    scenarioAnalysis.scenarioName ?? "불러오기 대기"
-                  }`}
                 />
                 <Chip
                   label={`세력 ${scenarioAnalysis.sideSummaries.length}`}
@@ -1828,89 +2309,20 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                 />
                 {scenarioAnalysis.recommendedControllableSideName && (
                   <Chip
-                    label={`아군 추천 ${scenarioAnalysis.recommendedControllableSideName}`}
+                    label={`아군 ${scenarioAnalysis.recommendedControllableSideName}`}
                   />
                 )}
                 {scenarioAnalysis.recommendedTargetSideName && (
                   <Chip
-                    label={`적 추천 ${scenarioAnalysis.recommendedTargetSideName}`}
+                    label={`적 ${scenarioAnalysis.recommendedTargetSideName}`}
                   />
                 )}
               </Stack>
 
-              {scenarioAnalysis.status === "valid" && (
-                <>
-                  <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-                    {scenarioAnalysis.sideSummaries.map((side) => (
-                      <Chip
-                        key={side.id}
-                        variant="outlined"
-                        label={`${side.name} 항공 ${side.aircraftCount} / 표적 ${side.fixedTargetCount}`}
-                      />
-                    ))}
-                  </Stack>
-
-                  <Stack spacing={0.75}>
-                    <Typography variant="subtitle2" sx={SECTION_LABEL_SX}>
-                      추천 아군 항공기
-                    </Typography>
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      sx={{ flexWrap: "wrap" }}
-                    >
-                      {scenarioAnalysis.recommendedAllyIds.length > 0 ? (
-                        scenarioAnalysis.recommendedAllyIds.map((allyId) => (
-                          <Chip key={allyId} size="small" label={allyId} />
-                        ))
-                      ) : (
-                        <Typography variant="body2" sx={MUTED_TEXT_SX}>
-                          추천 아군 항공기를 만들지 못했습니다.
-                        </Typography>
-                      )}
-                    </Stack>
-                  </Stack>
-
-                  <Stack spacing={0.75}>
-                    <Typography variant="subtitle2" sx={SECTION_LABEL_SX}>
-                      추천 고정 표적
-                    </Typography>
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      sx={{ flexWrap: "wrap" }}
-                    >
-                      {scenarioAnalysis.recommendedTargetIds.length > 0 ? (
-                        scenarioAnalysis.recommendedTargetIds.map(
-                          (targetId) => (
-                            <Chip
-                              key={targetId}
-                              size="small"
-                              label={targetId}
-                            />
-                          )
-                        )
-                      ) : (
-                        <Typography variant="body2" sx={MUTED_TEXT_SX}>
-                          추천 표적을 만들지 못했습니다.
-                        </Typography>
-                      )}
-                    </Stack>
-                  </Stack>
-                </>
-              )}
-
-              {scenarioAnalysis.error && (
-                <Alert severity="error">{scenarioAnalysis.error}</Alert>
-              )}
-
               {selectionIssues.length > 0 &&
                 scenarioAnalysis.status === "valid" && (
                   <Alert severity="warning">
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                      학습 시작 전에 확인할 항목
-                    </Typography>
-                    <Box component="ul" sx={{ pl: 2.5, mb: 0, mt: 0.75 }}>
+                    <Box component="ul" sx={{ pl: 2.5, mb: 0, mt: 0 }}>
                       {selectionIssues.map((issue) => (
                         <li key={issue}>
                           <Typography variant="body2">{issue}</Typography>
@@ -1922,7 +2334,7 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
 
               {scenarioAnalysis.warnings.length > 0 && (
                 <Alert severity="info">
-                  <Box component="ul" sx={{ pl: 2.5, mb: 0 }}>
+                  <Box component="ul" sx={{ pl: 2.5, mb: 0, mt: 0 }}>
                     {scenarioAnalysis.warnings.map((warning) => (
                       <li key={warning}>
                         <Typography variant="body2">{warning}</Typography>
@@ -1931,38 +2343,167 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                   </Box>
                 </Alert>
               )}
+
+              {scenarioAnalysis.error && (
+                <Alert severity="error">{scenarioAnalysis.error}</Alert>
+              )}
+
+              {noLaunchTimeoutHint && (
+                <Alert
+                  severity="warning"
+                  action={
+                    <Button
+                      color="inherit"
+                      size="small"
+                      onClick={applyNoLaunchTimeoutRecovery}
+                    >
+                      무발사 시간초과 보정
+                    </Button>
+                  }
+                >
+                  최근 평가에서 발사 없이 시간 제한에 걸렸습니다.
+                </Alert>
+              )}
+
+              <RlBattleWatchPanel
+                statusLabel={formatStatusLabel(job?.status)}
+                algorithmLabel={formatAlgorithmLabel(currentAlgorithm)}
+                latestCheckpointStep={battleWatchCheckpointStep}
+                latestWinRateLabel={battleWatchWinRateLabel}
+                latestRewardLabel={battleWatchRewardLabel}
+                selectedTargetLabel={battleWatchTargetLabel}
+                launchCount={battleWatchLaunchCount}
+                assignmentLabels={battleWatchAssignmentLabels}
+                rewardLabels={latestRewardBreakdownLabels}
+                canStartAutoSpectator={Boolean(jobId)}
+                canOpenCheckpointReplay={Boolean(latestReplayCheckpoint)}
+                canOpenEvaluationReplay={Boolean(job?.artifacts.evalRecording)}
+                onStartAutoSpectator={() => {
+                  void handleStartCheckpointSpectatorOnMap().catch((error) => {
+                    setPageError(
+                      error instanceof Error
+                        ? error.message
+                        : "Checkpoint spectator could not start."
+                    );
+                  });
+                }}
+                onOpenCheckpointReplay={() => {
+                  if (!latestReplayCheckpoint) {
+                    return;
+                  }
+                  void handleOpenCheckpointReplayOnMap(
+                    latestReplayCheckpoint
+                  ).catch((error) => {
+                    setPageError(
+                      error instanceof Error
+                        ? error.message
+                        : "Checkpoint replay load failed."
+                    );
+                  });
+                }}
+                onOpenEvaluationReplay={() => {
+                  void handleOpenReplayOnMap().catch((error) => {
+                    setPageError(
+                      error instanceof Error
+                        ? error.message
+                        : "Evaluation replay load failed."
+                    );
+                  });
+                }}
+              />
             </Stack>
           </Paper>
 
-          <RlLabCommanderPanel
-            scenarioText={form.scenarioText}
-            scenarioAnalysis={scenarioAnalysis}
-            availableAllies={availableAllies}
-            controllableSideName={form.controllableSideName}
-            targetSideName={form.targetSideName}
-            allyIds={allyIds}
-            targetIds={targetIds}
-            highValueTargetIds={highValueTargetIds}
-            selectionIssues={selectionIssues}
-            trainingRequest={{
-              algorithms: form.algorithms,
-              timesteps: form.timesteps,
-              maxEpisodeSteps: form.maxEpisodeSteps,
-              evalEpisodes: form.evalEpisodes,
-              evalSeedCount: form.evalSeedCount,
-              curriculumEnabled: form.curriculumEnabled,
-              seed: form.seed,
-              progressEvalFrequency: form.progressEvalFrequency,
-              progressEvalEpisodes: form.progressEvalEpisodes,
-              controllableSideName: form.controllableSideName,
-              targetSideName: form.targetSideName,
-              allyIds,
-              targetIds,
-              highValueTargetIds,
-              rewardConfig: { ...form.rewardConfig },
-            }}
-            openReplayOnMap={props.openReplayOnMap}
-          />
+          <Paper elevation={0} sx={SURFACE_PAPER_SX}>
+            <Stack spacing={1.5}>
+              <Stack
+                direction={{ xs: "column", md: "row" }}
+                sx={{ justifyContent: "space-between", gap: 1 }}
+              >
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  핵심 그래프
+                </Typography>
+                <RlLabInfoButton
+                  title="핵심 그래프"
+                  content={
+                    "승률과 평가 보상은 정책이 실제로 좋아지고 있는지 보는 핵심 그래프입니다.\nEpisode reward는 학습 중 흔들림을, 멀티시드는 최종 정책의 안정성을 보여줍니다."
+                  }
+                />
+              </Stack>
+              <Box sx={CHART_GRID_SX}>
+                <RlLabLineChart
+                  title="승률"
+                  subtitle=""
+                  color={RL_LAB_PALETTE.chartWin}
+                  points={evalSuccessRatePoints}
+                  emptyLabel="평가가 누적되면 승률 추이가 여기에 표시됩니다."
+                />
+                <RlLabLineChart
+                  title="평가 보상"
+                  subtitle=""
+                  color={RL_LAB_PALETTE.chartReward}
+                  points={evalRewardPoints}
+                  emptyLabel="checkpoint 평가 보상이 여기에 누적됩니다."
+                />
+                <RlLabLineChart
+                  title="Episode Reward"
+                  subtitle=""
+                  color={RL_LAB_PALETTE.chartEpisode}
+                  points={episodeRewardPoints}
+                  emptyLabel="훈련 중 종료된 episode reward가 여기에 누적됩니다."
+                />
+                <RlLabLineChart
+                  title="멀티시드"
+                  subtitle=""
+                  color={RL_LAB_PALETTE.chartSeed}
+                  points={perSeedSuccessRatePoints}
+                  emptyLabel="최종 multi-seed evaluation 이후 안정성이 표시됩니다."
+                />
+              </Box>
+            </Stack>
+          </Paper>
+
+          <Accordion defaultExpanded={false} elevation={0} sx={ACCORDION_SX}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <RlAccordionHeader
+                title="지휘관 자원·배치 최적화"
+                info={
+                  "지휘관 탐색은 동일한 RL 평가기를 사용해 자산 조합과 초기 배치를 비교합니다.\n학습이 끝난 뒤 어떤 배치가 더 잘 싸우는지 보고 싶을 때 여기를 엽니다."
+                }
+              />
+            </AccordionSummary>
+            <AccordionDetails sx={{ px: 0, pb: 0 }}>
+              <RlLabCommanderPanel
+                scenarioText={form.scenarioText}
+                scenarioAnalysis={scenarioAnalysis}
+                availableAllies={availableAllies}
+                controllableSideName={form.controllableSideName}
+                targetSideName={form.targetSideName}
+                allyIds={allyIds}
+                targetIds={targetIds}
+                highValueTargetIds={highValueTargetIds}
+                selectionIssues={selectionIssues}
+                trainingRequest={{
+                  algorithms: form.algorithms,
+                  timesteps: form.timesteps,
+                  maxEpisodeSteps: form.maxEpisodeSteps,
+                  evalEpisodes: form.evalEpisodes,
+                  evalSeedCount: form.evalSeedCount,
+                  curriculumEnabled: form.curriculumEnabled,
+                  seed: form.seed,
+                  progressEvalFrequency: form.progressEvalFrequency,
+                  progressEvalEpisodes: form.progressEvalEpisodes,
+                  controllableSideName: form.controllableSideName,
+                  targetSideName: form.targetSideName,
+                  allyIds,
+                  targetIds,
+                  highValueTargetIds,
+                  rewardConfig: { ...form.rewardConfig },
+                }}
+                openReplayOnMap={props.openReplayOnMap}
+              />
+            </AccordionDetails>
+          </Accordion>
 
           <Box
             sx={{
@@ -1978,9 +2519,12 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
             <Stack spacing={2} sx={{ minWidth: 0 }}>
               <Paper elevation={0} sx={SURFACE_PAPER_SX}>
                 <Stack spacing={1.5}>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                    시나리오 설계
-                  </Typography>
+                  <RlAccordionHeader
+                    title="시나리오 설계"
+                    info={
+                      "시나리오 JSON과 아군·적 세력 이름, 학습 대상 ID를 조정하는 영역입니다.\n보통은 데모를 불러온 뒤 여기서 필요할 때만 JSON이나 세력 구성을 수정하면 됩니다."
+                    }
+                  />
                   <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
                     <Button
                       size="small"
@@ -2061,7 +2605,6 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                   </Stack>
                   <TextField
                     label="아군 항공기 IDs"
-                    helperText="쉼표로 구분합니다."
                     value={form.allyIds}
                     onChange={(event) =>
                       setForm((prev) => ({
@@ -2073,7 +2616,6 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                   />
                   <TextField
                     label="적 고정 표적 IDs"
-                    helperText="쉼표로 구분합니다."
                     value={form.targetIds}
                     onChange={(event) =>
                       setForm((prev) => ({
@@ -2085,7 +2627,6 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                   />
                   <TextField
                     label="고가치 표적 IDs"
-                    helperText="쉼표로 구분합니다."
                     value={form.highValueTargetIds}
                     onChange={(event) =>
                       setForm((prev) => ({
@@ -2119,13 +2660,12 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
 
               <Paper elevation={0} sx={SURFACE_PAPER_SX}>
                 <Stack spacing={1.5}>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                    시나리오 카탈로그
-                  </Typography>
-                  <Typography variant="body2" sx={MUTED_TEXT_SX}>
-                    현재 시나리오에서 감지한 항공기와 고정 표적입니다. 직접 ID를
-                    입력하지 않아도 칩을 눌러 학습 대상을 선택할 수 있습니다.
-                  </Typography>
+                  <RlAccordionHeader
+                    title="시나리오 카탈로그"
+                    info={
+                      "현재 시나리오에서 감지한 아군 항공기와 고정 표적 목록입니다.\n칩을 눌러 선택 대상을 바꿀 수 있고, 고가치 표적도 같은 흐름으로 지정할 수 있습니다."
+                    }
+                  />
 
                   <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
                     <Chip
@@ -2405,16 +2945,27 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
 
               <Paper elevation={0} sx={SURFACE_PAPER_SX}>
                 <Stack spacing={1.5}>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                    학습 설정
-                  </Typography>
+                  <RlAccordionHeader
+                    title="학습 설정"
+                    info={
+                      "알고리즘, timesteps, evaluation 주기, seed, bootstrap을 조정합니다.\n모델 선택은 success rate 우선, 동률이면 mean reward, 그다음 episode 길이 순입니다."
+                    }
+                  />
+                  <TextField
+                    label="실험 라벨"
+                    value={form.experimentLabel}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        experimentLabel: event.target.value,
+                      }))
+                    }
+                    placeholder="예: Codex 첫 사용자 점검 2026-04-16"
+                    fullWidth
+                  />
                   <Stack spacing={1}>
                     <Typography variant="subtitle2" sx={SECTION_LABEL_SX}>
                       알고리즘 비교
-                    </Typography>
-                    <Typography variant="body2" sx={MUTED_TEXT_SX}>
-                      하나 이상 선택하면 같은 시나리오로 순차 학습한 뒤,
-                      승리확률이 가장 높은 정책을 최종 모델로 저장합니다.
                     </Typography>
                     <Stack
                       direction="row"
@@ -2435,10 +2986,6 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                         );
                       })}
                     </Stack>
-                    <Alert severity="info">
-                      모델 선택 기준: success rate 우선, 동률이면 mean reward,
-                      그다음 더 짧은 평균 episode 길이입니다.
-                    </Alert>
                     <Stack
                       direction="row"
                       spacing={1}
@@ -2458,6 +3005,11 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                             : "Mode Standard"
                         }
                       />
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        label={`Bootstrap ${form.guidedLaunchBootstrapSteps} step`}
+                      />
                     </Stack>
                     <FormControlLabel
                       control={
@@ -2474,11 +3026,11 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                       label="커리큘럼 학습 사용"
                     />
                     {form.curriculumEnabled && (
-                      <Alert severity="info">
-                        쉬운 stage에서 시작해 success rate 기준을 넘기면 다음
-                        난이도로 넘어갑니다. 최종 모델 비교는 마지막 full
-                        mission 기준 multi-seed evaluation으로 수행합니다.
-                      </Alert>
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        label="Stage 통과 후 다음 난이도로 이동"
+                      />
                     )}
                   </Stack>
                   <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
@@ -2534,6 +3086,18 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                       }
                       fullWidth
                     />
+                    <TextField
+                      label="Guided Launch Bootstrap"
+                      type="number"
+                      value={form.guidedLaunchBootstrapSteps}
+                      onChange={(event) =>
+                        setNumericFormField(
+                          "guidedLaunchBootstrapSteps",
+                          event.target.value
+                        )
+                      }
+                      fullWidth
+                    />
                   </Stack>
                   <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
                     <TextField
@@ -2570,9 +3134,12 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                     direction={{ xs: "column", md: "row" }}
                     sx={{ justifyContent: "space-between", gap: 1 }}
                   >
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                      보상 계수 설계
-                    </Typography>
+                    <RlAccordionHeader
+                      title="보상 계수 설계"
+                      info={
+                        "Kill, TOT, ETA, Threat, Launch, Time, Terminal 보상을 조정합니다.\n가시적인 설명은 숨겼고, 실제 의미는 상단 보상 해석 카드와 최신 평가 요약에서 바로 확인할 수 있습니다."
+                      }
+                    />
                     <Button
                       size="small"
                       variant="outlined"
@@ -2671,11 +3238,6 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                       fullWidth
                     />
                   </Stack>
-                  <Typography variant="body2" sx={MUTED_TEXT_SX}>
-                    `ETA Progress Weight`는 선택한 표적까지의 launch ETA가
-                    줄어들 때, `Ready Bonus`는 새로 발사 가능 상태에 들어간 기체
-                    수가 늘어날 때 추가 보상을 줍니다.
-                  </Typography>
                   <Divider />
                   <Typography variant="subtitle2" sx={SECTION_LABEL_SX}>
                     Anti-Stagnation Penalty
@@ -2751,11 +3313,6 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                       fullWidth
                     />
                   </Stack>
-                  <Typography variant="body2" sx={MUTED_TEXT_SX}>
-                    `Stagnation Penalty`는 같은 표적을 골랐지만 launch ETA가
-                    거의 줄지 않는 step에, `Target Switch Penalty`는 살아 있는
-                    표적 사이를 불필요하게 바꾸는 step에 적용됩니다.
-                  </Typography>
                 </Stack>
               </Paper>
             </Stack>
@@ -2763,9 +3320,12 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
             <Stack spacing={2} sx={{ minWidth: 0 }}>
               <Paper elevation={0} sx={SURFACE_PAPER_SX}>
                 <Stack spacing={1.5}>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                    실행 패널
-                  </Typography>
+                  <RlAccordionHeader
+                    title="실행 패널"
+                    info={
+                      "실행 패널은 학습 시작, 중지, 새로고침, 아티팩트 다운로드를 담당합니다.\n결과 관측은 상단 대시보드에서 먼저 하고, 여기서는 제어와 내보내기에 집중하면 됩니다."
+                    }
+                  />
                   <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
                     <Button
                       variant="contained"
@@ -2811,61 +3371,6 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                       disabled={!jobId}
                     >
                       새로고침
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      startIcon={<MapIcon />}
-                      onClick={() => {
-                        void handleStartCheckpointSpectatorOnMap().catch(
-                          (error) => {
-                            setPageError(
-                              error instanceof Error
-                                ? error.message
-                                : "Checkpoint spectator could not start."
-                            );
-                          }
-                        );
-                      }}
-                      disabled={!jobId}
-                    >
-                      메인 맵 자동 감시
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      startIcon={<MapIcon />}
-                      onClick={() => {
-                        if (!latestReplayCheckpoint) {
-                          return;
-                        }
-                        void handleOpenCheckpointReplayOnMap(
-                          latestReplayCheckpoint
-                        ).catch((error) => {
-                          setPageError(
-                            error instanceof Error
-                              ? error.message
-                              : "Checkpoint replay load failed."
-                          );
-                        });
-                      }}
-                      disabled={!latestReplayCheckpoint}
-                    >
-                      최신 체크포인트 리플레이
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      startIcon={<MapIcon />}
-                      onClick={() => {
-                        void handleOpenReplayOnMap().catch((error) => {
-                          setPageError(
-                            error instanceof Error
-                              ? error.message
-                              : "Evaluation replay load failed."
-                          );
-                        });
-                      }}
-                      disabled={!job?.artifacts.evalRecording}
-                    >
-                      평가 리플레이 열기
                     </Button>
                   </Stack>
                   <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
@@ -2920,8 +3425,10 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                       color={readyToTrain ? "success" : "default"}
                       label={readyToTrain ? "학습 준비 완료" : "입력 확인 필요"}
                     />
+                    <Chip
+                      label={`발사 보조 ${form.guidedLaunchBootstrapSteps} step`}
+                    />
                   </Stack>
-
                   <Divider />
 
                   <Typography variant="subtitle2" sx={SECTION_LABEL_SX}>
@@ -2953,9 +3460,12 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                     direction={{ xs: "column", md: "row" }}
                     sx={{ justifyContent: "space-between", gap: 1 }}
                   >
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                      최근 실험
-                    </Typography>
+                    <RlAccordionHeader
+                      title="최근 실험"
+                      info={
+                        "최근 실험은 이전 실행 결과를 다시 여는 곳입니다.\n동일한 시나리오에서 여러 실험을 비교할 때는 여기서 원하는 job을 다시 불러오면 됩니다."
+                      }
+                    />
                     <Button
                       size="small"
                       variant="outlined"
@@ -2994,6 +3504,10 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                         candidateJob.progress?.best_run?.algorithm ??
                         candidateJob.progress?.current_algorithm ??
                         candidateJob.request.algorithms?.[0];
+                      const candidateDisplayLabel =
+                        candidateJob.displayLabel ??
+                        candidateJob.request.experimentLabel ??
+                        null;
 
                       return (
                         <Box
@@ -3010,6 +3524,27 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                           }}
                         >
                           <Stack spacing={1}>
+                            {(candidateDisplayLabel ||
+                              candidateJob.scenarioName) && (
+                              <Stack spacing={0.25}>
+                                {candidateDisplayLabel && (
+                                  <Typography
+                                    variant="subtitle2"
+                                    sx={{ fontWeight: 700 }}
+                                  >
+                                    {candidateDisplayLabel}
+                                  </Typography>
+                                )}
+                                {candidateJob.scenarioName && (
+                                  <Typography
+                                    variant="caption"
+                                    sx={MUTED_TEXT_SX}
+                                  >
+                                    시나리오: {candidateJob.scenarioName}
+                                  </Typography>
+                                )}
+                              </Stack>
+                            )}
                             <Stack
                               direction={{ xs: "column", md: "row" }}
                               sx={{ justifyContent: "space-between", gap: 1 }}
@@ -3080,6 +3615,13 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                               />
                               <Chip
                                 size="small"
+                                label={`Bootstrap ${
+                                  candidateJob.request
+                                    .guidedLaunchBootstrapSteps ?? 0
+                                }`}
+                              />
+                              <Chip
+                                size="small"
                                 label={`Algo ${formatAlgorithmLabel(candidateAlgorithm)}`}
                               />
                               <Chip
@@ -3114,47 +3656,15 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
                 </Stack>
               </Paper>
 
-              <Paper elevation={0} sx={SURFACE_PAPER_SX}>
-                <Stack spacing={1.5}>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                    결과 그래프
-                  </Typography>
-                  <RlLabLineChart
-                    title="평가 승리확률 추이"
-                    subtitle="checkpoint 마다 deterministic evaluation success rate (%)"
-                    color={RL_LAB_PALETTE.chartWin}
-                    points={evalSuccessRatePoints}
-                    emptyLabel="평가가 누적되면 승리확률 추정치가 이곳에 표시됩니다."
-                  />
-                  <RlLabLineChart
-                    title="평가 보상 추이"
-                    subtitle="checkpoint 마다 deterministic evaluation mean reward"
-                    color={RL_LAB_PALETTE.chartReward}
-                    points={evalRewardPoints}
-                    emptyLabel="학습이 시작되면 평가 reward checkpoint가 이곳에 누적됩니다."
-                  />
-                  <RlLabLineChart
-                    title="멀티시드 성공률"
-                    subtitle="최종 선택 모델의 seed별 success rate (%)"
-                    color={RL_LAB_PALETTE.chartSeed}
-                    points={perSeedSuccessRatePoints}
-                    emptyLabel="최종 multi-seed evaluation이 완료되면 seed별 성공률이 표시됩니다."
-                  />
-                  <RlLabLineChart
-                    title="Episode Reward 추이"
-                    subtitle="훈련 중 종료된 episode reward"
-                    color={RL_LAB_PALETTE.chartEpisode}
-                    points={episodeRewardPoints}
-                    emptyLabel="에피소드가 종료되면 reward curve가 이곳에 누적됩니다."
-                  />
-                </Stack>
-              </Paper>
 
               <Paper elevation={0} sx={SURFACE_PAPER_SX}>
                 <Stack spacing={1.5}>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                    최신 평가 요약
-                  </Typography>
+                  <RlAccordionHeader
+                    title="최신 평가 요약"
+                    info={
+                      "최신 평가 요약은 상단 대시보드보다 더 자세한 항목을 보여줍니다.\n알고리즘 비교, 체크포인트 리플레이 목록, 멀티시드 상세는 이 영역에서 확인합니다."
+                    }
+                  />
                   <Stack direction="row" spacing={1.5} sx={WRAP_ROW_SX}>
                     <Chip
                       label={`Algorithm ${formatAlgorithmLabel(currentAlgorithm)}`}
@@ -3655,9 +4165,12 @@ export default function RlLabPage(props: Readonly<RlLabPageProps>) {
 
               <Paper elevation={0} sx={SURFACE_PAPER_SX}>
                 <Stack spacing={1.5}>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                    실행 로그
-                  </Typography>
+                  <RlAccordionHeader
+                    title="실행 로그"
+                    info={
+                      "Python 학습 스크립트의 stdout/stderr 로그입니다.\n학습이 멈추거나 체크포인트가 안 생길 때는 여기서 에러를 먼저 확인합니다."
+                    }
+                  />
                   <Box
                     sx={{
                       borderRadius: 2,

@@ -1,0 +1,1965 @@
+{
+  "summary_schema_version": 3,
+  "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\fixed_target_strike_policy.zip",
+  "model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\fixed_target_strike_policy.metadata.json",
+  "scenario_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\scenario.json",
+  "progress_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\progress.json",
+  "eval_recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\eval_recording.jsonl",
+  "timesteps": 1024,
+  "timesteps_total": 1024,
+  "max_episode_steps": 240,
+  "seed": 7,
+  "eval_seed_count": 1,
+  "training_mode": "standard",
+  "observation_version": 4,
+  "reward_version": 4,
+  "checkpoint_compatibility": {
+    "legacy_models_reusable": false,
+    "load_policy": "block_on_version_mismatch_warn_on_missing_metadata"
+  },
+  "algorithms": [
+    "ppo"
+  ],
+  "selection_metric": "success_rate_then_mean_reward_then_shorter_mean_episode_steps",
+  "selected_algorithm": "ppo",
+  "ally_ids": [
+    "blue-striker-1",
+    "blue-striker-2"
+  ],
+  "target_ids": [
+    "red-sam-site"
+  ],
+  "high_value_target_ids": [
+    "red-sam-site"
+  ],
+  "reward_config": {
+    "kill_base": 100.0,
+    "high_value_target_bonus": 50.0,
+    "damage_progress_weight": 30.0,
+    "tot_weight": 40.0,
+    "tot_tau_seconds": 8.0,
+    "eta_progress_weight": 6.0,
+    "ready_to_fire_bonus": 2.5,
+    "stagnation_penalty_per_assignment": -0.15,
+    "target_switch_penalty": -0.3,
+    "threat_step_penalty": -2.0,
+    "launch_cost_per_weapon": -1.0,
+    "time_cost_per_step": -0.05,
+    "loss_penalty_per_ally": -80.0,
+    "success_bonus": 150.0,
+    "failure_penalty": -150.0
+  },
+  "artifact_policy": {
+    "top_level_model": "overall_best_selected_model",
+    "per_algorithm_artifacts": [
+      "final",
+      "checkpoint_best",
+      "selected"
+    ],
+    "retained_models": "retain_overall_best_and_unique_metric_leaders"
+  },
+  "evaluation": {
+    "benchmark_seed_count": 1,
+    "benchmark_seeds": [
+      7
+    ],
+    "recording_seed": 7,
+    "mean_reward": -83.99999999999986,
+    "std_reward": 0.0,
+    "episodes": 1,
+    "episodes_per_seed": 1,
+    "total_steps": 240,
+    "mean_episode_steps": 240.0,
+    "success_count": 0,
+    "failure_count": 0,
+    "truncated_count": 1,
+    "success_rate": 0.0,
+    "failure_rate": 0.0,
+    "truncated_rate": 1.0,
+    "win_rate": 0.0,
+    "survivability": 1.0,
+    "weapon_efficiency": 0.0,
+    "time_to_ready": 240.0,
+    "tot_quality": 0.0,
+    "done_reason_distribution": {
+      "success": 0,
+      "failure": 0,
+      "truncated": 1,
+      "in_progress": 0
+    },
+    "done_reason": "truncated",
+    "done_reason_detail": "max_episode_steps",
+    "selected_target_id": "red-sam-site",
+    "selected_target_ids": [
+      "red-sam-site",
+      "red-sam-site"
+    ],
+    "selected_target_assignments": {
+      "blue-striker-1": "red-sam-site",
+      "blue-striker-2": "red-sam-site"
+    },
+    "launch_count": 0,
+    "reward_breakdown": {
+      "kill_reward": 0.0,
+      "damage_progress_reward": 0.0,
+      "tot_bonus": 0.0,
+      "eta_progress_bonus": 0.0,
+      "ready_to_fire_bonus": 0.0,
+      "stagnation_penalty": -0.3,
+      "target_switch_penalty": -0.0,
+      "threat_penalty": -0.0,
+      "launch_cost": -0.0,
+      "time_cost": -0.05,
+      "loss_cost": -0.0,
+      "terminal_bonus": 0.0,
+      "destroyed_target_ids": [],
+      "target_damage_fractions": {},
+      "total_damage_fraction": 0.0,
+      "destroyed_high_value_target_ids": [],
+      "lost_ally_ids": [],
+      "threat_exposure_count": 0,
+      "weapons_fired": 0,
+      "selected_target_id": "red-sam-site",
+      "selected_target_ids": [
+        "red-sam-site",
+        "red-sam-site"
+      ],
+      "ally_target_assignments": {
+        "blue-striker-1": "red-sam-site",
+        "blue-striker-2": "red-sam-site"
+      },
+      "selected_launch_eta_before": {
+        "blue-striker-1": 65.97640231024367,
+        "blue-striker-2": 43.17131746843353
+      },
+      "selected_launch_eta_after": {
+        "blue-striker-1": 65.97640231024367,
+        "blue-striker-2": 43.17131746843353
+      },
+      "selected_ready_before_count": 0,
+      "selected_ready_after_count": 0,
+      "selected_ready_delta": 0,
+      "eta_progress_ratio": 0.0,
+      "stagnation_count": 2,
+      "target_switch_count": 0,
+      "tot_group_count": 0,
+      "tot_groups": [],
+      "done_reason": "truncated",
+      "step_index": 240,
+      "reward_version": 4,
+      "total_reward": -0.35
+    },
+    "seed_variability": {
+      "warning": false,
+      "reasons": [],
+      "success_rate_std": 0.0,
+      "mean_reward_std": 0.0,
+      "survivability_std": 0.0,
+      "weapon_efficiency_std": 0.0,
+      "time_to_ready_std": 0.0,
+      "tot_quality_std": 0.0
+    },
+    "seed_variability_warning": false,
+    "observation_version": 4,
+    "reward_version": 4,
+    "curriculum_stage": null,
+    "per_seed_evaluations": [
+      {
+        "evaluation_seed": 7,
+        "mean_reward": -83.99999999999986,
+        "std_reward": 0.0,
+        "episodes": 1,
+        "total_steps": 240,
+        "mean_episode_steps": 240.0,
+        "success_count": 0,
+        "failure_count": 0,
+        "truncated_count": 1,
+        "success_rate": 0.0,
+        "failure_rate": 0.0,
+        "truncated_rate": 1.0,
+        "win_rate": 0.0,
+        "survivability": 1.0,
+        "survivability_std": 0.0,
+        "weapon_efficiency": 0.0,
+        "weapon_efficiency_std": 0.0,
+        "time_to_ready": 240.0,
+        "time_to_ready_std": 0.0,
+        "tot_quality": 0.0,
+        "tot_quality_std": 0.0,
+        "done_reason_distribution": {
+          "success": 0,
+          "failure": 0,
+          "truncated": 1,
+          "in_progress": 0
+        },
+        "done_reason": "truncated",
+        "done_reason_detail": "max_episode_steps",
+        "selected_target_id": "red-sam-site",
+        "selected_target_ids": [
+          "red-sam-site",
+          "red-sam-site"
+        ],
+        "selected_target_assignments": {
+          "blue-striker-1": "red-sam-site",
+          "blue-striker-2": "red-sam-site"
+        },
+        "launch_count": 0,
+        "reward_breakdown": {
+          "kill_reward": 0.0,
+          "damage_progress_reward": 0.0,
+          "tot_bonus": 0.0,
+          "eta_progress_bonus": 0.0,
+          "ready_to_fire_bonus": 0.0,
+          "stagnation_penalty": -0.3,
+          "target_switch_penalty": -0.0,
+          "threat_penalty": -0.0,
+          "launch_cost": -0.0,
+          "time_cost": -0.05,
+          "loss_cost": -0.0,
+          "terminal_bonus": 0.0,
+          "destroyed_target_ids": [],
+          "target_damage_fractions": {},
+          "total_damage_fraction": 0.0,
+          "destroyed_high_value_target_ids": [],
+          "lost_ally_ids": [],
+          "threat_exposure_count": 0,
+          "weapons_fired": 0,
+          "selected_target_id": "red-sam-site",
+          "selected_target_ids": [
+            "red-sam-site",
+            "red-sam-site"
+          ],
+          "ally_target_assignments": {
+            "blue-striker-1": "red-sam-site",
+            "blue-striker-2": "red-sam-site"
+          },
+          "selected_launch_eta_before": {
+            "blue-striker-1": 65.97640231024367,
+            "blue-striker-2": 43.17131746843353
+          },
+          "selected_launch_eta_after": {
+            "blue-striker-1": 65.97640231024367,
+            "blue-striker-2": 43.17131746843353
+          },
+          "selected_ready_before_count": 0,
+          "selected_ready_after_count": 0,
+          "selected_ready_delta": 0,
+          "eta_progress_ratio": 0.0,
+          "stagnation_count": 2,
+          "target_switch_count": 0,
+          "tot_group_count": 0,
+          "tot_groups": [],
+          "done_reason": "truncated",
+          "step_index": 240,
+          "reward_version": 4,
+          "total_reward": -0.35
+        },
+        "observation_version": 4,
+        "reward_version": 4,
+        "curriculum_stage": null
+      }
+    ],
+    "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\eval_scenario.json"
+  },
+  "best_run": {
+    "algorithm": "ppo",
+    "timesteps": 1024,
+    "training_strategy": "on_policy",
+    "rollout_steps": 256,
+    "batch_size": 64,
+    "buffer_size": null,
+    "learning_starts": null,
+    "selection_source": "final",
+    "selection_eval_seed_count": 1,
+    "curriculum": null,
+    "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.zip",
+    "model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.metadata.json",
+    "final_model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo_final.zip",
+    "final_model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo_final.metadata.json",
+    "best_checkpoint_model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo_checkpoint_best.zip",
+    "best_checkpoint_model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo_checkpoint_best.metadata.json",
+    "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_scenario.json",
+    "eval_recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_recording.jsonl",
+    "evaluation": {
+      "benchmark_seed_count": 1,
+      "benchmark_seeds": [
+        7
+      ],
+      "recording_seed": 7,
+      "mean_reward": -83.99999999999986,
+      "std_reward": 0.0,
+      "episodes": 1,
+      "episodes_per_seed": 1,
+      "total_steps": 240,
+      "mean_episode_steps": 240.0,
+      "success_count": 0,
+      "failure_count": 0,
+      "truncated_count": 1,
+      "success_rate": 0.0,
+      "failure_rate": 0.0,
+      "truncated_rate": 1.0,
+      "win_rate": 0.0,
+      "survivability": 1.0,
+      "weapon_efficiency": 0.0,
+      "time_to_ready": 240.0,
+      "tot_quality": 0.0,
+      "done_reason_distribution": {
+        "success": 0,
+        "failure": 0,
+        "truncated": 1,
+        "in_progress": 0
+      },
+      "done_reason": "truncated",
+      "done_reason_detail": "max_episode_steps",
+      "selected_target_id": "red-sam-site",
+      "selected_target_ids": [
+        "red-sam-site",
+        "red-sam-site"
+      ],
+      "selected_target_assignments": {
+        "blue-striker-1": "red-sam-site",
+        "blue-striker-2": "red-sam-site"
+      },
+      "launch_count": 0,
+      "reward_breakdown": {
+        "kill_reward": 0.0,
+        "damage_progress_reward": 0.0,
+        "tot_bonus": 0.0,
+        "eta_progress_bonus": 0.0,
+        "ready_to_fire_bonus": 0.0,
+        "stagnation_penalty": -0.3,
+        "target_switch_penalty": -0.0,
+        "threat_penalty": -0.0,
+        "launch_cost": -0.0,
+        "time_cost": -0.05,
+        "loss_cost": -0.0,
+        "terminal_bonus": 0.0,
+        "destroyed_target_ids": [],
+        "target_damage_fractions": {},
+        "total_damage_fraction": 0.0,
+        "destroyed_high_value_target_ids": [],
+        "lost_ally_ids": [],
+        "threat_exposure_count": 0,
+        "weapons_fired": 0,
+        "selected_target_id": "red-sam-site",
+        "selected_target_ids": [
+          "red-sam-site",
+          "red-sam-site"
+        ],
+        "ally_target_assignments": {
+          "blue-striker-1": "red-sam-site",
+          "blue-striker-2": "red-sam-site"
+        },
+        "selected_launch_eta_before": {
+          "blue-striker-1": 65.97640231024367,
+          "blue-striker-2": 43.17131746843353
+        },
+        "selected_launch_eta_after": {
+          "blue-striker-1": 65.97640231024367,
+          "blue-striker-2": 43.17131746843353
+        },
+        "selected_ready_before_count": 0,
+        "selected_ready_after_count": 0,
+        "selected_ready_delta": 0,
+        "eta_progress_ratio": 0.0,
+        "stagnation_count": 2,
+        "target_switch_count": 0,
+        "tot_group_count": 0,
+        "tot_groups": [],
+        "done_reason": "truncated",
+        "step_index": 240,
+        "reward_version": 4,
+        "total_reward": -0.35
+      },
+      "seed_variability": {
+        "warning": false,
+        "reasons": [],
+        "success_rate_std": 0.0,
+        "mean_reward_std": 0.0,
+        "survivability_std": 0.0,
+        "weapon_efficiency_std": 0.0,
+        "time_to_ready_std": 0.0,
+        "tot_quality_std": 0.0
+      },
+      "seed_variability_warning": false,
+      "observation_version": 4,
+      "reward_version": 4,
+      "curriculum_stage": null,
+      "per_seed_evaluations": [
+        {
+          "evaluation_seed": 7,
+          "mean_reward": -83.99999999999986,
+          "std_reward": 0.0,
+          "episodes": 1,
+          "total_steps": 240,
+          "mean_episode_steps": 240.0,
+          "success_count": 0,
+          "failure_count": 0,
+          "truncated_count": 1,
+          "success_rate": 0.0,
+          "failure_rate": 0.0,
+          "truncated_rate": 1.0,
+          "win_rate": 0.0,
+          "survivability": 1.0,
+          "survivability_std": 0.0,
+          "weapon_efficiency": 0.0,
+          "weapon_efficiency_std": 0.0,
+          "time_to_ready": 240.0,
+          "time_to_ready_std": 0.0,
+          "tot_quality": 0.0,
+          "tot_quality_std": 0.0,
+          "done_reason_distribution": {
+            "success": 0,
+            "failure": 0,
+            "truncated": 1,
+            "in_progress": 0
+          },
+          "done_reason": "truncated",
+          "done_reason_detail": "max_episode_steps",
+          "selected_target_id": "red-sam-site",
+          "selected_target_ids": [
+            "red-sam-site",
+            "red-sam-site"
+          ],
+          "selected_target_assignments": {
+            "blue-striker-1": "red-sam-site",
+            "blue-striker-2": "red-sam-site"
+          },
+          "launch_count": 0,
+          "reward_breakdown": {
+            "kill_reward": 0.0,
+            "damage_progress_reward": 0.0,
+            "tot_bonus": 0.0,
+            "eta_progress_bonus": 0.0,
+            "ready_to_fire_bonus": 0.0,
+            "stagnation_penalty": -0.3,
+            "target_switch_penalty": -0.0,
+            "threat_penalty": -0.0,
+            "launch_cost": -0.0,
+            "time_cost": -0.05,
+            "loss_cost": -0.0,
+            "terminal_bonus": 0.0,
+            "destroyed_target_ids": [],
+            "target_damage_fractions": {},
+            "total_damage_fraction": 0.0,
+            "destroyed_high_value_target_ids": [],
+            "lost_ally_ids": [],
+            "threat_exposure_count": 0,
+            "weapons_fired": 0,
+            "selected_target_id": "red-sam-site",
+            "selected_target_ids": [
+              "red-sam-site",
+              "red-sam-site"
+            ],
+            "ally_target_assignments": {
+              "blue-striker-1": "red-sam-site",
+              "blue-striker-2": "red-sam-site"
+            },
+            "selected_launch_eta_before": {
+              "blue-striker-1": 65.97640231024367,
+              "blue-striker-2": 43.17131746843353
+            },
+            "selected_launch_eta_after": {
+              "blue-striker-1": 65.97640231024367,
+              "blue-striker-2": 43.17131746843353
+            },
+            "selected_ready_before_count": 0,
+            "selected_ready_after_count": 0,
+            "selected_ready_delta": 0,
+            "eta_progress_ratio": 0.0,
+            "stagnation_count": 2,
+            "target_switch_count": 0,
+            "tot_group_count": 0,
+            "tot_groups": [],
+            "done_reason": "truncated",
+            "step_index": 240,
+            "reward_version": 4,
+            "total_reward": -0.35
+          },
+          "observation_version": 4,
+          "reward_version": 4,
+          "curriculum_stage": null
+        }
+      ],
+      "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_scenario.json"
+    },
+    "candidate_evaluations": [
+      {
+        "source": "final",
+        "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo_final.zip",
+        "benchmark_seed_count": 1,
+        "benchmark_seeds": [
+          7
+        ],
+        "recording_seed": 7,
+        "mean_reward": -83.99999999999986,
+        "std_reward": 0.0,
+        "episodes": 1,
+        "episodes_per_seed": 1,
+        "total_steps": 240,
+        "mean_episode_steps": 240.0,
+        "success_count": 0,
+        "failure_count": 0,
+        "truncated_count": 1,
+        "success_rate": 0.0,
+        "failure_rate": 0.0,
+        "truncated_rate": 1.0,
+        "win_rate": 0.0,
+        "survivability": 1.0,
+        "weapon_efficiency": 0.0,
+        "time_to_ready": 240.0,
+        "tot_quality": 0.0,
+        "done_reason_distribution": {
+          "success": 0,
+          "failure": 0,
+          "truncated": 1,
+          "in_progress": 0
+        },
+        "done_reason": "truncated",
+        "done_reason_detail": "max_episode_steps",
+        "selected_target_id": "red-sam-site",
+        "selected_target_ids": [
+          "red-sam-site",
+          "red-sam-site"
+        ],
+        "selected_target_assignments": {
+          "blue-striker-1": "red-sam-site",
+          "blue-striker-2": "red-sam-site"
+        },
+        "launch_count": 0,
+        "reward_breakdown": {
+          "kill_reward": 0.0,
+          "damage_progress_reward": 0.0,
+          "tot_bonus": 0.0,
+          "eta_progress_bonus": 0.0,
+          "ready_to_fire_bonus": 0.0,
+          "stagnation_penalty": -0.3,
+          "target_switch_penalty": -0.0,
+          "threat_penalty": -0.0,
+          "launch_cost": -0.0,
+          "time_cost": -0.05,
+          "loss_cost": -0.0,
+          "terminal_bonus": 0.0,
+          "destroyed_target_ids": [],
+          "target_damage_fractions": {},
+          "total_damage_fraction": 0.0,
+          "destroyed_high_value_target_ids": [],
+          "lost_ally_ids": [],
+          "threat_exposure_count": 0,
+          "weapons_fired": 0,
+          "selected_target_id": "red-sam-site",
+          "selected_target_ids": [
+            "red-sam-site",
+            "red-sam-site"
+          ],
+          "ally_target_assignments": {
+            "blue-striker-1": "red-sam-site",
+            "blue-striker-2": "red-sam-site"
+          },
+          "selected_launch_eta_before": {
+            "blue-striker-1": 65.97640231024367,
+            "blue-striker-2": 43.17131746843353
+          },
+          "selected_launch_eta_after": {
+            "blue-striker-1": 65.97640231024367,
+            "blue-striker-2": 43.17131746843353
+          },
+          "selected_ready_before_count": 0,
+          "selected_ready_after_count": 0,
+          "selected_ready_delta": 0,
+          "eta_progress_ratio": 0.0,
+          "stagnation_count": 2,
+          "target_switch_count": 0,
+          "tot_group_count": 0,
+          "tot_groups": [],
+          "done_reason": "truncated",
+          "step_index": 240,
+          "reward_version": 4,
+          "total_reward": -0.35
+        },
+        "seed_variability": {
+          "warning": false,
+          "reasons": [],
+          "success_rate_std": 0.0,
+          "mean_reward_std": 0.0,
+          "survivability_std": 0.0,
+          "weapon_efficiency_std": 0.0,
+          "time_to_ready_std": 0.0,
+          "tot_quality_std": 0.0
+        },
+        "seed_variability_warning": false,
+        "observation_version": 4,
+        "reward_version": 4,
+        "curriculum_stage": null,
+        "per_seed_evaluations": [
+          {
+            "evaluation_seed": 7,
+            "mean_reward": -83.99999999999986,
+            "std_reward": 0.0,
+            "episodes": 1,
+            "total_steps": 240,
+            "mean_episode_steps": 240.0,
+            "success_count": 0,
+            "failure_count": 0,
+            "truncated_count": 1,
+            "success_rate": 0.0,
+            "failure_rate": 0.0,
+            "truncated_rate": 1.0,
+            "win_rate": 0.0,
+            "survivability": 1.0,
+            "survivability_std": 0.0,
+            "weapon_efficiency": 0.0,
+            "weapon_efficiency_std": 0.0,
+            "time_to_ready": 240.0,
+            "time_to_ready_std": 0.0,
+            "tot_quality": 0.0,
+            "tot_quality_std": 0.0,
+            "done_reason_distribution": {
+              "success": 0,
+              "failure": 0,
+              "truncated": 1,
+              "in_progress": 0
+            },
+            "done_reason": "truncated",
+            "done_reason_detail": "max_episode_steps",
+            "selected_target_id": "red-sam-site",
+            "selected_target_ids": [
+              "red-sam-site",
+              "red-sam-site"
+            ],
+            "selected_target_assignments": {
+              "blue-striker-1": "red-sam-site",
+              "blue-striker-2": "red-sam-site"
+            },
+            "launch_count": 0,
+            "reward_breakdown": {
+              "kill_reward": 0.0,
+              "damage_progress_reward": 0.0,
+              "tot_bonus": 0.0,
+              "eta_progress_bonus": 0.0,
+              "ready_to_fire_bonus": 0.0,
+              "stagnation_penalty": -0.3,
+              "target_switch_penalty": -0.0,
+              "threat_penalty": -0.0,
+              "launch_cost": -0.0,
+              "time_cost": -0.05,
+              "loss_cost": -0.0,
+              "terminal_bonus": 0.0,
+              "destroyed_target_ids": [],
+              "target_damage_fractions": {},
+              "total_damage_fraction": 0.0,
+              "destroyed_high_value_target_ids": [],
+              "lost_ally_ids": [],
+              "threat_exposure_count": 0,
+              "weapons_fired": 0,
+              "selected_target_id": "red-sam-site",
+              "selected_target_ids": [
+                "red-sam-site",
+                "red-sam-site"
+              ],
+              "ally_target_assignments": {
+                "blue-striker-1": "red-sam-site",
+                "blue-striker-2": "red-sam-site"
+              },
+              "selected_launch_eta_before": {
+                "blue-striker-1": 65.97640231024367,
+                "blue-striker-2": 43.17131746843353
+              },
+              "selected_launch_eta_after": {
+                "blue-striker-1": 65.97640231024367,
+                "blue-striker-2": 43.17131746843353
+              },
+              "selected_ready_before_count": 0,
+              "selected_ready_after_count": 0,
+              "selected_ready_delta": 0,
+              "eta_progress_ratio": 0.0,
+              "stagnation_count": 2,
+              "target_switch_count": 0,
+              "tot_group_count": 0,
+              "tot_groups": [],
+              "done_reason": "truncated",
+              "step_index": 240,
+              "reward_version": 4,
+              "total_reward": -0.35
+            },
+            "observation_version": 4,
+            "reward_version": 4,
+            "curriculum_stage": null
+          }
+        ]
+      },
+      {
+        "source": "checkpoint_best",
+        "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo_checkpoint_best.zip",
+        "benchmark_seed_count": 1,
+        "benchmark_seeds": [
+          7
+        ],
+        "recording_seed": 7,
+        "mean_reward": -83.99999999999986,
+        "std_reward": 0.0,
+        "episodes": 1,
+        "episodes_per_seed": 1,
+        "total_steps": 240,
+        "mean_episode_steps": 240.0,
+        "success_count": 0,
+        "failure_count": 0,
+        "truncated_count": 1,
+        "success_rate": 0.0,
+        "failure_rate": 0.0,
+        "truncated_rate": 1.0,
+        "win_rate": 0.0,
+        "survivability": 1.0,
+        "weapon_efficiency": 0.0,
+        "time_to_ready": 240.0,
+        "tot_quality": 0.0,
+        "done_reason_distribution": {
+          "success": 0,
+          "failure": 0,
+          "truncated": 1,
+          "in_progress": 0
+        },
+        "done_reason": "truncated",
+        "done_reason_detail": "max_episode_steps",
+        "selected_target_id": "red-sam-site",
+        "selected_target_ids": [
+          "red-sam-site",
+          "red-sam-site"
+        ],
+        "selected_target_assignments": {
+          "blue-striker-1": "red-sam-site",
+          "blue-striker-2": "red-sam-site"
+        },
+        "launch_count": 0,
+        "reward_breakdown": {
+          "kill_reward": 0.0,
+          "damage_progress_reward": 0.0,
+          "tot_bonus": 0.0,
+          "eta_progress_bonus": 0.0,
+          "ready_to_fire_bonus": 0.0,
+          "stagnation_penalty": -0.3,
+          "target_switch_penalty": -0.0,
+          "threat_penalty": -0.0,
+          "launch_cost": -0.0,
+          "time_cost": -0.05,
+          "loss_cost": -0.0,
+          "terminal_bonus": 0.0,
+          "destroyed_target_ids": [],
+          "target_damage_fractions": {},
+          "total_damage_fraction": 0.0,
+          "destroyed_high_value_target_ids": [],
+          "lost_ally_ids": [],
+          "threat_exposure_count": 0,
+          "weapons_fired": 0,
+          "selected_target_id": "red-sam-site",
+          "selected_target_ids": [
+            "red-sam-site",
+            "red-sam-site"
+          ],
+          "ally_target_assignments": {
+            "blue-striker-1": "red-sam-site",
+            "blue-striker-2": "red-sam-site"
+          },
+          "selected_launch_eta_before": {
+            "blue-striker-1": 65.97640231024367,
+            "blue-striker-2": 43.17131746843353
+          },
+          "selected_launch_eta_after": {
+            "blue-striker-1": 65.97640231024367,
+            "blue-striker-2": 43.17131746843353
+          },
+          "selected_ready_before_count": 0,
+          "selected_ready_after_count": 0,
+          "selected_ready_delta": 0,
+          "eta_progress_ratio": 0.0,
+          "stagnation_count": 2,
+          "target_switch_count": 0,
+          "tot_group_count": 0,
+          "tot_groups": [],
+          "done_reason": "truncated",
+          "step_index": 240,
+          "reward_version": 4,
+          "total_reward": -0.35
+        },
+        "seed_variability": {
+          "warning": false,
+          "reasons": [],
+          "success_rate_std": 0.0,
+          "mean_reward_std": 0.0,
+          "survivability_std": 0.0,
+          "weapon_efficiency_std": 0.0,
+          "time_to_ready_std": 0.0,
+          "tot_quality_std": 0.0
+        },
+        "seed_variability_warning": false,
+        "observation_version": 4,
+        "reward_version": 4,
+        "curriculum_stage": null,
+        "per_seed_evaluations": [
+          {
+            "evaluation_seed": 7,
+            "mean_reward": -83.99999999999986,
+            "std_reward": 0.0,
+            "episodes": 1,
+            "total_steps": 240,
+            "mean_episode_steps": 240.0,
+            "success_count": 0,
+            "failure_count": 0,
+            "truncated_count": 1,
+            "success_rate": 0.0,
+            "failure_rate": 0.0,
+            "truncated_rate": 1.0,
+            "win_rate": 0.0,
+            "survivability": 1.0,
+            "survivability_std": 0.0,
+            "weapon_efficiency": 0.0,
+            "weapon_efficiency_std": 0.0,
+            "time_to_ready": 240.0,
+            "time_to_ready_std": 0.0,
+            "tot_quality": 0.0,
+            "tot_quality_std": 0.0,
+            "done_reason_distribution": {
+              "success": 0,
+              "failure": 0,
+              "truncated": 1,
+              "in_progress": 0
+            },
+            "done_reason": "truncated",
+            "done_reason_detail": "max_episode_steps",
+            "selected_target_id": "red-sam-site",
+            "selected_target_ids": [
+              "red-sam-site",
+              "red-sam-site"
+            ],
+            "selected_target_assignments": {
+              "blue-striker-1": "red-sam-site",
+              "blue-striker-2": "red-sam-site"
+            },
+            "launch_count": 0,
+            "reward_breakdown": {
+              "kill_reward": 0.0,
+              "damage_progress_reward": 0.0,
+              "tot_bonus": 0.0,
+              "eta_progress_bonus": 0.0,
+              "ready_to_fire_bonus": 0.0,
+              "stagnation_penalty": -0.3,
+              "target_switch_penalty": -0.0,
+              "threat_penalty": -0.0,
+              "launch_cost": -0.0,
+              "time_cost": -0.05,
+              "loss_cost": -0.0,
+              "terminal_bonus": 0.0,
+              "destroyed_target_ids": [],
+              "target_damage_fractions": {},
+              "total_damage_fraction": 0.0,
+              "destroyed_high_value_target_ids": [],
+              "lost_ally_ids": [],
+              "threat_exposure_count": 0,
+              "weapons_fired": 0,
+              "selected_target_id": "red-sam-site",
+              "selected_target_ids": [
+                "red-sam-site",
+                "red-sam-site"
+              ],
+              "ally_target_assignments": {
+                "blue-striker-1": "red-sam-site",
+                "blue-striker-2": "red-sam-site"
+              },
+              "selected_launch_eta_before": {
+                "blue-striker-1": 65.97640231024367,
+                "blue-striker-2": 43.17131746843353
+              },
+              "selected_launch_eta_after": {
+                "blue-striker-1": 65.97640231024367,
+                "blue-striker-2": 43.17131746843353
+              },
+              "selected_ready_before_count": 0,
+              "selected_ready_after_count": 0,
+              "selected_ready_delta": 0,
+              "eta_progress_ratio": 0.0,
+              "stagnation_count": 2,
+              "target_switch_count": 0,
+              "tot_group_count": 0,
+              "tot_groups": [],
+              "done_reason": "truncated",
+              "step_index": 240,
+              "reward_version": 4,
+              "total_reward": -0.35
+            },
+            "observation_version": 4,
+            "reward_version": 4,
+            "curriculum_stage": null
+          }
+        ]
+      }
+    ]
+  },
+  "leaderboard": [
+    {
+      "rank": 1,
+      "algorithm": "ppo",
+      "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.zip",
+      "selection_source": "final",
+      "selected": true,
+      "selection_score": {
+        "success_rate": 0.0,
+        "mean_reward": -83.99999999999986,
+        "mean_episode_steps": 240.0
+      },
+      "evaluation_summary": {
+        "benchmark_seed_count": 1,
+        "success_rate": 0.0,
+        "mean_reward": -83.99999999999986,
+        "mean_episode_steps": 240.0,
+        "survivability": 1.0,
+        "weapon_efficiency": 0.0,
+        "time_to_ready": 240.0,
+        "tot_quality": 0.0,
+        "seed_variability_warning": false,
+        "done_reason": "truncated",
+        "done_reason_detail": "max_episode_steps"
+      }
+    }
+  ],
+  "metric_leaders": {
+    "overall": {
+      "metric": "overall",
+      "metric_key": null,
+      "direction": "max",
+      "algorithm": "ppo",
+      "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.zip",
+      "model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.metadata.json",
+      "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_scenario.json",
+      "eval_recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_recording.jsonl",
+      "value": {
+        "success_rate": 0.0,
+        "mean_reward": -83.99999999999986,
+        "mean_episode_steps": 240.0
+      },
+      "evaluation_summary": {
+        "benchmark_seed_count": 1,
+        "success_rate": 0.0,
+        "mean_reward": -83.99999999999986,
+        "mean_episode_steps": 240.0,
+        "survivability": 1.0,
+        "weapon_efficiency": 0.0,
+        "time_to_ready": 240.0,
+        "tot_quality": 0.0,
+        "seed_variability_warning": false,
+        "done_reason": "truncated",
+        "done_reason_detail": "max_episode_steps"
+      }
+    },
+    "success_rate": {
+      "metric": "success_rate",
+      "metric_key": "success_rate",
+      "direction": "max",
+      "algorithm": "ppo",
+      "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.zip",
+      "model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.metadata.json",
+      "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_scenario.json",
+      "eval_recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_recording.jsonl",
+      "value": 0.0,
+      "evaluation_summary": {
+        "benchmark_seed_count": 1,
+        "success_rate": 0.0,
+        "mean_reward": -83.99999999999986,
+        "mean_episode_steps": 240.0,
+        "survivability": 1.0,
+        "weapon_efficiency": 0.0,
+        "time_to_ready": 240.0,
+        "tot_quality": 0.0,
+        "seed_variability_warning": false,
+        "done_reason": "truncated",
+        "done_reason_detail": "max_episode_steps"
+      }
+    },
+    "mean_reward": {
+      "metric": "mean_reward",
+      "metric_key": "mean_reward",
+      "direction": "max",
+      "algorithm": "ppo",
+      "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.zip",
+      "model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.metadata.json",
+      "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_scenario.json",
+      "eval_recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_recording.jsonl",
+      "value": -83.99999999999986,
+      "evaluation_summary": {
+        "benchmark_seed_count": 1,
+        "success_rate": 0.0,
+        "mean_reward": -83.99999999999986,
+        "mean_episode_steps": 240.0,
+        "survivability": 1.0,
+        "weapon_efficiency": 0.0,
+        "time_to_ready": 240.0,
+        "tot_quality": 0.0,
+        "seed_variability_warning": false,
+        "done_reason": "truncated",
+        "done_reason_detail": "max_episode_steps"
+      }
+    },
+    "survivability": {
+      "metric": "survivability",
+      "metric_key": "survivability",
+      "direction": "max",
+      "algorithm": "ppo",
+      "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.zip",
+      "model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.metadata.json",
+      "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_scenario.json",
+      "eval_recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_recording.jsonl",
+      "value": 1.0,
+      "evaluation_summary": {
+        "benchmark_seed_count": 1,
+        "success_rate": 0.0,
+        "mean_reward": -83.99999999999986,
+        "mean_episode_steps": 240.0,
+        "survivability": 1.0,
+        "weapon_efficiency": 0.0,
+        "time_to_ready": 240.0,
+        "tot_quality": 0.0,
+        "seed_variability_warning": false,
+        "done_reason": "truncated",
+        "done_reason_detail": "max_episode_steps"
+      }
+    },
+    "weapon_efficiency": {
+      "metric": "weapon_efficiency",
+      "metric_key": "weapon_efficiency",
+      "direction": "max",
+      "algorithm": "ppo",
+      "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.zip",
+      "model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.metadata.json",
+      "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_scenario.json",
+      "eval_recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_recording.jsonl",
+      "value": 0.0,
+      "evaluation_summary": {
+        "benchmark_seed_count": 1,
+        "success_rate": 0.0,
+        "mean_reward": -83.99999999999986,
+        "mean_episode_steps": 240.0,
+        "survivability": 1.0,
+        "weapon_efficiency": 0.0,
+        "time_to_ready": 240.0,
+        "tot_quality": 0.0,
+        "seed_variability_warning": false,
+        "done_reason": "truncated",
+        "done_reason_detail": "max_episode_steps"
+      }
+    },
+    "tot_quality": {
+      "metric": "tot_quality",
+      "metric_key": "tot_quality",
+      "direction": "max",
+      "algorithm": "ppo",
+      "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.zip",
+      "model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.metadata.json",
+      "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_scenario.json",
+      "eval_recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_recording.jsonl",
+      "value": 0.0,
+      "evaluation_summary": {
+        "benchmark_seed_count": 1,
+        "success_rate": 0.0,
+        "mean_reward": -83.99999999999986,
+        "mean_episode_steps": 240.0,
+        "survivability": 1.0,
+        "weapon_efficiency": 0.0,
+        "time_to_ready": 240.0,
+        "tot_quality": 0.0,
+        "seed_variability_warning": false,
+        "done_reason": "truncated",
+        "done_reason_detail": "max_episode_steps"
+      }
+    },
+    "time_to_ready": {
+      "metric": "time_to_ready",
+      "metric_key": "time_to_ready",
+      "direction": "min",
+      "algorithm": "ppo",
+      "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.zip",
+      "model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.metadata.json",
+      "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_scenario.json",
+      "eval_recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_recording.jsonl",
+      "value": 240.0,
+      "evaluation_summary": {
+        "benchmark_seed_count": 1,
+        "success_rate": 0.0,
+        "mean_reward": -83.99999999999986,
+        "mean_episode_steps": 240.0,
+        "survivability": 1.0,
+        "weapon_efficiency": 0.0,
+        "time_to_ready": 240.0,
+        "tot_quality": 0.0,
+        "seed_variability_warning": false,
+        "done_reason": "truncated",
+        "done_reason_detail": "max_episode_steps"
+      }
+    }
+  },
+  "retained_models": {
+    "archive_schema_version": 1,
+    "generated_at_utc": "2026-04-16T14:26:34.216947+00:00",
+    "archive_root": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models",
+    "retention_rule": "retain_overall_best_and_unique_metric_leaders",
+    "model_count": 1,
+    "metric_leaders": {
+      "overall": {
+        "metric": "overall",
+        "metric_key": null,
+        "direction": "max",
+        "algorithm": "ppo",
+        "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.zip",
+        "model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.metadata.json",
+        "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_scenario.json",
+        "eval_recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_recording.jsonl",
+        "value": {
+          "success_rate": 0.0,
+          "mean_reward": -83.99999999999986,
+          "mean_episode_steps": 240.0
+        },
+        "evaluation_summary": {
+          "benchmark_seed_count": 1,
+          "success_rate": 0.0,
+          "mean_reward": -83.99999999999986,
+          "mean_episode_steps": 240.0,
+          "survivability": 1.0,
+          "weapon_efficiency": 0.0,
+          "time_to_ready": 240.0,
+          "tot_quality": 0.0,
+          "seed_variability_warning": false,
+          "done_reason": "truncated",
+          "done_reason_detail": "max_episode_steps"
+        },
+        "retained_model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\ppo\\model.zip",
+        "retained_model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\ppo\\model.metadata.json"
+      },
+      "success_rate": {
+        "metric": "success_rate",
+        "metric_key": "success_rate",
+        "direction": "max",
+        "algorithm": "ppo",
+        "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.zip",
+        "model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.metadata.json",
+        "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_scenario.json",
+        "eval_recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_recording.jsonl",
+        "value": 0.0,
+        "evaluation_summary": {
+          "benchmark_seed_count": 1,
+          "success_rate": 0.0,
+          "mean_reward": -83.99999999999986,
+          "mean_episode_steps": 240.0,
+          "survivability": 1.0,
+          "weapon_efficiency": 0.0,
+          "time_to_ready": 240.0,
+          "tot_quality": 0.0,
+          "seed_variability_warning": false,
+          "done_reason": "truncated",
+          "done_reason_detail": "max_episode_steps"
+        },
+        "retained_model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\ppo\\model.zip",
+        "retained_model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\ppo\\model.metadata.json"
+      },
+      "mean_reward": {
+        "metric": "mean_reward",
+        "metric_key": "mean_reward",
+        "direction": "max",
+        "algorithm": "ppo",
+        "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.zip",
+        "model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.metadata.json",
+        "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_scenario.json",
+        "eval_recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_recording.jsonl",
+        "value": -83.99999999999986,
+        "evaluation_summary": {
+          "benchmark_seed_count": 1,
+          "success_rate": 0.0,
+          "mean_reward": -83.99999999999986,
+          "mean_episode_steps": 240.0,
+          "survivability": 1.0,
+          "weapon_efficiency": 0.0,
+          "time_to_ready": 240.0,
+          "tot_quality": 0.0,
+          "seed_variability_warning": false,
+          "done_reason": "truncated",
+          "done_reason_detail": "max_episode_steps"
+        },
+        "retained_model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\ppo\\model.zip",
+        "retained_model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\ppo\\model.metadata.json"
+      },
+      "survivability": {
+        "metric": "survivability",
+        "metric_key": "survivability",
+        "direction": "max",
+        "algorithm": "ppo",
+        "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.zip",
+        "model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.metadata.json",
+        "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_scenario.json",
+        "eval_recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_recording.jsonl",
+        "value": 1.0,
+        "evaluation_summary": {
+          "benchmark_seed_count": 1,
+          "success_rate": 0.0,
+          "mean_reward": -83.99999999999986,
+          "mean_episode_steps": 240.0,
+          "survivability": 1.0,
+          "weapon_efficiency": 0.0,
+          "time_to_ready": 240.0,
+          "tot_quality": 0.0,
+          "seed_variability_warning": false,
+          "done_reason": "truncated",
+          "done_reason_detail": "max_episode_steps"
+        },
+        "retained_model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\ppo\\model.zip",
+        "retained_model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\ppo\\model.metadata.json"
+      },
+      "weapon_efficiency": {
+        "metric": "weapon_efficiency",
+        "metric_key": "weapon_efficiency",
+        "direction": "max",
+        "algorithm": "ppo",
+        "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.zip",
+        "model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.metadata.json",
+        "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_scenario.json",
+        "eval_recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_recording.jsonl",
+        "value": 0.0,
+        "evaluation_summary": {
+          "benchmark_seed_count": 1,
+          "success_rate": 0.0,
+          "mean_reward": -83.99999999999986,
+          "mean_episode_steps": 240.0,
+          "survivability": 1.0,
+          "weapon_efficiency": 0.0,
+          "time_to_ready": 240.0,
+          "tot_quality": 0.0,
+          "seed_variability_warning": false,
+          "done_reason": "truncated",
+          "done_reason_detail": "max_episode_steps"
+        },
+        "retained_model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\ppo\\model.zip",
+        "retained_model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\ppo\\model.metadata.json"
+      },
+      "tot_quality": {
+        "metric": "tot_quality",
+        "metric_key": "tot_quality",
+        "direction": "max",
+        "algorithm": "ppo",
+        "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.zip",
+        "model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.metadata.json",
+        "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_scenario.json",
+        "eval_recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_recording.jsonl",
+        "value": 0.0,
+        "evaluation_summary": {
+          "benchmark_seed_count": 1,
+          "success_rate": 0.0,
+          "mean_reward": -83.99999999999986,
+          "mean_episode_steps": 240.0,
+          "survivability": 1.0,
+          "weapon_efficiency": 0.0,
+          "time_to_ready": 240.0,
+          "tot_quality": 0.0,
+          "seed_variability_warning": false,
+          "done_reason": "truncated",
+          "done_reason_detail": "max_episode_steps"
+        },
+        "retained_model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\ppo\\model.zip",
+        "retained_model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\ppo\\model.metadata.json"
+      },
+      "time_to_ready": {
+        "metric": "time_to_ready",
+        "metric_key": "time_to_ready",
+        "direction": "min",
+        "algorithm": "ppo",
+        "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.zip",
+        "model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.metadata.json",
+        "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_scenario.json",
+        "eval_recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_recording.jsonl",
+        "value": 240.0,
+        "evaluation_summary": {
+          "benchmark_seed_count": 1,
+          "success_rate": 0.0,
+          "mean_reward": -83.99999999999986,
+          "mean_episode_steps": 240.0,
+          "survivability": 1.0,
+          "weapon_efficiency": 0.0,
+          "time_to_ready": 240.0,
+          "tot_quality": 0.0,
+          "seed_variability_warning": false,
+          "done_reason": "truncated",
+          "done_reason_detail": "max_episode_steps"
+        },
+        "retained_model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\ppo\\model.zip",
+        "retained_model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\ppo\\model.metadata.json"
+      }
+    },
+    "models": [
+      {
+        "algorithm": "ppo",
+        "metrics": [
+          "overall",
+          "success_rate",
+          "mean_reward",
+          "survivability",
+          "weapon_efficiency",
+          "tot_quality",
+          "time_to_ready"
+        ],
+        "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\ppo\\model.zip",
+        "model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\ppo\\model.metadata.json",
+        "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\ppo\\eval_scenario.json",
+        "eval_recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\ppo\\eval_recording.jsonl",
+        "evaluation_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\ppo\\evaluation.json",
+        "source_model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.zip",
+        "source_model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.metadata.json",
+        "source_export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_scenario.json",
+        "source_eval_recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_recording.jsonl",
+        "evaluation_summary": {
+          "benchmark_seed_count": 1,
+          "success_rate": 0.0,
+          "mean_reward": -83.99999999999986,
+          "mean_episode_steps": 240.0,
+          "survivability": 1.0,
+          "weapon_efficiency": 0.0,
+          "time_to_ready": 240.0,
+          "tot_quality": 0.0,
+          "seed_variability_warning": false,
+          "done_reason": "truncated",
+          "done_reason_detail": "max_episode_steps"
+        }
+      }
+    ],
+    "manifest_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\retained_models\\retained_models.json"
+  },
+  "runs": [
+    {
+      "algorithm": "ppo",
+      "timesteps": 1024,
+      "training_strategy": "on_policy",
+      "rollout_steps": 256,
+      "batch_size": 64,
+      "buffer_size": null,
+      "learning_starts": null,
+      "selection_source": "final",
+      "selection_eval_seed_count": 1,
+      "curriculum": null,
+      "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.zip",
+      "model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo.metadata.json",
+      "final_model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo_final.zip",
+      "final_model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo_final.metadata.json",
+      "best_checkpoint_model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo_checkpoint_best.zip",
+      "best_checkpoint_model_metadata_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo_checkpoint_best.metadata.json",
+      "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_scenario.json",
+      "eval_recording_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_recording.jsonl",
+      "evaluation": {
+        "benchmark_seed_count": 1,
+        "benchmark_seeds": [
+          7
+        ],
+        "recording_seed": 7,
+        "mean_reward": -83.99999999999986,
+        "std_reward": 0.0,
+        "episodes": 1,
+        "episodes_per_seed": 1,
+        "total_steps": 240,
+        "mean_episode_steps": 240.0,
+        "success_count": 0,
+        "failure_count": 0,
+        "truncated_count": 1,
+        "success_rate": 0.0,
+        "failure_rate": 0.0,
+        "truncated_rate": 1.0,
+        "win_rate": 0.0,
+        "survivability": 1.0,
+        "weapon_efficiency": 0.0,
+        "time_to_ready": 240.0,
+        "tot_quality": 0.0,
+        "done_reason_distribution": {
+          "success": 0,
+          "failure": 0,
+          "truncated": 1,
+          "in_progress": 0
+        },
+        "done_reason": "truncated",
+        "done_reason_detail": "max_episode_steps",
+        "selected_target_id": "red-sam-site",
+        "selected_target_ids": [
+          "red-sam-site",
+          "red-sam-site"
+        ],
+        "selected_target_assignments": {
+          "blue-striker-1": "red-sam-site",
+          "blue-striker-2": "red-sam-site"
+        },
+        "launch_count": 0,
+        "reward_breakdown": {
+          "kill_reward": 0.0,
+          "damage_progress_reward": 0.0,
+          "tot_bonus": 0.0,
+          "eta_progress_bonus": 0.0,
+          "ready_to_fire_bonus": 0.0,
+          "stagnation_penalty": -0.3,
+          "target_switch_penalty": -0.0,
+          "threat_penalty": -0.0,
+          "launch_cost": -0.0,
+          "time_cost": -0.05,
+          "loss_cost": -0.0,
+          "terminal_bonus": 0.0,
+          "destroyed_target_ids": [],
+          "target_damage_fractions": {},
+          "total_damage_fraction": 0.0,
+          "destroyed_high_value_target_ids": [],
+          "lost_ally_ids": [],
+          "threat_exposure_count": 0,
+          "weapons_fired": 0,
+          "selected_target_id": "red-sam-site",
+          "selected_target_ids": [
+            "red-sam-site",
+            "red-sam-site"
+          ],
+          "ally_target_assignments": {
+            "blue-striker-1": "red-sam-site",
+            "blue-striker-2": "red-sam-site"
+          },
+          "selected_launch_eta_before": {
+            "blue-striker-1": 65.97640231024367,
+            "blue-striker-2": 43.17131746843353
+          },
+          "selected_launch_eta_after": {
+            "blue-striker-1": 65.97640231024367,
+            "blue-striker-2": 43.17131746843353
+          },
+          "selected_ready_before_count": 0,
+          "selected_ready_after_count": 0,
+          "selected_ready_delta": 0,
+          "eta_progress_ratio": 0.0,
+          "stagnation_count": 2,
+          "target_switch_count": 0,
+          "tot_group_count": 0,
+          "tot_groups": [],
+          "done_reason": "truncated",
+          "step_index": 240,
+          "reward_version": 4,
+          "total_reward": -0.35
+        },
+        "seed_variability": {
+          "warning": false,
+          "reasons": [],
+          "success_rate_std": 0.0,
+          "mean_reward_std": 0.0,
+          "survivability_std": 0.0,
+          "weapon_efficiency_std": 0.0,
+          "time_to_ready_std": 0.0,
+          "tot_quality_std": 0.0
+        },
+        "seed_variability_warning": false,
+        "observation_version": 4,
+        "reward_version": 4,
+        "curriculum_stage": null,
+        "per_seed_evaluations": [
+          {
+            "evaluation_seed": 7,
+            "mean_reward": -83.99999999999986,
+            "std_reward": 0.0,
+            "episodes": 1,
+            "total_steps": 240,
+            "mean_episode_steps": 240.0,
+            "success_count": 0,
+            "failure_count": 0,
+            "truncated_count": 1,
+            "success_rate": 0.0,
+            "failure_rate": 0.0,
+            "truncated_rate": 1.0,
+            "win_rate": 0.0,
+            "survivability": 1.0,
+            "survivability_std": 0.0,
+            "weapon_efficiency": 0.0,
+            "weapon_efficiency_std": 0.0,
+            "time_to_ready": 240.0,
+            "time_to_ready_std": 0.0,
+            "tot_quality": 0.0,
+            "tot_quality_std": 0.0,
+            "done_reason_distribution": {
+              "success": 0,
+              "failure": 0,
+              "truncated": 1,
+              "in_progress": 0
+            },
+            "done_reason": "truncated",
+            "done_reason_detail": "max_episode_steps",
+            "selected_target_id": "red-sam-site",
+            "selected_target_ids": [
+              "red-sam-site",
+              "red-sam-site"
+            ],
+            "selected_target_assignments": {
+              "blue-striker-1": "red-sam-site",
+              "blue-striker-2": "red-sam-site"
+            },
+            "launch_count": 0,
+            "reward_breakdown": {
+              "kill_reward": 0.0,
+              "damage_progress_reward": 0.0,
+              "tot_bonus": 0.0,
+              "eta_progress_bonus": 0.0,
+              "ready_to_fire_bonus": 0.0,
+              "stagnation_penalty": -0.3,
+              "target_switch_penalty": -0.0,
+              "threat_penalty": -0.0,
+              "launch_cost": -0.0,
+              "time_cost": -0.05,
+              "loss_cost": -0.0,
+              "terminal_bonus": 0.0,
+              "destroyed_target_ids": [],
+              "target_damage_fractions": {},
+              "total_damage_fraction": 0.0,
+              "destroyed_high_value_target_ids": [],
+              "lost_ally_ids": [],
+              "threat_exposure_count": 0,
+              "weapons_fired": 0,
+              "selected_target_id": "red-sam-site",
+              "selected_target_ids": [
+                "red-sam-site",
+                "red-sam-site"
+              ],
+              "ally_target_assignments": {
+                "blue-striker-1": "red-sam-site",
+                "blue-striker-2": "red-sam-site"
+              },
+              "selected_launch_eta_before": {
+                "blue-striker-1": 65.97640231024367,
+                "blue-striker-2": 43.17131746843353
+              },
+              "selected_launch_eta_after": {
+                "blue-striker-1": 65.97640231024367,
+                "blue-striker-2": 43.17131746843353
+              },
+              "selected_ready_before_count": 0,
+              "selected_ready_after_count": 0,
+              "selected_ready_delta": 0,
+              "eta_progress_ratio": 0.0,
+              "stagnation_count": 2,
+              "target_switch_count": 0,
+              "tot_group_count": 0,
+              "tot_groups": [],
+              "done_reason": "truncated",
+              "step_index": 240,
+              "reward_version": 4,
+              "total_reward": -0.35
+            },
+            "observation_version": 4,
+            "reward_version": 4,
+            "curriculum_stage": null
+          }
+        ],
+        "export_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\eval_scenario.json"
+      },
+      "candidate_evaluations": [
+        {
+          "source": "final",
+          "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo_final.zip",
+          "benchmark_seed_count": 1,
+          "benchmark_seeds": [
+            7
+          ],
+          "recording_seed": 7,
+          "mean_reward": -83.99999999999986,
+          "std_reward": 0.0,
+          "episodes": 1,
+          "episodes_per_seed": 1,
+          "total_steps": 240,
+          "mean_episode_steps": 240.0,
+          "success_count": 0,
+          "failure_count": 0,
+          "truncated_count": 1,
+          "success_rate": 0.0,
+          "failure_rate": 0.0,
+          "truncated_rate": 1.0,
+          "win_rate": 0.0,
+          "survivability": 1.0,
+          "weapon_efficiency": 0.0,
+          "time_to_ready": 240.0,
+          "tot_quality": 0.0,
+          "done_reason_distribution": {
+            "success": 0,
+            "failure": 0,
+            "truncated": 1,
+            "in_progress": 0
+          },
+          "done_reason": "truncated",
+          "done_reason_detail": "max_episode_steps",
+          "selected_target_id": "red-sam-site",
+          "selected_target_ids": [
+            "red-sam-site",
+            "red-sam-site"
+          ],
+          "selected_target_assignments": {
+            "blue-striker-1": "red-sam-site",
+            "blue-striker-2": "red-sam-site"
+          },
+          "launch_count": 0,
+          "reward_breakdown": {
+            "kill_reward": 0.0,
+            "damage_progress_reward": 0.0,
+            "tot_bonus": 0.0,
+            "eta_progress_bonus": 0.0,
+            "ready_to_fire_bonus": 0.0,
+            "stagnation_penalty": -0.3,
+            "target_switch_penalty": -0.0,
+            "threat_penalty": -0.0,
+            "launch_cost": -0.0,
+            "time_cost": -0.05,
+            "loss_cost": -0.0,
+            "terminal_bonus": 0.0,
+            "destroyed_target_ids": [],
+            "target_damage_fractions": {},
+            "total_damage_fraction": 0.0,
+            "destroyed_high_value_target_ids": [],
+            "lost_ally_ids": [],
+            "threat_exposure_count": 0,
+            "weapons_fired": 0,
+            "selected_target_id": "red-sam-site",
+            "selected_target_ids": [
+              "red-sam-site",
+              "red-sam-site"
+            ],
+            "ally_target_assignments": {
+              "blue-striker-1": "red-sam-site",
+              "blue-striker-2": "red-sam-site"
+            },
+            "selected_launch_eta_before": {
+              "blue-striker-1": 65.97640231024367,
+              "blue-striker-2": 43.17131746843353
+            },
+            "selected_launch_eta_after": {
+              "blue-striker-1": 65.97640231024367,
+              "blue-striker-2": 43.17131746843353
+            },
+            "selected_ready_before_count": 0,
+            "selected_ready_after_count": 0,
+            "selected_ready_delta": 0,
+            "eta_progress_ratio": 0.0,
+            "stagnation_count": 2,
+            "target_switch_count": 0,
+            "tot_group_count": 0,
+            "tot_groups": [],
+            "done_reason": "truncated",
+            "step_index": 240,
+            "reward_version": 4,
+            "total_reward": -0.35
+          },
+          "seed_variability": {
+            "warning": false,
+            "reasons": [],
+            "success_rate_std": 0.0,
+            "mean_reward_std": 0.0,
+            "survivability_std": 0.0,
+            "weapon_efficiency_std": 0.0,
+            "time_to_ready_std": 0.0,
+            "tot_quality_std": 0.0
+          },
+          "seed_variability_warning": false,
+          "observation_version": 4,
+          "reward_version": 4,
+          "curriculum_stage": null,
+          "per_seed_evaluations": [
+            {
+              "evaluation_seed": 7,
+              "mean_reward": -83.99999999999986,
+              "std_reward": 0.0,
+              "episodes": 1,
+              "total_steps": 240,
+              "mean_episode_steps": 240.0,
+              "success_count": 0,
+              "failure_count": 0,
+              "truncated_count": 1,
+              "success_rate": 0.0,
+              "failure_rate": 0.0,
+              "truncated_rate": 1.0,
+              "win_rate": 0.0,
+              "survivability": 1.0,
+              "survivability_std": 0.0,
+              "weapon_efficiency": 0.0,
+              "weapon_efficiency_std": 0.0,
+              "time_to_ready": 240.0,
+              "time_to_ready_std": 0.0,
+              "tot_quality": 0.0,
+              "tot_quality_std": 0.0,
+              "done_reason_distribution": {
+                "success": 0,
+                "failure": 0,
+                "truncated": 1,
+                "in_progress": 0
+              },
+              "done_reason": "truncated",
+              "done_reason_detail": "max_episode_steps",
+              "selected_target_id": "red-sam-site",
+              "selected_target_ids": [
+                "red-sam-site",
+                "red-sam-site"
+              ],
+              "selected_target_assignments": {
+                "blue-striker-1": "red-sam-site",
+                "blue-striker-2": "red-sam-site"
+              },
+              "launch_count": 0,
+              "reward_breakdown": {
+                "kill_reward": 0.0,
+                "damage_progress_reward": 0.0,
+                "tot_bonus": 0.0,
+                "eta_progress_bonus": 0.0,
+                "ready_to_fire_bonus": 0.0,
+                "stagnation_penalty": -0.3,
+                "target_switch_penalty": -0.0,
+                "threat_penalty": -0.0,
+                "launch_cost": -0.0,
+                "time_cost": -0.05,
+                "loss_cost": -0.0,
+                "terminal_bonus": 0.0,
+                "destroyed_target_ids": [],
+                "target_damage_fractions": {},
+                "total_damage_fraction": 0.0,
+                "destroyed_high_value_target_ids": [],
+                "lost_ally_ids": [],
+                "threat_exposure_count": 0,
+                "weapons_fired": 0,
+                "selected_target_id": "red-sam-site",
+                "selected_target_ids": [
+                  "red-sam-site",
+                  "red-sam-site"
+                ],
+                "ally_target_assignments": {
+                  "blue-striker-1": "red-sam-site",
+                  "blue-striker-2": "red-sam-site"
+                },
+                "selected_launch_eta_before": {
+                  "blue-striker-1": 65.97640231024367,
+                  "blue-striker-2": 43.17131746843353
+                },
+                "selected_launch_eta_after": {
+                  "blue-striker-1": 65.97640231024367,
+                  "blue-striker-2": 43.17131746843353
+                },
+                "selected_ready_before_count": 0,
+                "selected_ready_after_count": 0,
+                "selected_ready_delta": 0,
+                "eta_progress_ratio": 0.0,
+                "stagnation_count": 2,
+                "target_switch_count": 0,
+                "tot_group_count": 0,
+                "tot_groups": [],
+                "done_reason": "truncated",
+                "step_index": 240,
+                "reward_version": 4,
+                "total_reward": -0.35
+              },
+              "observation_version": 4,
+              "reward_version": 4,
+              "curriculum_stage": null
+            }
+          ]
+        },
+        {
+          "source": "checkpoint_best",
+          "model_path": "C:\\Users\\USER\\Desktop\\FireScope_v2\\.firescope_rl_jobs\\2678d763-15be-471b-9111-2a930980de7d\\runs\\ppo\\fixed_target_strike_policy_ppo_checkpoint_best.zip",
+          "benchmark_seed_count": 1,
+          "benchmark_seeds": [
+            7
+          ],
+          "recording_seed": 7,
+          "mean_reward": -83.99999999999986,
+          "std_reward": 0.0,
+          "episodes": 1,
+          "episodes_per_seed": 1,
+          "total_steps": 240,
+          "mean_episode_steps": 240.0,
+          "success_count": 0,
+          "failure_count": 0,
+          "truncated_count": 1,
+          "success_rate": 0.0,
+          "failure_rate": 0.0,
+          "truncated_rate": 1.0,
+          "win_rate": 0.0,
+          "survivability": 1.0,
+          "weapon_efficiency": 0.0,
+          "time_to_ready": 240.0,
+          "tot_quality": 0.0,
+          "done_reason_distribution": {
+            "success": 0,
+            "failure": 0,
+            "truncated": 1,
+            "in_progress": 0
+          },
+          "done_reason": "truncated",
+          "done_reason_detail": "max_episode_steps",
+          "selected_target_id": "red-sam-site",
+          "selected_target_ids": [
+            "red-sam-site",
+            "red-sam-site"
+          ],
+          "selected_target_assignments": {
+            "blue-striker-1": "red-sam-site",
+            "blue-striker-2": "red-sam-site"
+          },
+          "launch_count": 0,
+          "reward_breakdown": {
+            "kill_reward": 0.0,
+            "damage_progress_reward": 0.0,
+            "tot_bonus": 0.0,
+            "eta_progress_bonus": 0.0,
+            "ready_to_fire_bonus": 0.0,
+            "stagnation_penalty": -0.3,
+            "target_switch_penalty": -0.0,
+            "threat_penalty": -0.0,
+            "launch_cost": -0.0,
+            "time_cost": -0.05,
+            "loss_cost": -0.0,
+            "terminal_bonus": 0.0,
+            "destroyed_target_ids": [],
+            "target_damage_fractions": {},
+            "total_damage_fraction": 0.0,
+            "destroyed_high_value_target_ids": [],
+            "lost_ally_ids": [],
+            "threat_exposure_count": 0,
+            "weapons_fired": 0,
+            "selected_target_id": "red-sam-site",
+            "selected_target_ids": [
+              "red-sam-site",
+              "red-sam-site"
+            ],
+            "ally_target_assignments": {
+              "blue-striker-1": "red-sam-site",
+              "blue-striker-2": "red-sam-site"
+            },
+            "selected_launch_eta_before": {
+              "blue-striker-1": 65.97640231024367,
+              "blue-striker-2": 43.17131746843353
+            },
+            "selected_launch_eta_after": {
+              "blue-striker-1": 65.97640231024367,
+              "blue-striker-2": 43.17131746843353
+            },
+            "selected_ready_before_count": 0,
+            "selected_ready_after_count": 0,
+            "selected_ready_delta": 0,
+            "eta_progress_ratio": 0.0,
+            "stagnation_count": 2,
+            "target_switch_count": 0,
+            "tot_group_count": 0,
+            "tot_groups": [],
+            "done_reason": "truncated",
+            "step_index": 240,
+            "reward_version": 4,
+            "total_reward": -0.35
+          },
+          "seed_variability": {
+            "warning": false,
+            "reasons": [],
+            "success_rate_std": 0.0,
+            "mean_reward_std": 0.0,
+            "survivability_std": 0.0,
+            "weapon_efficiency_std": 0.0,
+            "time_to_ready_std": 0.0,
+            "tot_quality_std": 0.0
+          },
+          "seed_variability_warning": false,
+          "observation_version": 4,
+          "reward_version": 4,
+          "curriculum_stage": null,
+          "per_seed_evaluations": [
+            {
+              "evaluation_seed": 7,
+              "mean_reward": -83.99999999999986,
+              "std_reward": 0.0,
+              "episodes": 1,
+              "total_steps": 240,
+              "mean_episode_steps": 240.0,
+              "success_count": 0,
+              "failure_count": 0,
+              "truncated_count": 1,
+              "success_rate": 0.0,
+              "failure_rate": 0.0,
+              "truncated_rate": 1.0,
+              "win_rate": 0.0,
+              "survivability": 1.0,
+              "survivability_std": 0.0,
+              "weapon_efficiency": 0.0,
+              "weapon_efficiency_std": 0.0,
+              "time_to_ready": 240.0,
+              "time_to_ready_std": 0.0,
+              "tot_quality": 0.0,
+              "tot_quality_std": 0.0,
+              "done_reason_distribution": {
+                "success": 0,
+                "failure": 0,
+                "truncated": 1,
+                "in_progress": 0
+              },
+              "done_reason": "truncated",
+              "done_reason_detail": "max_episode_steps",
+              "selected_target_id": "red-sam-site",
+              "selected_target_ids": [
+                "red-sam-site",
+                "red-sam-site"
+              ],
+              "selected_target_assignments": {
+                "blue-striker-1": "red-sam-site",
+                "blue-striker-2": "red-sam-site"
+              },
+              "launch_count": 0,
+              "reward_breakdown": {
+                "kill_reward": 0.0,
+                "damage_progress_reward": 0.0,
+                "tot_bonus": 0.0,
+                "eta_progress_bonus": 0.0,
+                "ready_to_fire_bonus": 0.0,
+                "stagnation_penalty": -0.3,
+                "target_switch_penalty": -0.0,
+                "threat_penalty": -0.0,
+                "launch_cost": -0.0,
+                "time_cost": -0.05,
+                "loss_cost": -0.0,
+                "terminal_bonus": 0.0,
+                "destroyed_target_ids": [],
+                "target_damage_fractions": {},
+                "total_damage_fraction": 0.0,
+                "destroyed_high_value_target_ids": [],
+                "lost_ally_ids": [],
+                "threat_exposure_count": 0,
+                "weapons_fired": 0,
+                "selected_target_id": "red-sam-site",
+                "selected_target_ids": [
+                  "red-sam-site",
+                  "red-sam-site"
+                ],
+                "ally_target_assignments": {
+                  "blue-striker-1": "red-sam-site",
+                  "blue-striker-2": "red-sam-site"
+                },
+                "selected_launch_eta_before": {
+                  "blue-striker-1": 65.97640231024367,
+                  "blue-striker-2": 43.17131746843353
+                },
+                "selected_launch_eta_after": {
+                  "blue-striker-1": 65.97640231024367,
+                  "blue-striker-2": 43.17131746843353
+                },
+                "selected_ready_before_count": 0,
+                "selected_ready_after_count": 0,
+                "selected_ready_delta": 0,
+                "eta_progress_ratio": 0.0,
+                "stagnation_count": 2,
+                "target_switch_count": 0,
+                "tot_group_count": 0,
+                "tot_groups": [],
+                "done_reason": "truncated",
+                "step_index": 240,
+                "reward_version": 4,
+                "total_reward": -0.35
+              },
+              "observation_version": 4,
+              "reward_version": 4,
+              "curriculum_stage": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

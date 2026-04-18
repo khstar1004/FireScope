@@ -3,6 +3,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   writeFileSync,
 } from "node:fs";
@@ -11,21 +12,18 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
 import type { Connect, Plugin } from "vite";
 
-type JobStatus =
-  | "queued"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled";
+type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 
 interface FixedTargetStrikeRunRequest {
   scenarioText?: string;
+  experimentLabel?: string;
   algorithms?: string[];
   timesteps?: number;
   maxEpisodeSteps?: number;
   evalEpisodes?: number;
   evalSeedCount?: number;
   curriculumEnabled?: boolean;
+  guidedLaunchBootstrapSteps?: number;
   seed?: number;
   progressEvalFrequency?: number;
   progressEvalEpisodes?: number;
@@ -56,6 +54,8 @@ interface CommanderRunRequest extends FixedTargetStrikeRunRequest {
 }
 
 interface JobArtifacts {
+  jobDir: string;
+  metadataPath: string;
   scenarioPath: string;
   modelPath: string;
   summaryPath: string;
@@ -70,6 +70,7 @@ interface JobRecord {
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
+  scenarioName: string | null;
   request: FixedTargetStrikeRunRequest;
   artifacts: JobArtifacts;
   stdoutLines: string[];
@@ -81,6 +82,7 @@ interface JobRecord {
 
 interface CommanderJobArtifacts {
   jobDir: string;
+  metadataPath: string;
   runLabel: string;
   runDir: string;
   scenarioPath: string;
@@ -99,6 +101,7 @@ interface CommanderJobRecord {
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
+  scenarioName: string | null;
   request: CommanderRunRequest;
   artifacts: CommanderJobArtifacts;
   stdoutLines: string[];
@@ -115,13 +118,14 @@ const DEFAULT_FORM = {
   evalEpisodes: 1,
   evalSeedCount: 3,
   curriculumEnabled: false,
+  guidedLaunchBootstrapSteps: 12,
   seed: 7,
   progressEvalFrequency: 512,
   progressEvalEpisodes: 1,
   controllableSideName: "BLUE",
   targetSideName: "RED",
   allyIds: ["blue-striker-1", "blue-striker-2"],
-  targetIds: ["red-sam-site", "red-airbase"],
+  targetIds: ["red-airbase"],
   highValueTargetIds: ["red-airbase"],
   rewardConfig: {
     killBase: 100,
@@ -189,10 +193,11 @@ const moduleDirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(moduleDirname, "..", "..");
 const gymRoot = path.join(repoRoot, "gym");
 const defaultScenarioPath = path.join(
-  gymRoot,
-  "scripts",
-  "fixed_target_strike",
-  "scen.json"
+  repoRoot,
+  "client",
+  "src",
+  "scenarios",
+  "rl_first_success_demo.json"
 );
 const trainScriptPath = path.join(
   gymRoot,
@@ -208,6 +213,8 @@ const commanderScriptPath = path.join(
 );
 const jobsRoot = path.join(repoRoot, ".firescope_rl_jobs");
 const commanderJobsRoot = path.join(repoRoot, ".firescope_rl_commander_jobs");
+const runtimeRoot = path.join(gymRoot, ".runtime");
+const matplotlibConfigRoot = path.join(runtimeRoot, "mplconfig");
 
 function clampPositiveInt(value: unknown, fallback: number) {
   const parsed = Number(value);
@@ -237,6 +244,19 @@ function clampOptionalPositiveInt(
     return fallback;
   }
   return Math.floor(parsed);
+}
+
+function clampNonNegativeInt(value: unknown, fallback: number) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback;
+  }
+  return Math.floor(parsed);
+}
+
+function normalizeOptionalLabel(value: unknown) {
+  const normalized = `${value ?? ""}`.trim();
+  return normalized.length > 0 ? normalized : undefined;
 }
 
 function normalizeStringList(value: unknown, fallback: string[]) {
@@ -311,6 +331,20 @@ function readJsonIfExists(filePath: string) {
   }
 }
 
+function extractScenarioName(scenarioText: string) {
+  try {
+    const parsed = JSON.parse(scenarioText) as {
+      name?: unknown;
+      currentScenario?: { name?: unknown };
+    };
+    const name =
+      `${parsed?.name ?? parsed?.currentScenario?.name ?? ""}`.trim();
+    return name.length > 0 ? name : null;
+  } catch {
+    return null;
+  }
+}
+
 function sendJson(res: ServerResponse, statusCode: number, payload: unknown) {
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -337,6 +371,216 @@ function resolvePythonCommand() {
   return "python";
 }
 
+function getPythonChildEnv() {
+  mkdirSync(matplotlibConfigRoot, { recursive: true });
+  return {
+    ...process.env,
+    MPLCONFIGDIR: matplotlibConfigRoot,
+  };
+}
+
+function toPersistedJob(job: JobRecord) {
+  return {
+    id: job.id,
+    status: job.status,
+    createdAt: job.createdAt,
+    startedAt: job.startedAt,
+    finishedAt: job.finishedAt,
+    scenarioName: job.scenarioName,
+    request: job.request,
+    artifacts: job.artifacts,
+    stdoutLines: job.stdoutLines,
+    stderrLines: job.stderrLines,
+    exitCode: job.exitCode,
+    cancelRequested: job.cancelRequested,
+  };
+}
+
+function toPersistedCommanderJob(job: CommanderJobRecord) {
+  return {
+    id: job.id,
+    status: job.status,
+    createdAt: job.createdAt,
+    startedAt: job.startedAt,
+    finishedAt: job.finishedAt,
+    scenarioName: job.scenarioName,
+    request: job.request,
+    artifacts: job.artifacts,
+    stdoutLines: job.stdoutLines,
+    stderrLines: job.stderrLines,
+    exitCode: job.exitCode,
+    cancelRequested: job.cancelRequested,
+  };
+}
+
+function persistJob(job: JobRecord) {
+  mkdirSync(job.artifacts.jobDir, { recursive: true });
+  writeFileSync(
+    job.artifacts.metadataPath,
+    JSON.stringify(toPersistedJob(job), null, 2),
+    "utf-8"
+  );
+}
+
+function persistCommanderJob(job: CommanderJobRecord) {
+  mkdirSync(job.artifacts.jobDir, { recursive: true });
+  writeFileSync(
+    job.artifacts.metadataPath,
+    JSON.stringify(toPersistedCommanderJob(job), null, 2),
+    "utf-8"
+  );
+}
+
+function reviveJobRecord(payload: unknown): JobRecord | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+  const record = payload as Partial<JobRecord>;
+  if (
+    typeof record.id !== "string" ||
+    typeof record.status !== "string" ||
+    typeof record.createdAt !== "string" ||
+    !record.request ||
+    !record.artifacts
+  ) {
+    return null;
+  }
+  return {
+    id: record.id,
+    status: record.status as JobStatus,
+    createdAt: record.createdAt,
+    startedAt: typeof record.startedAt === "string" ? record.startedAt : null,
+    finishedAt:
+      typeof record.finishedAt === "string" ? record.finishedAt : null,
+    scenarioName:
+      typeof record.scenarioName === "string" ? record.scenarioName : null,
+    request: record.request as FixedTargetStrikeRunRequest,
+    artifacts: record.artifacts as JobArtifacts,
+    stdoutLines: Array.isArray(record.stdoutLines)
+      ? record.stdoutLines.map((line) => `${line}`)
+      : [],
+    stderrLines: Array.isArray(record.stderrLines)
+      ? record.stderrLines.map((line) => `${line}`)
+      : [],
+    exitCode: typeof record.exitCode === "number" ? record.exitCode : null,
+    cancelRequested: Boolean(record.cancelRequested),
+    process: null,
+  };
+}
+
+function reviveCommanderJobRecord(payload: unknown): CommanderJobRecord | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+  const record = payload as Partial<CommanderJobRecord>;
+  if (
+    typeof record.id !== "string" ||
+    typeof record.status !== "string" ||
+    typeof record.createdAt !== "string" ||
+    !record.request ||
+    !record.artifacts
+  ) {
+    return null;
+  }
+  return {
+    id: record.id,
+    status: record.status as JobStatus,
+    createdAt: record.createdAt,
+    startedAt: typeof record.startedAt === "string" ? record.startedAt : null,
+    finishedAt:
+      typeof record.finishedAt === "string" ? record.finishedAt : null,
+    scenarioName:
+      typeof record.scenarioName === "string" ? record.scenarioName : null,
+    request: record.request as CommanderRunRequest,
+    artifacts: record.artifacts as CommanderJobArtifacts,
+    stdoutLines: Array.isArray(record.stdoutLines)
+      ? record.stdoutLines.map((line) => `${line}`)
+      : [],
+    stderrLines: Array.isArray(record.stderrLines)
+      ? record.stderrLines.map((line) => `${line}`)
+      : [],
+    exitCode: typeof record.exitCode === "number" ? record.exitCode : null,
+    cancelRequested: Boolean(record.cancelRequested),
+    process: null,
+  };
+}
+
+function readPersistedJobs() {
+  if (!existsSync(jobsRoot)) {
+    return [];
+  }
+  return readdirSync(jobsRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      const jobDir = path.join(jobsRoot, entry.name);
+      const metadataPath = path.join(jobDir, "job.json");
+      const job = reviveJobRecord(readJsonIfExists(metadataPath));
+      if (!job) {
+        return null;
+      }
+      job.artifacts.jobDir = job.artifacts.jobDir ?? jobDir;
+      job.artifacts.metadataPath = job.artifacts.metadataPath ?? metadataPath;
+      return job;
+    })
+    .filter((job): job is JobRecord => job !== null);
+}
+
+function readPersistedCommanderJobs() {
+  if (!existsSync(commanderJobsRoot)) {
+    return [];
+  }
+  return readdirSync(commanderJobsRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      const jobDir = path.join(commanderJobsRoot, entry.name);
+      const metadataPath = path.join(jobDir, "job.json");
+      const job = reviveCommanderJobRecord(readJsonIfExists(metadataPath));
+      if (!job) {
+        return null;
+      }
+      job.artifacts.jobDir = job.artifacts.jobDir ?? jobDir;
+      job.artifacts.metadataPath = job.artifacts.metadataPath ?? metadataPath;
+      return job;
+    })
+    .filter((job): job is CommanderJobRecord => job !== null);
+}
+
+function getAllJobs() {
+  const jobs = new Map<string, JobRecord>();
+  for (const job of readPersistedJobs()) {
+    jobs.set(job.id, job);
+  }
+  for (const [jobId, job] of JOBS.entries()) {
+    jobs.set(jobId, job);
+  }
+  return Array.from(jobs.values());
+}
+
+function getAllCommanderJobs() {
+  const jobs = new Map<string, CommanderJobRecord>();
+  for (const job of readPersistedCommanderJobs()) {
+    jobs.set(job.id, job);
+  }
+  for (const [jobId, job] of COMMANDER_JOBS.entries()) {
+    jobs.set(jobId, job);
+  }
+  return Array.from(jobs.values());
+}
+
+function getJobById(jobId: string) {
+  return (
+    JOBS.get(jobId) ?? getAllJobs().find((job) => job.id === jobId) ?? null
+  );
+}
+
+function getCommanderJobById(jobId: string) {
+  return (
+    COMMANDER_JOBS.get(jobId) ??
+    getAllCommanderJobs().find((job) => job.id === jobId) ??
+    null
+  );
+}
+
 function toSnapshot(job: JobRecord) {
   return {
     id: job.id,
@@ -344,6 +588,8 @@ function toSnapshot(job: JobRecord) {
     createdAt: job.createdAt,
     startedAt: job.startedAt,
     finishedAt: job.finishedAt,
+    scenarioName: job.scenarioName,
+    displayLabel: job.request.experimentLabel ?? job.scenarioName ?? null,
     exitCode: job.exitCode,
     cancelRequested: job.cancelRequested,
     request: job.request,
@@ -369,6 +615,8 @@ function toCommanderSnapshot(job: CommanderJobRecord) {
     createdAt: job.createdAt,
     startedAt: job.startedAt,
     finishedAt: job.finishedAt,
+    scenarioName: job.scenarioName,
+    displayLabel: job.request.experimentLabel ?? job.scenarioName ?? null,
     exitCode: job.exitCode,
     cancelRequested: job.cancelRequested,
     request: job.request,
@@ -382,9 +630,13 @@ function toCommanderSnapshot(job: CommanderJobRecord) {
       progress: existsSync(job.artifacts.progressPath),
       selectedScenario: existsSync(job.artifacts.selectedScenarioPath),
       selectedModel: existsSync(job.artifacts.selectedModelPath),
-      selectedModelMetadata: existsSync(job.artifacts.selectedModelMetadataPath),
+      selectedModelMetadata: existsSync(
+        job.artifacts.selectedModelMetadataPath
+      ),
       selectedEvalScenario: existsSync(job.artifacts.selectedEvalScenarioPath),
-      selectedEvalRecording: existsSync(job.artifacts.selectedEvalRecordingPath),
+      selectedEvalRecording: existsSync(
+        job.artifacts.selectedEvalRecordingPath
+      ),
     },
   };
 }
@@ -407,14 +659,12 @@ function resolveCheckpointArtifactPath(
   timesteps: number,
   artifactKey: "recording_path" | "export_path"
 ) {
-  const progress = readJsonIfExists(job.artifacts.progressPath) as
-    | {
-        algorithm_runs?: Record<
-          string,
-          { checkpoints?: Array<Record<string, unknown>> | null } | null
-        >;
-      }
-    | null;
+  const progress = readJsonIfExists(job.artifacts.progressPath) as {
+    algorithm_runs?: Record<
+      string,
+      { checkpoints?: Array<Record<string, unknown>> | null } | null
+    >;
+  } | null;
   const checkpoints = progress?.algorithm_runs?.[algorithm]?.checkpoints;
   if (!Array.isArray(checkpoints)) {
     return null;
@@ -458,6 +708,7 @@ function resolveCheckpointArtifactPath(
 
 function normalizeTrainingRequest(request: FixedTargetStrikeRunRequest) {
   return {
+    experimentLabel: normalizeOptionalLabel(request.experimentLabel),
     algorithms: normalizeAlgorithmList(
       request.algorithms,
       DEFAULT_FORM.algorithms
@@ -477,6 +728,10 @@ function normalizeTrainingRequest(request: FixedTargetStrikeRunRequest) {
     ),
     curriculumEnabled: Boolean(
       request.curriculumEnabled ?? DEFAULT_FORM.curriculumEnabled
+    ),
+    guidedLaunchBootstrapSteps: clampNonNegativeInt(
+      request.guidedLaunchBootstrapSteps,
+      DEFAULT_FORM.guidedLaunchBootstrapSteps
     ),
     seed: clampPositiveInt(request.seed, DEFAULT_FORM.seed),
     progressEvalFrequency: clampPositiveInt(
@@ -560,7 +815,10 @@ function normalizeTrainingRequest(request: FixedTargetStrikeRunRequest) {
   };
 }
 
-function createTrainArgs(request: FixedTargetStrikeRunRequest, artifacts: JobArtifacts) {
+function createTrainArgs(
+  request: FixedTargetStrikeRunRequest,
+  artifacts: JobArtifacts
+) {
   const normalizedRequest = normalizeTrainingRequest(request);
 
   const args = [
@@ -576,6 +834,8 @@ function createTrainArgs(request: FixedTargetStrikeRunRequest, artifacts: JobArt
     `${normalizedRequest.evalSeedCount}`,
     "--seed",
     `${normalizedRequest.seed}`,
+    "--guided-launch-bootstrap-steps",
+    `${normalizedRequest.guidedLaunchBootstrapSteps}`,
     "--progress-eval-frequency",
     `${normalizedRequest.progressEvalFrequency}`,
     "--progress-eval-episodes",
@@ -644,6 +904,7 @@ function createJob(request: FixedTargetStrikeRunRequest) {
   const jobDir = path.join(jobsRoot, jobId);
   mkdirSync(jobDir, { recursive: true });
 
+  const metadataPath = path.join(jobDir, "job.json");
   const scenarioPath = path.join(jobDir, "scenario.json");
   const summaryPath = path.join(jobDir, "summary.json");
   const progressPath = path.join(jobDir, "progress.json");
@@ -653,15 +914,18 @@ function createJob(request: FixedTargetStrikeRunRequest) {
   const scenarioText =
     request.scenarioText && request.scenarioText.trim().length > 0
       ? request.scenarioText
-      : readTextIfExists(defaultScenarioPath) ?? "";
+      : (readTextIfExists(defaultScenarioPath) ?? "");
 
   if (!scenarioText.trim()) {
     throw new Error("No scenario text was provided for the RL job.");
   }
 
   writeFileSync(scenarioPath, scenarioText, "utf-8");
+  const scenarioName = extractScenarioName(scenarioText);
 
   const artifacts: JobArtifacts = {
+    jobDir,
+    metadataPath,
     scenarioPath,
     modelPath,
     summaryPath,
@@ -673,6 +937,7 @@ function createJob(request: FixedTargetStrikeRunRequest) {
   const command = resolvePythonCommand();
   const child = spawn(command, args, {
     cwd: gymRoot,
+    env: getPythonChildEnv(),
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -682,6 +947,7 @@ function createJob(request: FixedTargetStrikeRunRequest) {
     createdAt: new Date().toISOString(),
     startedAt: new Date().toISOString(),
     finishedAt: null,
+    scenarioName,
     request: normalizedRequest,
     artifacts,
     stdoutLines: [],
@@ -693,26 +959,32 @@ function createJob(request: FixedTargetStrikeRunRequest) {
 
   child.stdout.on("data", (chunk) => {
     appendOutput(job.stdoutLines, chunk);
+    persistJob(job);
   });
   child.stderr.on("data", (chunk) => {
     appendOutput(job.stderrLines, chunk);
+    persistJob(job);
   });
   child.on("close", (code) => {
     job.exitCode = code;
     job.finishedAt = new Date().toISOString();
     if (job.cancelRequested) {
       job.status = "cancelled";
+      persistJob(job);
       return;
     }
     job.status = code === 0 ? "completed" : "failed";
+    persistJob(job);
   });
   child.on("error", (error) => {
     job.finishedAt = new Date().toISOString();
     job.status = "failed";
     job.stderrLines.push(error.message);
+    persistJob(job);
   });
 
   JOBS.set(jobId, job);
+  persistJob(job);
   return job;
 }
 
@@ -807,6 +1079,8 @@ function createCommanderArgs(
     "--eval-seed-count",
     `${normalizedRequest.evalSeedCount}`,
     ...(normalizedRequest.curriculumEnabled ? ["--curriculum-enabled"] : []),
+    "--guided-launch-bootstrap-steps",
+    `${normalizedRequest.guidedLaunchBootstrapSteps}`,
     "--seed",
     `${normalizedRequest.seed}`,
     "--progress-eval-frequency",
@@ -864,10 +1138,14 @@ function createCommanderJob(request: CommanderRunRequest) {
   const runDir = path.join(jobDir, runLabel);
   mkdirSync(jobDir, { recursive: true });
 
+  const metadataPath = path.join(jobDir, "job.json");
   const scenarioPath = path.join(jobDir, "scenario.json");
   const summaryPath = path.join(runDir, "commander_summary.json");
   const progressPath = path.join(runDir, "commander_progress.json");
-  const selectedScenarioPath = path.join(runDir, "selected_candidate_scenario.json");
+  const selectedScenarioPath = path.join(
+    runDir,
+    "selected_candidate_scenario.json"
+  );
   const selectedModelPath = path.join(runDir, "selected_candidate_model.zip");
   const selectedModelMetadataPath = path.join(
     runDir,
@@ -884,16 +1162,18 @@ function createCommanderJob(request: CommanderRunRequest) {
   const scenarioText =
     request.scenarioText && request.scenarioText.trim().length > 0
       ? request.scenarioText
-      : readTextIfExists(defaultScenarioPath) ?? "";
+      : (readTextIfExists(defaultScenarioPath) ?? "");
 
   if (!scenarioText.trim()) {
     throw new Error("No scenario text was provided for the commander job.");
   }
 
   writeFileSync(scenarioPath, scenarioText, "utf-8");
+  const scenarioName = extractScenarioName(scenarioText);
 
   const artifacts: CommanderJobArtifacts = {
     jobDir,
+    metadataPath,
     runLabel,
     runDir,
     scenarioPath,
@@ -909,6 +1189,7 @@ function createCommanderJob(request: CommanderRunRequest) {
   const command = resolvePythonCommand();
   const child = spawn(command, args, {
     cwd: gymRoot,
+    env: getPythonChildEnv(),
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -918,6 +1199,7 @@ function createCommanderJob(request: CommanderRunRequest) {
     createdAt: new Date().toISOString(),
     startedAt: new Date().toISOString(),
     finishedAt: null,
+    scenarioName,
     request: normalizedRequest,
     artifacts,
     stdoutLines: [],
@@ -929,26 +1211,32 @@ function createCommanderJob(request: CommanderRunRequest) {
 
   child.stdout.on("data", (chunk) => {
     appendOutput(job.stdoutLines, chunk);
+    persistCommanderJob(job);
   });
   child.stderr.on("data", (chunk) => {
     appendOutput(job.stderrLines, chunk);
+    persistCommanderJob(job);
   });
   child.on("close", (code) => {
     job.exitCode = code;
     job.finishedAt = new Date().toISOString();
     if (job.cancelRequested) {
       job.status = "cancelled";
+      persistCommanderJob(job);
       return;
     }
     job.status = code === 0 ? "completed" : "failed";
+    persistCommanderJob(job);
   });
   child.on("error", (error) => {
     job.finishedAt = new Date().toISOString();
     job.status = "failed";
     job.stderrLines.push(error.message);
+    persistCommanderJob(job);
   });
 
   COMMANDER_JOBS.set(jobId, job);
+  persistCommanderJob(job);
   return job;
 }
 
@@ -969,7 +1257,8 @@ function buildCommanderCapabilities() {
   const pythonCommand = resolvePythonCommand();
   const defaultPreset = COMMANDER_PRESETS.quick;
   return {
-    available: existsSync(commanderScriptPath) && existsSync(defaultScenarioPath),
+    available:
+      existsSync(commanderScriptPath) && existsSync(defaultScenarioPath),
     mode: "vite-local",
     pythonCommand,
     gymRoot,
@@ -1025,7 +1314,10 @@ function createMiddleware(): Connect.NextHandleFunction {
     const url = new URL(req.url, "http://localhost");
     const pathname = url.pathname;
 
-    if (req.method === "GET" && pathname === "/api/rl/fixed-target-strike/capabilities") {
+    if (
+      req.method === "GET" &&
+      pathname === "/api/rl/fixed-target-strike/capabilities"
+    ) {
       sendJson(res, 200, buildCapabilities());
       return;
     }
@@ -1039,7 +1331,7 @@ function createMiddleware(): Connect.NextHandleFunction {
       sendJson(
         res,
         200,
-        Array.from(JOBS.values())
+        getAllJobs()
           .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
           .map((job) => toSnapshot(job))
       );
@@ -1050,22 +1342,28 @@ function createMiddleware(): Connect.NextHandleFunction {
       sendJson(
         res,
         200,
-        Array.from(COMMANDER_JOBS.values())
+        getAllCommanderJobs()
           .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
           .map((job) => toCommanderSnapshot(job))
       );
       return;
     }
 
-    if (req.method === "POST" && pathname === "/api/rl/fixed-target-strike/train") {
+    if (
+      req.method === "POST" &&
+      pathname === "/api/rl/fixed-target-strike/train"
+    ) {
       try {
         const bodyText = await readBody(req);
-        const body = bodyText ? (JSON.parse(bodyText) as FixedTargetStrikeRunRequest) : {};
+        const body = bodyText
+          ? (JSON.parse(bodyText) as FixedTargetStrikeRunRequest)
+          : {};
         const job = createJob(body);
         sendJson(res, 201, { jobId: job.id, status: job.status });
       } catch (error) {
         sendJson(res, 400, {
-          error: error instanceof Error ? error.message : "Failed to start RL job.",
+          error:
+            error instanceof Error ? error.message : "Failed to start RL job.",
         });
       }
       return;
@@ -1074,7 +1372,9 @@ function createMiddleware(): Connect.NextHandleFunction {
     if (req.method === "POST" && pathname === "/api/rl/commander/run") {
       try {
         const bodyText = await readBody(req);
-        const body = bodyText ? (JSON.parse(bodyText) as CommanderRunRequest) : {};
+        const body = bodyText
+          ? (JSON.parse(bodyText) as CommanderRunRequest)
+          : {};
         const job = createCommanderJob(body);
         sendJson(res, 201, { jobId: job.id, status: job.status });
       } catch (error) {
@@ -1090,7 +1390,7 @@ function createMiddleware(): Connect.NextHandleFunction {
 
     const jobMatch = pathname.match(/^\/api\/rl\/jobs\/([^/]+)$/);
     if (req.method === "GET" && jobMatch) {
-      const job = JOBS.get(jobMatch[1]);
+      const job = getJobById(jobMatch[1]);
       if (!job) {
         sendJson(res, 404, { error: "RL job not found." });
         return;
@@ -1099,9 +1399,11 @@ function createMiddleware(): Connect.NextHandleFunction {
       return;
     }
 
-    const commanderJobMatch = pathname.match(/^\/api\/rl\/commander\/jobs\/([^/]+)$/);
+    const commanderJobMatch = pathname.match(
+      /^\/api\/rl\/commander\/jobs\/([^/]+)$/
+    );
     if (req.method === "GET" && commanderJobMatch) {
-      const job = COMMANDER_JOBS.get(commanderJobMatch[1]);
+      const job = getCommanderJobById(commanderJobMatch[1]);
       if (!job) {
         sendJson(res, 404, { error: "Commander job not found." });
         return;
@@ -1111,7 +1413,7 @@ function createMiddleware(): Connect.NextHandleFunction {
     }
 
     if (req.method === "DELETE" && jobMatch) {
-      const job = JOBS.get(jobMatch[1]);
+      const job = getJobById(jobMatch[1]);
       if (!job) {
         sendJson(res, 404, { error: "RL job not found." });
         return;
@@ -1122,12 +1424,13 @@ function createMiddleware(): Connect.NextHandleFunction {
       }
       job.finishedAt = new Date().toISOString();
       job.status = "cancelled";
+      persistJob(job);
       sendJson(res, 200, toSnapshot(job));
       return;
     }
 
     if (req.method === "DELETE" && commanderJobMatch) {
-      const job = COMMANDER_JOBS.get(commanderJobMatch[1]);
+      const job = getCommanderJobById(commanderJobMatch[1]);
       if (!job) {
         sendJson(res, 404, { error: "Commander job not found." });
         return;
@@ -1138,6 +1441,7 @@ function createMiddleware(): Connect.NextHandleFunction {
       }
       job.finishedAt = new Date().toISOString();
       job.status = "cancelled";
+      persistCommanderJob(job);
       sendJson(res, 200, toCommanderSnapshot(job));
       return;
     }
@@ -1147,7 +1451,7 @@ function createMiddleware(): Connect.NextHandleFunction {
     );
     if (req.method === "GET" && checkpointRecordingMatch) {
       const [, jobId] = checkpointRecordingMatch;
-      const job = JOBS.get(jobId);
+      const job = getJobById(jobId);
       if (!job) {
         sendJson(res, 404, { error: "RL job not found." });
         return;
@@ -1187,7 +1491,7 @@ function createMiddleware(): Connect.NextHandleFunction {
     );
     if (req.method === "GET" && checkpointScenarioMatch) {
       const [, jobId] = checkpointScenarioMatch;
-      const job = JOBS.get(jobId);
+      const job = getJobById(jobId);
       if (!job) {
         sendJson(res, 404, { error: "RL job not found." });
         return;
@@ -1227,13 +1531,16 @@ function createMiddleware(): Connect.NextHandleFunction {
     );
     if (req.method === "GET" && artifactMatch) {
       const [, jobId, artifactName] = artifactMatch;
-      const job = JOBS.get(jobId);
+      const job = getJobById(jobId);
       if (!job) {
         sendJson(res, 404, { error: "RL job not found." });
         return;
       }
 
-      const artifactPathMap: Record<string, { path: string; contentType: string }> = {
+      const artifactPathMap: Record<
+        string,
+        { path: string; contentType: string }
+      > = {
         scenario: {
           path: job.artifacts.scenarioPath,
           contentType: "application/json; charset=utf-8",
@@ -1278,13 +1585,16 @@ function createMiddleware(): Connect.NextHandleFunction {
     );
     if (req.method === "GET" && commanderArtifactMatch) {
       const [, jobId, artifactName] = commanderArtifactMatch;
-      const job = COMMANDER_JOBS.get(jobId);
+      const job = getCommanderJobById(jobId);
       if (!job) {
         sendJson(res, 404, { error: "Commander job not found." });
         return;
       }
 
-      const artifactPathMap: Record<string, { path: string; contentType: string }> = {
+      const artifactPathMap: Record<
+        string,
+        { path: string; contentType: string }
+      > = {
         scenario: {
           path: job.artifacts.scenarioPath,
           contentType: "application/json; charset=utf-8",

@@ -87,7 +87,8 @@ describe("immersiveOperations", () => {
     );
 
     expect(brief).toContain("무인기 감시");
-    expect(brief).toContain("3 Selected");
-    expect(brief).toContain("항공 자산 라인업");
+    expect(brief).toContain("F-15 Strike Eagle");
+    expect(brief).toContain("비교 3종");
+    expect(brief).toContain("출격 대기 라인");
   });
 });

@@ -17,6 +17,7 @@ class FixedTargetStrikeConfig:
     normalize_margin_nm: float
     eta_clip_seconds: float
     threat_buffer_nm: float
+    guided_launch_bootstrap_steps: int = 0
     reward_config: Any = None
     controllable_side_id: str | None = None
     controllable_side_name: str | None = None
@@ -38,6 +39,8 @@ class FixedTargetStrikeConfig:
             raise ValueError("eta_clip_seconds must be positive")
         if self.threat_buffer_nm < 0:
             raise ValueError("threat_buffer_nm cannot be negative")
+        if self.guided_launch_bootstrap_steps < 0:
+            raise ValueError("guided_launch_bootstrap_steps cannot be negative")
         if self.controllable_side_id is None and self.controllable_side_name is None:
             raise ValueError(
                 "Either controllable_side_id or controllable_side_name is required"
