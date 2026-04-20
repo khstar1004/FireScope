@@ -19,6 +19,7 @@ import {
   airbasesStyle,
   facilityStyle,
   facilityPlacementStyle,
+  facilityPlacementGroupStyle,
   threatRangeStyle,
   threatRangePlacementStyle,
   weaponStyle,
@@ -38,6 +39,11 @@ import {
   resolveUnitVisualProfileId,
   type UnitVisualProfileId,
 } from "@/game/db/unitVisualProfiles";
+import { FacilityPlacementGroup } from "@/game/facilityPlacementGroups";
+import {
+  buildFacilityPlacementGroupOverlays,
+  type FacilityPlacementGroupOverlay,
+} from "@/gui/map/facilityPlacementGroupOverlay";
 
 export type FeatureEntityState = {
   id: string;
@@ -148,6 +154,24 @@ function isTrajectoryWeaponProfile(profileId?: UnitVisualProfileId) {
   );
 }
 
+function resolveTrajectoryCurveConfig(profileId: UnitVisualProfileId) {
+  if (profileId === "weapon-air-to-air-missile") {
+    return {
+      offsetBase: 0.06,
+      minimumOffsetM: 300,
+      maximumOffsetM: 22000,
+      spreadScale: 0.08,
+    };
+  }
+
+  return {
+    offsetBase: 0.035,
+    minimumOffsetM: 180,
+    maximumOffsetM: 12000,
+    spreadScale: 0.06,
+  };
+}
+
 function resolveWeaponTargetCoordinates(
   weapon: Weapon,
   scenario: Scenario
@@ -202,13 +226,14 @@ function buildQuadraticBezierCoordinates(
   const perpendicularX = -directionY;
   const perpendicularY = directionX;
   const hash = hashString(weaponId);
+  const curveConfig = resolveTrajectoryCurveConfig(profileId);
   const arcDirection = hash % 2 === 0 ? 1 : -1;
-  const spreadBucket = ((Math.abs(hash) % 5) - 2) * 0.14;
-  const offsetBase = profileId === "weapon-air-to-air-missile" ? 0.15 : 0.1;
+  const spreadBucket =
+    ((Math.abs(hash) % 5) - 2) * curveConfig.spreadScale;
   const offsetMagnitude = clamp(
-    distance * offsetBase,
-    5000,
-    profileId === "weapon-air-to-air-missile" ? 70000 : 42000
+    distance * curveConfig.offsetBase,
+    curveConfig.minimumOffsetM,
+    curveConfig.maximumOffsetM
   );
   const controlPoint = [
     (start[0] + end[0]) / 2 +
@@ -228,12 +253,8 @@ function buildQuadraticBezierCoordinates(
     const t = sampledRatio * (step / totalSteps);
     const inv = 1 - t;
     coordinates.push([
-      inv * inv * start[0] +
-        2 * inv * t * controlPoint[0] +
-        t * t * end[0],
-      inv * inv * start[1] +
-        2 * inv * t * controlPoint[1] +
-        t * t * end[1],
+      inv * inv * start[0] + 2 * inv * t * controlPoint[0] + t * t * end[0],
+      inv * inv * start[1] + 2 * inv * t * controlPoint[1] + t * t * end[1],
     ]);
   }
 
@@ -438,7 +459,11 @@ export class ArmyLayer extends FeatureLayer {
     this.featureCount += 1;
   }
 
-  updateArmyFeature(armyId: string, armySelected: boolean, armyHeading: number) {
+  updateArmyFeature(
+    armyId: string,
+    armySelected: boolean,
+    armyHeading: number
+  ) {
     const feature = this.findFeatureByKey("id", armyId);
     if (feature) {
       feature.set("selected", armySelected);
@@ -550,12 +575,51 @@ export class FacilityPlacementLayer extends FeatureLayer {
     });
   }
 
-  showPreview(preview: FacilityPlacementPreview) {
-    this.refreshFeatures([this.createPreviewFeature(preview)]);
+  showPreview(preview: FacilityPlacementPreview | FacilityPlacementPreview[]) {
+    const previews = Array.isArray(preview) ? preview : [preview];
+    this.refreshFeatures(
+      previews.map((previewEntry) => this.createPreviewFeature(previewEntry))
+    );
   }
 
   clearPreview() {
     this.refreshFeatures([]);
+  }
+}
+
+export class FacilityPlacementGroupLayer extends FeatureLayer {
+  constructor(projection?: Projection, zIndex?: number) {
+    super(facilityPlacementGroupStyle, projection, zIndex);
+    this.layer.set("name", "facilityPlacementGroupLayer");
+  }
+
+  createGroupFeature(overlay: FacilityPlacementGroupOverlay) {
+    return new Feature({
+      type: "facilityPlacementGroup",
+      geometry: new Polygon([
+        overlay.ringCoordinates.map(([longitude, latitude]) =>
+          fromLonLat([longitude, latitude], this.projection)
+        ),
+      ]),
+      id: overlay.id,
+      label: overlay.label,
+      memberCount: overlay.memberCount,
+      sideColor: overlay.sideColor,
+      emphasized: overlay.emphasized,
+    });
+  }
+
+  refresh(
+    groups: FacilityPlacementGroup[],
+    facilities: Facility[],
+    emphasizedGroupIds: Iterable<string> = []
+  ) {
+    const groupFeatures = buildFacilityPlacementGroupOverlays(
+      groups,
+      facilities,
+      emphasizedGroupIds
+    ).map((overlay) => this.createGroupFeature(overlay));
+    this.refreshFeatures(groupFeatures);
   }
 }
 
@@ -594,8 +658,11 @@ export class ThreatPlacementLayer extends FeatureLayer {
     });
   }
 
-  showPreview(preview: FacilityPlacementPreview) {
-    this.refreshFeatures([this.createPreviewFeature(preview)]);
+  showPreview(preview: FacilityPlacementPreview | FacilityPlacementPreview[]) {
+    const previews = Array.isArray(preview) ? preview : [preview];
+    this.refreshFeatures(
+      previews.map((previewEntry) => this.createPreviewFeature(previewEntry))
+    );
   }
 
   clearPreview() {
@@ -733,7 +800,10 @@ export class WeaponTrajectoryLayer extends FeatureLayer {
       [weapon.longitude, weapon.latitude],
       this.projection
     );
-    const activeDistance = Math.hypot(current[0] - start[0], current[1] - start[1]);
+    const activeDistance = Math.hypot(
+      current[0] - start[0],
+      current[1] - start[1]
+    );
     if (activeDistance < 1) {
       return [];
     }

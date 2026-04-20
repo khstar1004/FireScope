@@ -1,9 +1,15 @@
 import { useEffect, useRef } from "react";
 import Box from "@mui/material/Box";
 import type { AssetExperienceKind } from "@/gui/experience/assetExperience";
+import type { DefenseConceptVariant } from "@/utils/airDefenseModeling";
+
+export type AssetExperienceConceptVariant =
+  | "airbase"
+  | DefenseConceptVariant;
 
 interface AssetExperienceViewerProps {
   kind: AssetExperienceKind;
+  conceptVariant?: AssetExperienceConceptVariant;
   accentColor: string;
   glowColor: string;
 }
@@ -185,6 +191,76 @@ function createFacilityFaces(): Face[] {
   ];
 }
 
+function createDefensePointLauncherFaces(): Face[] {
+  return [
+    ...createBoxFaces(vector(0, -0.68, 0), vector(5.6, 0.42, 3.4), "#56616b"),
+    ...createBoxFaces(vector(0, -0.18, 0), vector(3.6, 0.92, 2.25), "#7d8b97"),
+    ...createBoxFaces(vector(-1.35, 0.32, 0), vector(1.35, 0.42, 1.65), "#96a4b1"),
+    ...createBoxFaces(vector(1.35, 0.32, 0), vector(1.35, 0.42, 1.65), "#96a4b1"),
+    ...createBoxFaces(vector(0, 0.78, 0), vector(0.28, 1.55, 0.28), "#79d9ff"),
+    ...createBoxFaces(vector(0, 1.7, 0), vector(2.4, 0.18, 0.55), "#c7d5e0"),
+    ...createBoxFaces(vector(0, 1.08, -0.9), vector(0.95, 0.36, 0.95), "#c7d1db"),
+    ...createPyramidFaces(
+      vector(0, 1.48, -0.9),
+      vector(1.15, 0.72, 1.15),
+      "#dce8f2",
+      "up"
+    ),
+  ];
+}
+
+function createDefensePointHybridFaces(): Face[] {
+  return [
+    ...createBoxFaces(vector(0, -0.72, 0), vector(5.4, 0.42, 3.6), "#55616a"),
+    ...createBoxFaces(vector(0, -0.18, 0), vector(3.4, 0.88, 2.4), "#7c8893"),
+    ...createBoxFaces(vector(-0.95, 0.62, -0.2), vector(1.7, 0.72, 1.65), "#cbd6e0"),
+    ...createBoxFaces(vector(1.18, 0.28, 0.35), vector(0.52, 1.42, 0.52), "#74ddff"),
+    ...createBoxFaces(vector(1.18, 1.2, 0.35), vector(1.9, 0.16, 0.42), "#c1cdda"),
+    ...createBoxFaces(vector(-1.75, 0.38, 0.55), vector(0.22, 0.22, 1.8), "#d4dde7"),
+    ...createBoxFaces(vector(-1.95, 0.3, 0.55), vector(0.22, 0.22, 1.65), "#d4dde7"),
+    ...createBoxFaces(vector(-0.15, 0.95, -0.95), vector(1.05, 0.36, 1.05), "#d3dbe5"),
+    ...createPyramidFaces(
+      vector(-0.15, 1.32, -0.95),
+      vector(1.22, 0.7, 1.22),
+      "#e2eaf2",
+      "up"
+    ),
+  ];
+}
+
+function createDefenseAreaFaces(): Face[] {
+  return [
+    ...createBoxFaces(vector(0, -0.72, 0), vector(6.6, 0.42, 4.4), "#505c66"),
+    ...createBoxFaces(vector(0, -0.18, 0), vector(4.9, 0.9, 2.6), "#7b8791"),
+    ...createBoxFaces(vector(-1.65, 0.72, -0.1), vector(1.05, 0.82, 2.05), "#cfd9e4"),
+    ...createBoxFaces(vector(0, 0.72, -0.1), vector(1.05, 0.82, 2.05), "#cfd9e4"),
+    ...createBoxFaces(vector(1.65, 0.72, -0.1), vector(1.05, 0.82, 2.05), "#cfd9e4"),
+    ...createBoxFaces(vector(2.25, 0.18, 1.05), vector(0.74, 1.1, 0.74), "#80dcff"),
+    ...createBoxFaces(vector(2.25, 1.04, 1.05), vector(2.05, 0.16, 0.46), "#b7c5d2"),
+    ...createBoxFaces(vector(-2.15, -0.12, 1.1), vector(0.82, 0.42, 1.18), "#9bacba"),
+    ...createBoxFaces(vector(2.05, -0.12, -1.12), vector(0.92, 0.42, 1.18), "#9bacba"),
+  ];
+}
+
+function createDefenseStrategicFaces(): Face[] {
+  return [
+    ...createBoxFaces(vector(0, -0.8, 0), vector(7.2, 0.45, 5.2), "#4b5661"),
+    ...createBoxFaces(vector(0, -0.18, 0), vector(5.4, 0.94, 3.1), "#788590"),
+    ...createBoxFaces(vector(-2.05, 0.82, 0), vector(0.86, 2.25, 0.86), "#d8e2ec"),
+    ...createBoxFaces(vector(-0.68, 0.82, 0), vector(0.86, 2.25, 0.86), "#d8e2ec"),
+    ...createBoxFaces(vector(0.68, 0.82, 0), vector(0.86, 2.25, 0.86), "#d8e2ec"),
+    ...createBoxFaces(vector(2.05, 0.82, 0), vector(0.86, 2.25, 0.86), "#d8e2ec"),
+    ...createBoxFaces(vector(0, 1.18, -1.72), vector(0.34, 2.1, 0.34), "#7ee6ff"),
+    ...createBoxFaces(vector(0, 2.42, -1.72), vector(2.9, 0.18, 0.62), "#c6d3dd"),
+    ...createPyramidFaces(
+      vector(0, 0.42, 1.55),
+      vector(2.8, 1.1, 1.85),
+      "#bcc8d3",
+      "up"
+    ),
+  ];
+}
+
 function createAirbaseFaces(): Face[] {
   const runwaySegments = [-7.2, -3.6, 0, 3.6, 7.2].flatMap((zOffset) =>
     createBoxFaces(
@@ -212,7 +288,10 @@ function createAirbaseFaces(): Face[] {
   ];
 }
 
-function createScene(kind: AssetExperienceKind): SceneConfig {
+function createScene(
+  kind: AssetExperienceKind,
+  conceptVariant?: AssetExperienceConceptVariant
+): SceneConfig {
   switch (kind) {
     case "aircraft":
       return {
@@ -248,6 +327,54 @@ function createScene(kind: AssetExperienceKind): SceneConfig {
         shadowHeight: 24,
       };
     case "facility":
+      if (conceptVariant === "defense-point-launcher") {
+        return {
+          faces: createDefensePointLauncherFaces(),
+          initialYaw: 0.76,
+          initialPitch: -0.29,
+          autoSpin: 0.0025,
+          cameraDistance: 14.5,
+          scale: 228,
+          shadowWidth: 205,
+          shadowHeight: 28,
+        };
+      }
+      if (conceptVariant === "defense-point-hybrid") {
+        return {
+          faces: createDefensePointHybridFaces(),
+          initialYaw: 0.74,
+          initialPitch: -0.3,
+          autoSpin: 0.0023,
+          cameraDistance: 14.8,
+          scale: 224,
+          shadowWidth: 208,
+          shadowHeight: 28,
+        };
+      }
+      if (conceptVariant === "defense-area") {
+        return {
+          faces: createDefenseAreaFaces(),
+          initialYaw: 0.68,
+          initialPitch: -0.27,
+          autoSpin: 0.0022,
+          cameraDistance: 19,
+          scale: 166,
+          shadowWidth: 225,
+          shadowHeight: 32,
+        };
+      }
+      if (conceptVariant === "defense-strategic") {
+        return {
+          faces: createDefenseStrategicFaces(),
+          initialYaw: 0.64,
+          initialPitch: -0.31,
+          autoSpin: 0.0018,
+          cameraDistance: 20,
+          scale: 160,
+          shadowWidth: 240,
+          shadowHeight: 34,
+        };
+      }
       return {
         faces: createFacilityFaces(),
         initialYaw: 0.72,
@@ -441,6 +568,7 @@ function drawReticle(
 
 export default function AssetExperienceViewer({
   kind,
+  conceptVariant,
   accentColor,
   glowColor,
 }: Readonly<AssetExperienceViewerProps>) {
@@ -453,7 +581,7 @@ export default function AssetExperienceViewer({
     const context = canvas.getContext("2d");
     if (!context) return;
 
-    const scene = createScene(kind);
+    const scene = createScene(kind, conceptVariant);
     const yawRef = { current: scene.initialYaw };
     const pitchRef = { current: scene.initialPitch };
     const zoomRef = { current: 1 };
@@ -628,7 +756,7 @@ export default function AssetExperienceViewer({
       canvas.removeEventListener("pointerleave", handlePointerUp);
       canvas.removeEventListener("wheel", handleWheel);
     };
-  }, [accentColor, glowColor, kind]);
+  }, [accentColor, conceptVariant, glowColor, kind]);
 
   return (
     <Box

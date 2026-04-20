@@ -6,9 +6,8 @@ import {
 } from "@/utils/assetTypeCatalog";
 import {
   buildAssetSignature,
-  inferDefenseProxyVisualProfileId,
-  isConceptOnlyDefenseAssetSignature,
   isDefenseAssetSignature,
+  resolveDefenseVisualizationPolicy,
 } from "@/utils/airDefenseModeling";
 
 export type UnitVisualEntityType =
@@ -90,14 +89,11 @@ const EXACT_AIRCRAFT_PROFILE_IDS: Record<string, UnitVisualProfileId> = {
 
 const EXACT_FACILITY_PROFILE_IDS: Record<string, UnitVisualProfileId> = {
   "155mm Artillery Shell": "artillery-shell",
-  "Cheongung-II (KM-SAM Block II)": "artillery-patriot",
-  "Cheongung (M-SAM)": "artillery-patriot",
   "D-30 Howitzer": "artillery-d30",
   "K2 Black Panther": "tank-k2",
   "K21 Infantry Fighting Vehicle": "tank-k21",
   "K9 Thunder": "artillery-k9",
   "KM900 APC": "tank-km900",
-  "L-SAM": "artillery-thaad",
   "M109A6 Paladin": "artillery-paladin",
   "M113 APC": "tank-m113",
   "M577 Command Vehicle": "tank-m577",
@@ -191,16 +187,13 @@ function resolveFacilityVisualProfileId(
       ? "artillery-nasams-battery"
       : "artillery-nasams";
   }
-  if (/\b(thaad|l-sam)\b/i.test(signature)) {
+  if (/\b(thaad)\b/i.test(signature)) {
     return "artillery-thaad";
   }
 
-  const defenseProxyProfileId = inferDefenseProxyVisualProfileId(signature);
-  if (defenseProxyProfileId) {
-    return defenseProxyProfileId;
-  }
-  if (isConceptOnlyDefenseAssetSignature(signature)) {
-    return undefined;
+  const defenseVisualizationPolicy = resolveDefenseVisualizationPolicy(className);
+  if (defenseVisualizationPolicy?.proxyVisualProfileId) {
+    return defenseVisualizationPolicy.proxyVisualProfileId;
   }
   if (isDefenseAssetSignature(signature)) {
     return undefined;

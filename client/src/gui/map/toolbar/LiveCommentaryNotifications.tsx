@@ -9,6 +9,7 @@ import type { LiveCommentaryNotification } from "@/gui/map/toolbar/liveCommentar
 interface LiveCommentaryNotificationsProps {
   notifications: LiveCommentaryNotification[];
   onDismiss: (id: string) => void;
+  rightOffset?: number | string;
 }
 
 const toneAccentMap = {
@@ -20,6 +21,7 @@ const toneAccentMap = {
 export default function LiveCommentaryNotifications({
   notifications,
   onDismiss,
+  rightOffset,
 }: Readonly<LiveCommentaryNotificationsProps>) {
   if (notifications.length === 0) {
     return null;
@@ -27,10 +29,16 @@ export default function LiveCommentaryNotifications({
 
   return (
     <Box
+      data-testid="live-commentary-notifications"
+      style={{
+        right:
+          typeof rightOffset === "number"
+            ? `${rightOffset}px`
+            : rightOffset ?? "20px",
+      }}
       sx={{
         position: "fixed",
         top: { xs: 12, md: 20 },
-        right: { xs: 12, md: 20 },
         zIndex: 1350,
         width: { xs: "calc(100vw - 24px)", sm: 360 },
         maxWidth: "calc(100vw - 24px)",

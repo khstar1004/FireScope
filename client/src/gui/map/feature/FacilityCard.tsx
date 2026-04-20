@@ -39,6 +39,13 @@ interface FacilityCardProps {
   sideName: string;
   handleTeleportUnit: (unitId: string) => void;
   handleDeleteFacility: (facilityId: string) => void;
+  facilityGroupSummary?: {
+    label: string;
+    memberCount: number;
+  } | null;
+  handleSelectFacilityGroup?: () => void;
+  handleTeleportFacilityGroup?: () => void;
+  handleDeleteFacilityGroup?: () => void;
   handleCloseOnMap: () => void;
   handleEditFacility: (
     facilityId: string,
@@ -109,6 +116,24 @@ export default function FacilityCard(props: Readonly<FacilityCardProps>) {
   const _handleDeleteFacility = () => {
     props.handleCloseOnMap();
     props.handleDeleteFacility(props.facility.id);
+  };
+
+  const _handleSelectFacilityGroup = () => {
+    handleClose();
+    props.handleCloseOnMap();
+    props.handleSelectFacilityGroup?.();
+  };
+
+  const _handleTeleportFacilityGroup = () => {
+    handleClose();
+    props.handleCloseOnMap();
+    props.handleTeleportFacilityGroup?.();
+  };
+
+  const _handleDeleteFacilityGroup = () => {
+    handleClose();
+    props.handleCloseOnMap();
+    props.handleDeleteFacilityGroup?.();
   };
 
   const _handleOpenAssetExperience = () => {
@@ -282,6 +307,37 @@ export default function FacilityCard(props: Readonly<FacilityCardProps>) {
       <ListItemButton onClick={_handleTeleportFacility}>
         <TelegramIcon sx={{ mr: 0.5 }} /> 위치 수정
       </ListItemButton>
+      {props.facilityGroupSummary && (
+        <>
+          <Divider />
+          <Box sx={{ px: 1.5, py: 0.75 }}>
+            <Typography sx={{ fontSize: 12, fontWeight: 700 }}>
+              포대 묶음
+            </Typography>
+            <Typography
+              sx={{ mt: 0.25, fontSize: 12, color: "text.secondary" }}
+            >
+              {props.facilityGroupSummary.label} ·{" "}
+              {props.facilityGroupSummary.memberCount}개
+            </Typography>
+          </Box>
+          {props.handleSelectFacilityGroup && (
+            <ListItemButton onClick={_handleSelectFacilityGroup}>
+              묶음 선택
+            </ListItemButton>
+          )}
+          {props.handleTeleportFacilityGroup && (
+            <ListItemButton onClick={_handleTeleportFacilityGroup}>
+              묶음 이동
+            </ListItemButton>
+          )}
+          {props.handleDeleteFacilityGroup && (
+            <ListItemButton onClick={_handleDeleteFacilityGroup}>
+              묶음 삭제
+            </ListItemButton>
+          )}
+        </>
+      )}
     </Stack>
   );
 

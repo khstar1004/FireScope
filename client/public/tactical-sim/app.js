@@ -241,8 +241,25 @@ function createEllipsoidTerrainProvider() {
   return new CesiumRef.EllipsoidTerrainProvider();
 }
 
+function resolveIonAccessToken() {
+  const configuredToken =
+    runtimeConfig.cesiumIonAccessToken ?? runtimeConfig.ionAccessToken ?? "";
+
+  return typeof configuredToken === "string" ? configuredToken.trim() : "";
+}
+
 function createTerrainConfig() {
-  if (typeof CesiumRef.Terrain?.fromWorldTerrain === "function") {
+  const ionAccessToken = resolveIonAccessToken();
+  const worldTerrainEnabled =
+    runtimeConfig.enableCesiumWorldTerrain === true &&
+    ionAccessToken.length > 0 &&
+    typeof CesiumRef.Terrain?.fromWorldTerrain === "function";
+
+  if (worldTerrainEnabled) {
+    if (CesiumRef.Ion) {
+      CesiumRef.Ion.defaultAccessToken = ionAccessToken;
+    }
+
     return {
       terrain: CesiumRef.Terrain.fromWorldTerrain(),
     };
@@ -775,6 +792,16 @@ function handleTacticalCommand(state, command) {
       return;
     case "showcase-view":
       setCameraPreset(state, "orbit", "360 모델 보기");
+      return;
+    case "chase-view":
+      if (state.overviewActive) {
+        enterMissionView(state, {
+          mode: "chase",
+          announceText: "추적 시점",
+        });
+        return;
+      }
+      setCameraPreset(state, "chase", "추적 시점");
       return;
     case "profile-view":
       setCameraPreset(state, "profile", "측면 실루엣");

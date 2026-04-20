@@ -119,10 +119,6 @@ copyDirectory(
   flightSimCesiumDir,
   path.join(flightSimPublicDir, "cesium")
 );
-rmSync(path.join(flightSimPublicDir, "assets", "models"), {
-  recursive: true,
-  force: true,
-});
 
 copyDirectory(flightSimFontDir, rootFontDir);
 

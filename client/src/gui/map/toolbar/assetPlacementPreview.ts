@@ -8,9 +8,9 @@ import {
 } from "@/gui/experience/bundleModels";
 import type { AssetExperienceSummary } from "@/gui/experience/assetExperience";
 import {
-  buildAssetSignature,
-  inferDefenseProxyVisualProfileId,
-  isConceptOnlyDefenseAssetSignature,
+  type DefenseConceptVariant,
+  type DefenseVisualizationPolicy,
+  resolveDefenseVisualizationPolicy,
 } from "@/utils/airDefenseModeling";
 import { getDisplayName, getEntityTypeLabel } from "@/utils/koreanCatalog";
 
@@ -19,6 +19,31 @@ export type AssetPlacementPreviewUnitType =
   | "airbase"
   | "facility"
   | "ship";
+
+export interface AssetPlacementPresetContext {
+  regionLabel?: string;
+  coverageLabel?: string;
+  representativeAssetLabel?: string;
+  sourceLabel?: string;
+  threatAxisLabel?: string;
+}
+
+export interface AssetPlacementDeploymentDefaults {
+  headingDegrees: number;
+  arcDegrees?: number;
+  recommendationLabel?: string;
+  formation?: {
+    unitCount: number;
+    lateralSpacingKm: number;
+    depthSpacingKm?: number;
+    templateLabel?: string;
+  };
+}
+
+export interface AssetPlacementVisualPolicyDetail {
+  label: string;
+  value: string;
+}
 
 export interface AssetPlacementPreview {
   unitType: AssetPlacementPreviewUnitType;
@@ -30,12 +55,21 @@ export interface AssetPlacementPreview {
   previewBadgeLabel: string;
   previewTitle: string;
   previewDescription: string;
+  presetContext: AssetPlacementPresetContext | null;
+  deploymentDefaults: AssetPlacementDeploymentDefaults | null;
+  conceptVariant: "airbase" | DefenseConceptVariant | null;
+  visualPolicyDetails: AssetPlacementVisualPolicyDetail[];
   model: BundleModelSelection | null;
   sceneProps: BundleViewerSceneProp[];
 }
 
 interface AssetPlacementPreviewOptions {
   displayName?: string;
+  previewBadgeLabel?: string;
+  previewTitle?: string;
+  previewDescription?: string;
+  presetContext?: AssetPlacementPresetContext;
+  deploymentDefaults?: AssetPlacementDeploymentDefaults;
 }
 
 function buildPreviewId(
@@ -127,24 +161,41 @@ function buildPreviewAsset(
   throw new Error(`Unsupported preview unit type: ${unitType}`);
 }
 
-function buildSignature(asset: AssetExperienceSummary) {
-  return buildAssetSignature(asset.className, asset.name);
+function buildDefensePolicyDetails(policy: DefenseVisualizationPolicy) {
+  const specLabel =
+    policy.threatRangeNm !== null && policy.detectionArcDegrees !== null
+      ? `${policy.threatRangeNm} NM / ${policy.detectionArcDegrees}°`
+      : policy.reasonLabel;
+  const presentationLabel =
+    policy.mode === "closest" && policy.proxyModelLabel
+      ? `${policy.proxyModelLabel} 프록시`
+      : `${policy.categoryLabel} 개념형`;
+
+  return [
+    { label: "방공 계층", value: policy.categoryLabel },
+    { label: "표현 방식", value: presentationLabel },
+    ...(policy.mode === "concept"
+      ? [{ label: "개념 형상", value: policy.silhouetteLabel }]
+      : []),
+    { label: "제원 기준", value: specLabel },
+    ...(policy.sourceLabel
+      ? [{ label: "자료 근거", value: policy.sourceLabel }]
+      : []),
+  ];
 }
 
-function buildClosestDefensePreview(modelId: string) {
-  const model = getBundleModelById(modelId);
-  const proxyLabel =
-    modelId === "artillery-thaad"
-      ? "THAAD"
-      : modelId === "artillery-nasams-battery"
-        ? "NASAMS Battery"
-        : "Patriot";
+function buildClosestDefensePreview(policy: DefenseVisualizationPolicy) {
+  const model = policy.proxyVisualProfileId
+    ? getBundleModelById(policy.proxyVisualProfileId)
+    : null;
 
   return {
     previewMode: "closest" as const,
     previewBadgeLabel: "근접 대체 3D",
-    previewTitle: "가장 가까운 방공 모델",
-    previewDescription: `전용 GLB가 없어, 형상과 역할이 가장 가까운 ${proxyLabel} 계열 모델로 대체 표시합니다.`,
+    previewTitle: policy.title,
+    previewDescription: policy.description,
+    conceptVariant: null,
+    visualPolicyDetails: buildDefensePolicyDetails(policy),
     model,
   };
 }
@@ -157,10 +208,10 @@ function resolvePreviewPresentation(
   | "previewBadgeLabel"
   | "previewTitle"
   | "previewDescription"
+  | "conceptVariant"
+  | "visualPolicyDetails"
   | "model"
 > {
-  const signature = buildSignature(asset);
-
   if (asset.kind === "airbase") {
     return {
       previewMode: "concept",
@@ -168,23 +219,31 @@ function resolvePreviewPresentation(
       previewTitle: "개념형 기지 프리뷰",
       previewDescription:
         "공군기지 전체를 나타내는 단일 3D 번들이 없어, 오해를 줄이기 위해 개념형 프리뷰로 표시합니다.",
+      conceptVariant: "airbase",
+      visualPolicyDetails: [
+        { label: "표현 방식", value: "개념형 기지 레이아웃" },
+        { label: "판단 기준", value: "단일 기지 GLB 부재" },
+      ],
       model: null,
     };
   }
 
   if (asset.kind === "facility") {
-    const defenseProxyModelId = inferDefenseProxyVisualProfileId(signature);
-    if (defenseProxyModelId) {
-      return buildClosestDefensePreview(defenseProxyModelId);
+    const defensePolicy = resolveDefenseVisualizationPolicy(
+      asset.className,
+      asset.name
+    );
+    if (defensePolicy?.mode === "closest") {
+      return buildClosestDefensePreview(defensePolicy);
     }
-
-    if (isConceptOnlyDefenseAssetSignature(signature)) {
+    if (defensePolicy?.mode === "concept") {
       return {
         previewMode: "concept",
         previewBadgeLabel: "개념 프리뷰",
-        previewTitle: "개념형 방공 프리뷰",
-        previewDescription:
-          "단거리 대공체계 전용 GLB가 없어, 틀린 장비를 보여주지 않도록 개념형 프리뷰로 표시합니다.",
+        previewTitle: defensePolicy.title,
+        previewDescription: defensePolicy.description,
+        conceptVariant: defensePolicy.conceptVariant,
+        visualPolicyDetails: buildDefensePolicyDetails(defensePolicy),
         model: null,
       };
     }
@@ -199,6 +258,8 @@ function resolvePreviewPresentation(
     previewDescription: model
       ? model.note
       : "정확하거나 충분히 가까운 GLB가 없어 개념형 프리뷰로 표시합니다.",
+    conceptVariant: null,
+    visualPolicyDetails: [],
     model,
   };
 }
@@ -220,9 +281,15 @@ export function buildAssetPlacementPreview(
     entityLabel: getEntityTypeLabel(unitType),
     asset,
     previewMode: presentation.previewMode,
-    previewBadgeLabel: presentation.previewBadgeLabel,
-    previewTitle: presentation.previewTitle,
-    previewDescription: presentation.previewDescription,
+    previewBadgeLabel:
+      options?.previewBadgeLabel ?? presentation.previewBadgeLabel,
+    previewTitle: options?.previewTitle ?? presentation.previewTitle,
+    previewDescription:
+      options?.previewDescription ?? presentation.previewDescription,
+    presetContext: options?.presetContext ?? null,
+    deploymentDefaults: options?.deploymentDefaults ?? null,
+    conceptVariant: presentation.conceptVariant,
+    visualPolicyDetails: presentation.visualPolicyDetails,
     model: presentation.model,
     sceneProps:
       presentation.model && asset.kind !== "airbase"

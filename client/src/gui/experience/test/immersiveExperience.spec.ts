@@ -116,6 +116,19 @@ describe("immersiveExperience", () => {
         altitude: 0,
       })
     ).toBe("base");
+
+    expect(
+      inferImmersiveExperienceProfile({
+        kind: "aircraft",
+        id: "aircraft-1",
+        name: "KF-21 Alpha",
+        className: "KF-21 Boramae",
+        sideName: "BLUE",
+        latitude: 0,
+        longitude: 0,
+        altitude: 0,
+      })
+    ).toBe("base");
   });
 
   test("creates demo assets for toolbar-launched immersive experiences", () => {

@@ -26,6 +26,10 @@ import {
   getImmersiveExperienceLabel,
   inferImmersiveExperienceProfile,
 } from "@/gui/experience/immersiveExperience";
+import {
+  type DefenseVisualizationPolicy,
+  resolveDefenseVisualizationPolicy,
+} from "@/utils/airDefenseModeling";
 import { getDisplayName } from "@/utils/koreanCatalog";
 
 interface AssetExperiencePageProps {
@@ -338,6 +342,29 @@ function getStatusPills(asset: AssetExperienceSummary) {
   return pills;
 }
 
+function buildVisualizationPolicyDetails(policy: DefenseVisualizationPolicy) {
+  const specLabel =
+    policy.threatRangeNm !== null && policy.detectionArcDegrees !== null
+      ? `${policy.threatRangeNm} NM / ${policy.detectionArcDegrees}°`
+      : policy.reasonLabel;
+  const presentationLabel =
+    policy.mode === "closest" && policy.proxyModelLabel
+      ? `${policy.proxyModelLabel} 프록시`
+      : `${policy.categoryLabel} 개념형`;
+
+  return [
+    { label: "방공 계층", value: policy.categoryLabel },
+    { label: "표현 방식", value: presentationLabel },
+    ...(policy.mode === "concept"
+      ? [{ label: "개념 형상", value: policy.silhouetteLabel }]
+      : []),
+    { label: "제원 기준", value: specLabel },
+    ...(policy.sourceLabel
+      ? [{ label: "자료 근거", value: policy.sourceLabel }]
+      : []),
+  ];
+}
+
 export default function AssetExperiencePage({
   asset,
   onBack,
@@ -448,6 +475,19 @@ export default function AssetExperiencePage({
   const metrics = buildMetrics(asset);
   const statusPills = getStatusPills(asset);
   const immersiveLabel = getImmersiveExperienceLabel(immersiveProfile);
+  const defenseVisualizationPolicy =
+    asset.kind === "facility"
+      ? resolveDefenseVisualizationPolicy(asset.className, asset.name)
+      : null;
+  const visualizationPolicyDetails = defenseVisualizationPolicy
+    ? buildVisualizationPolicyDetails(defenseVisualizationPolicy)
+    : [];
+  const conceptVariant =
+    !activeModel && asset.kind === "facility"
+      ? defenseVisualizationPolicy?.conceptVariant
+      : !activeModel && asset.kind === "airbase"
+        ? "airbase"
+        : undefined;
 
   return (
     <Box
@@ -640,6 +680,55 @@ export default function AssetExperiencePage({
             </Box>
           )}
 
+          {visualizationPolicyDetails.length > 0 && (
+            <Box
+              sx={{
+                p: 2,
+                borderRadius: 3,
+                backgroundColor: "rgba(8, 16, 28, 0.68)",
+                border: "1px solid rgba(143, 225, 255, 0.14)",
+              }}
+            >
+              <Typography
+                variant="overline"
+                sx={{ color: theme.accentColor, letterSpacing: "0.18em" }}
+              >
+                Visualization Policy
+              </Typography>
+              <Typography
+                sx={{
+                  mt: 0.7,
+                  mb: 1.2,
+                  fontSize: 13,
+                  color: "rgba(226, 240, 255, 0.74)",
+                }}
+              >
+                {defenseVisualizationPolicy?.description}
+              </Typography>
+              <Stack spacing={1.05}>
+                {visualizationPolicyDetails.map((detail) => (
+                  <Box
+                    key={detail.label}
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 2,
+                    }}
+                  >
+                    <Typography sx={{ color: "rgba(226, 240, 255, 0.72)" }}>
+                      {detail.label}
+                    </Typography>
+                    <Typography
+                      sx={{ maxWidth: 220, textAlign: "right", fontWeight: 700 }}
+                    >
+                      {detail.value}
+                    </Typography>
+                  </Box>
+                ))}
+              </Stack>
+            </Box>
+          )}
+
           <Stack direction="row" spacing={1.2} useFlexGap flexWrap="wrap">
             {asset.kind === "aircraft" && (
               <Button
@@ -813,6 +902,7 @@ export default function AssetExperiencePage({
           ) : (
             <AssetExperienceViewer
               kind={asset.kind}
+              conceptVariant={conceptVariant}
               accentColor={theme.accentColor}
               glowColor={theme.glowColor}
             />

@@ -253,6 +253,42 @@ describe("focus fire mode", () => {
     expect(game.focusFireOperation.launchedPlatformIds).toContain(tank.id);
   });
 
+  test("excludes unarmed support vehicles from focus-fire armor elements", () => {
+    const { game, hostileCommandPost } = createFocusFireGame();
+    const supportVehicle = new Facility({
+      id: "support-vehicle-1",
+      name: "M577 Command Vehicle",
+      sideId: "blue-side",
+      className: "M577 Command Vehicle",
+      latitude: 37.45,
+      longitude: 127.01,
+      altitude: 0,
+      range: 6,
+      heading: 0,
+      speed: 20,
+      route: [],
+      sideColor: "blue",
+      weapons: [],
+    });
+    game.currentScenario.facilities.push(supportVehicle);
+
+    game.setFocusFireObjective(
+      hostileCommandPost.latitude,
+      hostileCommandPost.longitude
+    );
+    game.updateFocusFireOperation();
+
+    const summary = game.getFocusFireSummary();
+
+    expect(summary.armorCount).toBe(1);
+    expect(
+      summary.launchPlatforms.some(
+        (platform) => platform.id === supportVehicle.id
+      )
+    ).toBe(false);
+    expect(supportVehicle.route).toHaveLength(0);
+  });
+
   test("does not launch artillery outside its firing sector", () => {
     const { game, artillery } = createFocusFireGame();
     const objective = game.setFocusFireObjective(37.5, 127.1);

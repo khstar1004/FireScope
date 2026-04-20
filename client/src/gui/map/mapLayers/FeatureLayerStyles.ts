@@ -230,6 +230,60 @@ export const threatRangePlacementStyle = function (feature: FeatureLike) {
   });
 };
 
+export const facilityPlacementGroupStyle = function (feature: FeatureLike) {
+  const properties = feature.getProperties() as Record<string, unknown>;
+  const sideColor = String(properties.sideColor ?? SIDE_COLOR.BLACK);
+  const emphasized = Boolean(properties.emphasized);
+  const memberCount = Math.max(0, Math.round(Number(properties.memberCount)));
+  const groupLabel = truncateLabel(properties.label, emphasized ? 26 : 22);
+
+  return [
+    new Style({
+      stroke: new Stroke({
+        color:
+          colorNameToColorArray(sideColor, emphasized ? 0.9 : 0.65) ??
+          sideColor,
+        width: emphasized ? 2.6 : 1.6,
+        lineDash: emphasized ? [16, 8] : [10, 10],
+      }),
+      fill: new Fill({
+        color:
+          colorNameToColorArray(sideColor, emphasized ? 0.12 : 0.05) ??
+          (emphasized ? "rgba(0, 0, 0, 0.12)" : "rgba(0, 0, 0, 0.05)"),
+      }),
+    }),
+    new Style({
+      text: new Text({
+        font: emphasized
+          ? "700 12px Roboto, Helvetica, Arial, sans-serif"
+          : "600 11.5px Roboto, Helvetica, Arial, sans-serif",
+        text:
+          memberCount > 0 ? `${groupLabel}\n${memberCount}개 포대` : groupLabel,
+        placement: "point",
+        fill: new Fill({
+          color: emphasized ? "#fffaf0" : "#f4efe3",
+        }),
+        stroke: new Stroke({
+          color: "rgba(0, 0, 0, 0.55)",
+          width: 0.9,
+        }),
+        backgroundFill: new Fill({
+          color: emphasized
+            ? "rgba(15, 22, 32, 0.94)"
+            : "rgba(15, 22, 32, 0.82)",
+        }),
+        backgroundStroke: new Stroke({
+          color:
+            colorNameToColorArray(sideColor, emphasized ? 0.95 : 0.78) ??
+            sideColor,
+          width: emphasized ? 1.6 : 1.2,
+        }),
+        padding: [5, 8, 5, 8],
+      }),
+    }),
+  ];
+};
+
 export const routeStyle = function (feature: FeatureLike) {
   const colorArray = colorNameToColorArray(
     feature.getProperties().sideColor ?? SIDE_COLOR.BLACK,

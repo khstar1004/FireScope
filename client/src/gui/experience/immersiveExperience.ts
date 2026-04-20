@@ -56,6 +56,10 @@ export function inferImmersiveExperienceProfile(
     return "maritime";
   }
 
+  if (asset.kind === "aircraft") {
+    return "base";
+  }
+
   if (asset.kind === "airbase") {
     return "base";
   }

@@ -13,6 +13,7 @@ interface IBottomInfoDisplay {
   replayMetric?: FixedTargetStrikeReplayMetric | null;
   selectedCombatant?: SelectedCombatantSummary | null;
   focusFireDock?: ReactNode;
+  rightOffset?: number | string;
 }
 
 export default function BottomInfoDisplay(props: Readonly<IBottomInfoDisplay>) {
@@ -20,7 +21,7 @@ export default function BottomInfoDisplay(props: Readonly<IBottomInfoDisplay>) {
     <div
       style={{
         position: "absolute",
-        right: "1em",
+        right: props.rightOffset ?? "1em",
         left: props.mobileView ? "1em" : "auto",
         bottom: "1em",
         zIndex: 1000,

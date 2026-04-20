@@ -13,7 +13,8 @@ export const GAME_SPEED_DELAY_MS: { [key: number]: number } = {
 export const RECORDING_INTERVALS_SECONDS: number[] = [
   1, 10, 30, 60, 300, 600, 3600,
 ];
-export const APP_DRAWER_WIDTH = 400;
+export const APP_DRAWER_WIDTH = 352;
+export const APP_GUIDE_RAIL_WIDTH = 264;
 export const APP_DISPLAY_NAME = "전장상황가시화 플랫폼";
 export const colorPalette = {
   lightGray: "#07171D",

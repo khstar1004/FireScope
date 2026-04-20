@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { randomUUID } from "@/utils/generateUUID";
 import { get as getProjection, transform } from "ol/proj.js";
 import ScenarioMap from "@/gui/map/ScenarioMap";
@@ -13,17 +13,19 @@ import Box from "@mui/material/Box";
 import { useMediaQuery } from "@mui/material";
 import WelcomePopover from "@/WelcomePopover";
 import { useAuth0 } from "@auth0/auth0-react";
-import FlightSimPage from "@/gui/flightSim/FlightSimPage";
 import {
-  FLIGHT_SIM_BATTLE_SPECTATOR_STORAGE_KEY,
-  parseFlightSimBattleSpectatorState,
   type FlightSimBattleSpectatorState,
 } from "@/gui/flightSim/battleSpectatorState";
 import AssetExperiencePage from "@/gui/experience/AssetExperiencePage";
 import ImmersiveExperiencePage from "@/gui/experience/ImmersiveExperiencePage";
 import TacticalSimPage from "@/gui/experience/TacticalSimPage";
 import RlLabPage from "@/gui/rl/RlLabPage";
-import { normalizeFlightSimStartLocation } from "@/gui/flightSim/flightSimLocation";
+import AirCombatOverlay from "@/gui/experience/AirCombatOverlay";
+import FlightSimPage from "@/gui/flightSim/FlightSimPage";
+import {
+  buildAirCombatTacticalRoute,
+  type FocusFireAirwatchLaunchState,
+} from "@/gui/experience/airCombatRoute";
 import {
   AssetExperienceSummary,
   buildAssetExperienceHash,
@@ -63,6 +65,16 @@ function getFlightSimQueryParams(hash: string) {
   return new URLSearchParams(hash.split("?")[1] ?? "");
 }
 
+function parseFlightSimNumberParam(value: string | null) {
+  const parsed = Number(value ?? NaN);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+interface ActiveAirCombatLaunch {
+  route: ReturnType<typeof buildAirCombatTacticalRoute>;
+  continueSimulation: boolean;
+}
+
 export default function App() {
   const { isAuthenticated } = useAuth0();
   const [openWelcomePopover, setOpenWelcomePopover] = useState(
@@ -71,6 +83,8 @@ export default function App() {
   const [currentHash, setCurrentHash] = useState(() =>
     typeof window === "undefined" ? "" : window.location.hash
   );
+  const [activeAirCombatLaunch, setActiveAirCombatLaunch] =
+    useState<ActiveAirCombatLaunch | null>(null);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -125,10 +139,7 @@ export default function App() {
   const openFlightSimPage = (
     center?: number[],
     craft?: string,
-    focusFireAirwatch?: {
-      objectiveName?: string;
-      objectiveLon?: number;
-      objectiveLat?: number;
+    focusFireAirwatch?: FocusFireAirwatchLaunchState & {
       active?: boolean;
       captureProgress?: number;
       aircraftCount?: number;
@@ -144,24 +155,14 @@ export default function App() {
   ) => {
     const params = new URLSearchParams();
     const [lon, lat] = center ?? [];
-    const normalizedStart = normalizeFlightSimStartLocation(
-      Number.isFinite(lon) && Number.isFinite(lat) ? { lon, lat } : undefined
-    );
-
-    params.set("lon", normalizedStart.lon.toFixed(6));
-    params.set("lat", normalizedStart.lat.toFixed(6));
+    if (typeof lon === "number" && Number.isFinite(lon)) {
+      params.set("lon", lon.toFixed(6));
+    }
+    if (typeof lat === "number" && Number.isFinite(lat)) {
+      params.set("lat", lat.toFixed(6));
+    }
     if (craft) {
       params.set("craft", craft);
-    }
-    if (battleSpectator) {
-      window.sessionStorage.setItem(
-        FLIGHT_SIM_BATTLE_SPECTATOR_STORAGE_KEY,
-        JSON.stringify(battleSpectator)
-      );
-      params.set("battleSpectator", "1");
-      if (battleSpectator.continueSimulation) {
-        params.set("continueSimulation", "1");
-      }
     }
     if (
       typeof focusFireAirwatch?.objectiveLon === "number" &&
@@ -175,35 +176,36 @@ export default function App() {
       if (focusFireAirwatch.objectiveName) {
         params.set("objectiveName", focusFireAirwatch.objectiveName);
       }
-      if (focusFireAirwatch.captureProgress !== undefined) {
-        params.set("capture", focusFireAirwatch.captureProgress.toFixed(0));
-      }
-      if (focusFireAirwatch.active !== undefined) {
-        params.set("active", focusFireAirwatch.active ? "1" : "0");
-      }
-      if (focusFireAirwatch.aircraftCount !== undefined) {
-        params.set("aircraft", `${focusFireAirwatch.aircraftCount}`);
-      }
-      if (focusFireAirwatch.artilleryCount !== undefined) {
-        params.set("artillery", `${focusFireAirwatch.artilleryCount}`);
-      }
-      if (focusFireAirwatch.armorCount !== undefined) {
-        params.set("armor", `${focusFireAirwatch.armorCount}`);
-      }
-      if (focusFireAirwatch.weaponsInFlight !== undefined) {
-        params.set("weapons", `${focusFireAirwatch.weaponsInFlight}`);
-      }
-      if (focusFireAirwatch.statusLabel) {
-        params.set("status", focusFireAirwatch.statusLabel);
-      }
-      if (focusFireAirwatch.continueSimulation) {
-        params.set("continueSimulation", "1");
-      }
+    }
+    if (
+      battleSpectator?.continueSimulation ||
+      focusFireAirwatch?.continueSimulation
+    ) {
+      params.set("continueSimulation", "1");
     }
 
+    setActiveAirCombatLaunch(null);
     window.location.hash = params.toString()
       ? `${FLIGHT_SIM_HASH}?${params.toString()}`
       : FLIGHT_SIM_HASH;
+  };
+
+  const openAirCombatOverlay = (
+    asset: AssetExperienceSummary,
+    options?: {
+      continueSimulation?: boolean;
+      craft?: string;
+      battleSpectator?: FlightSimBattleSpectatorState;
+    }
+  ) => {
+    setActiveAirCombatLaunch({
+      route: buildAirCombatTacticalRoute({
+        asset,
+        craft: options?.craft,
+        battleSpectator: options?.battleSpectator,
+      }),
+      continueSimulation: options?.continueSimulation ?? false,
+    });
   };
 
   const openAssetExperiencePage = (asset: AssetExperienceSummary) => {
@@ -257,77 +259,30 @@ export default function App() {
       "",
       `${window.location.pathname}${window.location.search}`
     );
+    setActiveAirCombatLaunch(null);
     setCurrentHash("");
   };
 
-  if (isFlightSimPage) {
-    const flightSimLon = flightSimQueryParams.get("lon");
-    const flightSimLat = flightSimQueryParams.get("lat");
-    const focusFireEnabled = flightSimQueryParams.get("focusFire") === "1";
-    const battleSpectatorEnabled =
-      flightSimQueryParams.get("battleSpectator") === "1";
-    const focusFireObjectiveLon = flightSimQueryParams.get("objectiveLon");
-    const focusFireObjectiveLat = flightSimQueryParams.get("objectiveLat");
-    const battleSpectatorState = battleSpectatorEnabled
-      ? parseFlightSimBattleSpectatorState(
-          window.sessionStorage.getItem(
-            FLIGHT_SIM_BATTLE_SPECTATOR_STORAGE_KEY
-          )
-        )
-      : undefined;
-
-    return (
-      <FlightSimPage
-        onBack={returnToScenarioMap}
-        initialCraft={flightSimQueryParams.get("craft") ?? undefined}
-        initialLocation={{
-          lon: flightSimLon === null ? undefined : Number(flightSimLon),
-          lat: flightSimLat === null ? undefined : Number(flightSimLat),
-        }}
-        game={theGame}
-        continueSimulation={
-          flightSimQueryParams.get("continueSimulation") === "1"
-        }
-        battleSpectator={battleSpectatorState}
-        focusFireAirwatch={
-          focusFireEnabled
-            ? {
-                objectiveName:
-                  flightSimQueryParams.get("objectiveName") ?? undefined,
-                objectiveLon:
-                  focusFireObjectiveLon === null
-                    ? undefined
-                    : Number(focusFireObjectiveLon),
-                objectiveLat:
-                  focusFireObjectiveLat === null
-                    ? undefined
-                    : Number(focusFireObjectiveLat),
-                active: flightSimQueryParams.get("active") === "1",
-                captureProgress: Number(
-                  flightSimQueryParams.get("capture") ?? "0"
-                ),
-                aircraftCount: Number(
-                  flightSimQueryParams.get("aircraft") ?? "0"
-                ),
-                artilleryCount: Number(
-                  flightSimQueryParams.get("artillery") ?? "0"
-                ),
-                armorCount: Number(flightSimQueryParams.get("armor") ?? "0"),
-                weaponsInFlight: Number(
-                  flightSimQueryParams.get("weapons") ?? "0"
-                ),
-                statusLabel: flightSimQueryParams.get("status") ?? undefined,
-                continueSimulation:
-                  flightSimQueryParams.get("continueSimulation") === "1",
-              }
-            : undefined
-        }
-      />
-    );
-  }
+  const closeAirCombatOverlay = () => {
+    setActiveAirCombatLaunch(null);
+  };
+  const airCombatOverlay = activeAirCombatLaunch ? (
+    <AirCombatOverlay
+      route={activeAirCombatLaunch.route}
+      game={theGame}
+      continueSimulation={activeAirCombatLaunch.continueSimulation}
+      onClose={closeAirCombatOverlay}
+    />
+  ) : null;
+  const renderWithOverlay = (content: ReactNode) => (
+    <>
+      {content}
+      {airCombatOverlay}
+    </>
+  );
 
   if (isRlLabPage) {
-    return (
+    return renderWithOverlay(
       <RlLabPage
         onBack={returnToScenarioMap}
         initialJobId={rlLabQueryParams.get("jobId")}
@@ -337,8 +292,40 @@ export default function App() {
     );
   }
 
-  if (isAssetExperiencePage) {
+  if (isFlightSimPage) {
+    const focusFireAirwatch =
+      flightSimQueryParams.get("focusFire") === "1"
+        ? {
+            objectiveName:
+              flightSimQueryParams.get("objectiveName") ?? undefined,
+            objectiveLon: parseFlightSimNumberParam(
+              flightSimQueryParams.get("objectiveLon")
+            ),
+            objectiveLat: parseFlightSimNumberParam(
+              flightSimQueryParams.get("objectiveLat")
+            ),
+            continueSimulation:
+              flightSimQueryParams.get("continueSimulation") === "1",
+          }
+        : undefined;
+
     return (
+      <FlightSimPage
+        onBack={returnToScenarioMap}
+        initialCraft={flightSimQueryParams.get("craft") ?? undefined}
+        initialLocation={{
+          lon: parseFlightSimNumberParam(flightSimQueryParams.get("lon")),
+          lat: parseFlightSimNumberParam(flightSimQueryParams.get("lat")),
+        }}
+        game={theGame}
+        continueSimulation={flightSimQueryParams.get("continueSimulation") === "1"}
+        focusFireAirwatch={focusFireAirwatch}
+      />
+    );
+  }
+
+  if (isAssetExperiencePage) {
+    return renderWithOverlay(
       <AssetExperiencePage
         asset={parseAssetExperienceQueryParams(assetExperienceQueryParams)}
         onBack={returnToScenarioMap}
@@ -353,7 +340,7 @@ export default function App() {
       immersiveExperienceQueryParams
     );
 
-    return (
+    return renderWithOverlay(
       <ImmersiveExperiencePage
         route={immersiveRoute}
         game={theGame}
@@ -382,7 +369,7 @@ export default function App() {
   if (isTacticalSimExperiencePage) {
     const tacticalRoute = parseTacticalSimQueryParams(tacticalSimQueryParams);
 
-    return (
+    return renderWithOverlay(
       <TacticalSimPage
         route={tacticalRoute}
         game={theGame}
@@ -403,7 +390,7 @@ export default function App() {
     );
   }
 
-  return (
+  return renderWithOverlay(
     <Box className="App" sx={{ position: "fixed", inset: 0, display: "flex" }}>
       <ScenarioMap
         center={transform(
@@ -416,6 +403,7 @@ export default function App() {
         projection={projection}
         mobileView={isMobile}
         openFlightSimPage={openFlightSimPage}
+        openAirCombatOverlay={openAirCombatOverlay}
         openAssetExperiencePage={openAssetExperiencePage}
         openImmersiveExperiencePage={openImmersiveExperiencePage}
         openRlLabPage={openRlLabPage}

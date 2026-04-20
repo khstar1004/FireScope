@@ -6,6 +6,29 @@ import Facility from "@/game/units/Facility";
 import Weapon from "@/game/units/Weapon";
 import { WeaponTrajectoryLayer } from "@/gui/map/mapLayers/FeatureLayers";
 
+function measureMaxLateralDeviation(coordinates: number[][]) {
+  if (coordinates.length < 3) {
+    return 0;
+  }
+
+  const start = coordinates[0];
+  const end = coordinates[coordinates.length - 1];
+  const chordX = end[0] - start[0];
+  const chordY = end[1] - start[1];
+  const chordLength = Math.hypot(chordX, chordY);
+  if (chordLength < 1) {
+    return 0;
+  }
+
+  return Math.max(
+    ...coordinates.map(([x, y]) =>
+      Math.abs(
+        chordY * x - chordX * y + end[0] * start[1] - end[1] * start[0]
+      ) / chordLength
+    )
+  );
+}
+
 function createScenarioWithTarget() {
   const blue = new Side({
     id: "blue-side",
@@ -181,5 +204,48 @@ describe("WeaponTrajectoryLayer", () => {
         .getFeatures()
         .every((feature) => feature.get("weaponId") === missile.id)
     ).toBe(true);
+  });
+
+  test("keeps short-range projected trajectories close to the direct line in 2D", () => {
+    const { blue, scenario } = createScenarioWithTarget();
+    const layer = new WeaponTrajectoryLayer();
+    const missile = new Weapon({
+      id: "short-range-cleanup-1",
+      launcherId: "launcher-1",
+      launchLatitude: 37.61,
+      launchLongitude: 127.145,
+      launchAltitude: 0,
+      name: "130mm Guided Rocket-II #2",
+      sideId: blue.id,
+      className: "130mm Guided Rocket-II",
+      latitude: 37.615,
+      longitude: 127.152,
+      altitude: 2500,
+      heading: 48,
+      speed: 260,
+      currentFuel: 12,
+      maxFuel: 12,
+      fuelRate: 60,
+      range: 12,
+      sideColor: "blue",
+      targetId: "target-facility",
+      lethality: 0.45,
+      maxQuantity: 1,
+      currentQuantity: 1,
+    });
+
+    layer.refresh([missile], scenario);
+
+    const projectedFeature = layer.layerSource
+      .getFeatures()
+      .find((feature) => feature.get("trajectoryKind") === "projected");
+    const projectedCoordinates = projectedFeature
+      ?.getGeometry()
+      ?.getCoordinates();
+
+    expect(projectedCoordinates).toBeDefined();
+    expect(measureMaxLateralDeviation(projectedCoordinates ?? [])).toBeLessThan(
+      400
+    );
   });
 });

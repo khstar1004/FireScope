@@ -1,8 +1,16 @@
-import React, { useContext, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   AppBar,
   Button,
   CardActions,
+  Dialog,
   IconButton,
   ListItemIcon,
   ListItemText,
@@ -14,7 +22,6 @@ import {
 } from "@mui/material";
 import { Menu } from "@/gui/shared/ui/MuiComponents";
 import { visuallyHidden } from "@mui/utils";
-import SendIcon from "@mui/icons-material/Send";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
@@ -25,7 +32,6 @@ import { styled } from "@mui/material/styles";
 import Game from "@/game/Game";
 import { APP_DISPLAY_NAME, APP_DRAWER_WIDTH } from "@/utils/constants";
 import ToolbarCollapsible from "@/gui/map/toolbar/ToolbarCollapsible";
-import CurrentActionContextDisplay from "@/gui/map/toolbar/CurrentActionContextDisplay";
 import MenuIcon from "@mui/icons-material/Menu";
 import { Toolbar as MapToolbar } from "@mui/material";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
@@ -85,7 +91,6 @@ import {
 import { useAuth0 } from "@auth0/auth0-react";
 import LoginLogout from "@/gui/map/toolbar/LoginLogout";
 import { randomUUID } from "@/utils/generateUUID";
-import HealthCheck from "@/gui/map/toolbar/HealthCheck";
 import {
   SetUnitDbContext,
   UnitDbContext,
@@ -103,15 +108,56 @@ import {
 } from "@/utils/assetTypeCatalog";
 import Dba from "@/game/db/Dba";
 import AssetPlacementPreviewDialog from "@/gui/map/toolbar/AssetPlacementPreviewDialog";
+import ArmyGptPanel, {
+  type ArmyGptBriefingCard,
+} from "@/gui/map/toolbar/ArmyGptPanel";
 import {
+  type AssetPlacementDeploymentDefaults,
   buildAssetPlacementPreview,
   type AssetPlacementPreview,
+  type AssetPlacementPresetContext,
 } from "@/gui/map/toolbar/assetPlacementPreview";
 import {
   buildBaseSelectionAirbaseOptions,
   buildPriorityQuickAddAirbaseOptions,
   PRIORITY_ARTILLERY_BASE_OPTIONS,
+  sortBaseSelectionOptionsByDistance,
 } from "@/gui/map/toolbar/baseSelectionCatalog";
+import { buildAdaptiveArtilleryPresetOptions } from "@/gui/map/toolbar/artilleryPresetRecommendations";
+import type {
+  GuideRailAssetMixId,
+  GuideRailAssetSelectionLabels,
+  GuideRailPlacementFocusIntent,
+} from "@/gui/map/guideRailIntents";
+import {
+  shouldPromptScenarioLaunchModeSelection,
+  type ScenarioLaunchMode,
+} from "@/gui/map/scenarioLaunchMode";
+
+const GUIDE_RAIL_SELECTION_STORAGE_KEYS = {
+  mannedAircraft: "firescope.guideRail.selection.mannedAircraft",
+  drone: "firescope.guideRail.selection.drone",
+  airbase: "firescope.guideRail.selection.airbase",
+  facility: "firescope.guideRail.selection.facility",
+  armor: "firescope.guideRail.selection.armor",
+  ship: "firescope.guideRail.selection.ship",
+} as const;
+
+function readGuideRailSelection(key: string, fallbackValue: string) {
+  if (typeof window === "undefined") {
+    return fallbackValue;
+  }
+
+  return window.sessionStorage.getItem(key) ?? fallbackValue;
+}
+
+function writeGuideRailSelection(key: string, value: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.setItem(key, value);
+}
 
 interface ToolBarProps {
   mobileView: boolean;
@@ -119,7 +165,10 @@ interface ToolBarProps {
   featureEntitiesPlotted: FeatureEntityState[];
   deleteFeatureEntity: (feature: FeatureEntityState) => void;
   addAircraftOnClick: (unitClassName: string) => void;
-  addFacilityOnClick: (unitClassName: string) => void;
+  addFacilityOnClick: (
+    unitClassName: string,
+    deploymentDefaults?: AssetPlacementDeploymentDefaults
+  ) => void;
   addAirbaseOnClick: (
     coordinates: number[],
     name?: string,
@@ -128,6 +177,7 @@ interface ToolBarProps {
   addShipOnClick: (unitClassName: string) => void;
   addReferencePointOnClick: () => void;
   playOnClick: () => void;
+  startScenarioOnClick: (mode: ScenarioLaunchMode) => void;
   stepOnClick: () => void;
   pauseOnClick: () => void;
   toggleScenarioTimeCompressionOnClick: () => void;
@@ -167,6 +217,10 @@ interface ToolBarProps {
   openSimulationLogs: () => void;
   updateCurrentSimulationLogsToContext: () => void;
   updateCurrentScenarioSidesToContext: () => void;
+  assetPlacementOpenSignal: number;
+  assetPlacementFocusIntent: GuideRailPlacementFocusIntent;
+  onGuideRailSelectionsChange: (labels: GuideRailAssetSelectionLabels) => void;
+  onGuideRailActiveAssetTypeChange: (assetType: GuideRailAssetMixId) => void;
   openDrawer: () => void;
   closeDrawer: () => void;
   openRlLabPage: () => void;
@@ -175,7 +229,7 @@ interface ToolBarProps {
   toggleFocusFireMode: () => void;
   armFocusFireObjectiveSelection: () => void;
   clearFocusFireObjective: () => void;
-  openBattleSpectator: () => void;
+  openScenario3dView: () => void;
   openFocusFireAirwatch: () => void;
   openFocusFireDock: () => void;
 }
@@ -188,23 +242,33 @@ const DrawerHeader = styled("div")(({ theme }) => ({
 }));
 
 const toolbarDrawerStyle = {
-  backgroundColor: COLOR_PALETTE.LIGHT_GRAY,
   width: APP_DRAWER_WIDTH,
   flexShrink: 0,
+  position: "fixed",
+  top: 0,
+  right: 0,
+  bottom: 0,
+  height: "100dvh",
+  display: "flex",
+  justifyContent: "flex-end",
+  pointerEvents: "none",
+  zIndex: 1190,
   "& .MuiDrawer-paper": {
-    width: APP_DRAWER_WIDTH + 13,
+    width: APP_DRAWER_WIDTH,
+    height: "100dvh",
     boxSizing: "border-box",
     overflow: "hidden",
-    boxShadow: "18px 0 36px rgba(0, 0, 0, 0.42)",
+    boxShadow: "-18px 0 36px rgba(0, 0, 0, 0.42)",
+    pointerEvents: "auto",
   },
 };
 
 const toolbarStyle = {
-  backgroundColor: "rgba(6, 22, 29, 0.78)",
+  backgroundColor: "rgba(6, 22, 29, 0.72)",
   backdropFilter: "blur(18px)",
   borderBottom: "1px solid",
   borderBottomColor: "rgba(45, 214, 196, 0.18)",
-  boxShadow: "0 18px 34px rgba(0, 0, 0, 0.24)",
+  boxShadow: "0 14px 28px rgba(0, 0, 0, 0.22)",
 };
 
 interface CloudScenario {
@@ -220,6 +284,13 @@ interface QuickAddEntry {
   unitType?: "aircraft" | "airbase" | "facility" | "ship";
   value?: string;
   displayName?: string;
+  focusCenter?: [number, number];
+  focusZoom?: number;
+  previewBadgeLabel?: string;
+  previewTitle?: string;
+  previewDescription?: string;
+  presetContext?: AssetPlacementPresetContext;
+  deploymentDefaults?: AssetPlacementDeploymentDefaults;
   description: string;
   onClick?: () => void;
 }
@@ -227,6 +298,18 @@ interface QuickAddEntry {
 interface QuickAddSection {
   title: string;
   items: QuickAddEntry[];
+}
+
+interface AssetSelectionOptions {
+  selectionKey?: string;
+  displayName?: string;
+  focusCenter?: [number, number];
+  focusZoom?: number;
+  previewBadgeLabel?: string;
+  previewTitle?: string;
+  previewDescription?: string;
+  presetContext?: AssetPlacementPresetContext;
+  deploymentDefaults?: AssetPlacementDeploymentDefaults;
 }
 
 function buildSafeDownloadTimestamp() {
@@ -244,18 +327,34 @@ function downloadTextFile(filename: string, content: string, mimeType: string) {
   downloadAnchorNode.remove();
 }
 
+function toSelectionOptions(item: QuickAddEntry): AssetSelectionOptions {
+  return {
+    selectionKey:
+      item.unitType === "airbase" || item.focusCenter || item.presetContext
+        ? item.key
+        : undefined,
+    displayName: item.displayName,
+    focusCenter: item.focusCenter,
+    focusZoom: item.focusZoom,
+    previewBadgeLabel: item.previewBadgeLabel,
+    previewTitle: item.previewTitle,
+    previewDescription: item.previewDescription,
+    presetContext: item.presetContext,
+    deploymentDefaults: item.deploymentDefaults,
+  };
+}
+
 export default function Toolbar(props: Readonly<ToolBarProps>) {
   // Hooks and State
   const { isAuthenticated, getAccessTokenSilently } = useAuth0();
+  const toastContext = useContext(ToastContext);
   const compactToolbar = useMediaQuery("(max-width:1280px)");
   const ultraCompactToolbar = useMediaQuery("(max-width:960px)");
   const showEntityShortcutStrip = !props.mobileView && !compactToolbar;
   const showSideSelect = !ultraCompactToolbar;
   const showExperienceShortcut = !ultraCompactToolbar;
-  const showRlLabShortcut = !ultraCompactToolbar;
-  const showHealthCheck = !compactToolbar;
   const [cloudScenarios, setCloudScenarios] = useState<CloudScenario[]>([]);
-  const getCloudScenarios = async () => {
+  const getCloudScenarios = useCallback(async () => {
     if (!import.meta.env.VITE_ENV || import.meta.env.VITE_ENV === "standalone")
       return;
     if (!isAuthenticated) return;
@@ -279,12 +378,11 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
         "error"
       );
     }
-  };
+  }, [getAccessTokenSilently, isAuthenticated, toastContext]);
   useEffect(() => {
     if (!isAuthenticated) return;
     getCloudScenarios();
-  }, [isAuthenticated]);
-  const toastContext = useContext(ToastContext);
+  }, [getCloudScenarios, isAuthenticated]);
   const unitDbContext = useContext(UnitDbContext);
   const setUnitDbContext = useContext(SetUnitDbContext);
   const aircraftDb = unitDbContext.getAircraftDb();
@@ -294,20 +392,18 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   const droneAircraftDb = aircraftDb.filter((aircraft) =>
     isDroneAircraftClassName(aircraft.className)
   );
+  const mannedAircraftDb = aircraftDb.filter(
+    (aircraft) => !isDroneAircraftClassName(aircraft.className)
+  );
   const tankFacilityDb = facilityDb.filter((facility) =>
     isTankFacilityClassName(facility.className)
+  );
+  const supportFacilityDb = facilityDb.filter(
+    (facility) => !isTankFacilityClassName(facility.className)
   );
   const [selectedSideId, setSelectedSideId] = useState<string>(
     props.scenarioCurrentSideId
   );
-  useEffect(() => {
-    setSelectedSideId(props.scenarioCurrentSideId);
-    handleEntitySideChange(
-      props.game.godMode
-        ? props.game.currentScenario.sides.map((side) => side.id)
-        : [props.scenarioCurrentSideId]
-    );
-  }, [props.scenarioCurrentSideId]);
   const [initialScenarioString, setInitialScenarioString] = useState<string>(
     props.game.exportCurrentScenario()
   );
@@ -321,6 +417,8 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   const [scenarioPaused, setScenarioPaused] = useState<boolean>(
     props.game.scenarioPaused
   );
+  const [scenarioLaunchDialogOpen, setScenarioLaunchDialogOpen] =
+    useState<boolean>(false);
   const [recordingScenario, setRecordingScenario] = useState<boolean>(
     props.game.recordingScenario
   );
@@ -347,6 +445,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   const { messages, inputValue, setInputValue, handleSendMessage, isLoading } =
     useChatbot({ game: props.game });
   const chatMessagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const processedGuideRailPlacementSignalRef = useRef(0);
 
   useEffect(() => {
     const container = chatMessagesContainerRef.current;
@@ -425,8 +524,24 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
     return true;
   };
 
+  const [selectedMannedAircraftUnitClass, setSelectedMannedAircraftUnitClass] =
+    useState<string>(() =>
+      readGuideRailSelection(
+        GUIDE_RAIL_SELECTION_STORAGE_KEYS.mannedAircraft,
+        mannedAircraftDb[0]?.className ?? ""
+      )
+    );
+  const [selectedDroneUnitClass, setSelectedDroneUnitClass] = useState<string>(
+    () =>
+      readGuideRailSelection(
+        GUIDE_RAIL_SELECTION_STORAGE_KEYS.drone,
+        droneAircraftDb[0]?.className ?? ""
+      )
+  );
   const [selectedAircraftUnitClass, setSelectedAircraftUnitClass] =
-    useState<string>(aircraftDb[0]?.className ?? "");
+    useState<string>(
+      () => selectedMannedAircraftUnitClass || selectedDroneUnitClass || ""
+    );
   const [aircraftIconAnchorEl, setAircraftIconAnchorEl] =
     useState<null | HTMLElement>(null);
   const aircraftClassMenuOpen = Boolean(aircraftIconAnchorEl);
@@ -461,7 +576,14 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   };
 
   const [selectedAirbaseUnitClass, setSelectedAirbaseUnitClass] =
-    useState<string>(airbaseDb[0]?.name ?? "");
+    useState<string>(() =>
+      readGuideRailSelection(
+        GUIDE_RAIL_SELECTION_STORAGE_KEYS.airbase,
+        airbaseDb[0]?.name ?? ""
+      )
+    );
+  const [selectedBaseSelectionKey, setSelectedBaseSelectionKey] =
+    useState<string>("");
   const [airbaseIconAnchorEl, setAirbaseIconAnchorEl] =
     useState<null | HTMLElement>(null);
   const airbaseClassMenuOpen = Boolean(airbaseIconAnchorEl);
@@ -475,8 +597,24 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
     setAirbaseIconAnchorEl(null);
   };
 
+  const [
+    selectedSupportFacilityUnitClass,
+    setSelectedSupportFacilityUnitClass,
+  ] = useState<string>(() =>
+    readGuideRailSelection(
+      GUIDE_RAIL_SELECTION_STORAGE_KEYS.facility,
+      supportFacilityDb[0]?.className ?? ""
+    )
+  );
+  const [selectedArmorUnitClass, setSelectedArmorUnitClass] = useState<string>(
+    () =>
+      readGuideRailSelection(
+        GUIDE_RAIL_SELECTION_STORAGE_KEYS.armor,
+        tankFacilityDb[0]?.className ?? ""
+      )
+  );
   const [selectedSamUnitClass, setSelectedSamUnitClass] = useState<string>(
-    facilityDb[0]?.className ?? ""
+    () => selectedSupportFacilityUnitClass || selectedArmorUnitClass || ""
   );
   const [samIconAnchorEl, setSamIconAnchorEl] = useState<null | HTMLElement>(
     null
@@ -514,7 +652,11 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   };
 
   const [selectedShipUnitClass, setSelectedShipUnitClass] = useState<string>(
-    shipDb[0]?.className ?? ""
+    () =>
+      readGuideRailSelection(
+        GUIDE_RAIL_SELECTION_STORAGE_KEYS.ship,
+        shipDb[0]?.className ?? ""
+      )
   );
   const [assetPlacementPreview, setAssetPlacementPreview] =
     useState<AssetPlacementPreview | null>(null);
@@ -531,6 +673,37 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   const handleShipIconClose = () => {
     setShipIconAnchorEl(null);
   };
+
+  const guideRailSelectionLabels = useMemo<GuideRailAssetSelectionLabels>(
+    () => ({
+      "manned-aircraft": selectedMannedAircraftUnitClass
+        ? getDisplayName(selectedMannedAircraftUnitClass)
+        : "",
+      drone: selectedDroneUnitClass
+        ? getDisplayName(selectedDroneUnitClass)
+        : "",
+      airbase: selectedAirbaseUnitClass,
+      facility: selectedSupportFacilityUnitClass
+        ? getDisplayName(selectedSupportFacilityUnitClass)
+        : "",
+      armor: selectedArmorUnitClass
+        ? getDisplayName(selectedArmorUnitClass)
+        : "",
+      ship: selectedShipUnitClass ? getDisplayName(selectedShipUnitClass) : "",
+    }),
+    [
+      selectedAirbaseUnitClass,
+      selectedArmorUnitClass,
+      selectedDroneUnitClass,
+      selectedMannedAircraftUnitClass,
+      selectedShipUnitClass,
+      selectedSupportFacilityUnitClass,
+    ]
+  );
+
+  useEffect(() => {
+    props.onGuideRailSelectionsChange(guideRailSelectionLabels);
+  }, [guideRailSelectionLabels, props.onGuideRailSelectionsChange]);
 
   const handleReferencePointIconClick = () => {
     if (!canOpenPlacementMenu("참조점")) {
@@ -580,7 +753,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
     }
   };
 
-  const handleEntitySideChange = (newSelectedSides: string[]) => {
+  const handleEntitySideChange = useCallback((newSelectedSides: string[]) => {
     setEntityFilterSelectedOptions((prevItems: string[]) => {
       const nonSideFilters = [
         "aircraft",
@@ -595,7 +768,21 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
       );
       return [...filtersWithNewSide, ...newSelectedSides];
     });
-  };
+  }, []);
+
+  useEffect(() => {
+    setSelectedSideId(props.scenarioCurrentSideId);
+    handleEntitySideChange(
+      props.game.godMode
+        ? props.game.currentScenario.sides.map((side) => side.id)
+        : [props.scenarioCurrentSideId]
+    );
+  }, [
+    handleEntitySideChange,
+    props.game.currentScenario.sides,
+    props.game.godMode,
+    props.scenarioCurrentSideId,
+  ]);
 
   const saveScenarioToCloud = async () => {
     if (!import.meta.env.VITE_ENV || import.meta.env.VITE_ENV === "standalone")
@@ -835,6 +1022,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   const reloadScenario = () => {
     props.pauseOnClick();
     setScenarioPaused(true);
+    setScenarioLaunchDialogOpen(false);
     if (currentScenarioString) {
       try {
         loadScenario(currentScenarioString, false);
@@ -853,11 +1041,34 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
     }
   };
 
+  const startScenarioIn2dMode = () => {
+    setScenarioLaunchDialogOpen(false);
+    setScenarioPaused(false);
+    props.startScenarioOnClick("2d");
+  };
+
+  const startScenarioIn3dMode = () => {
+    setScenarioLaunchDialogOpen(false);
+    setScenarioPaused(false);
+    props.startScenarioOnClick("3d");
+  };
+
   const handlePlayClick = () => {
     if (scenarioPaused) {
+      if (
+        shouldPromptScenarioLaunchModeSelection({
+          scenario: props.game.currentScenario,
+          scenarioPaused,
+        })
+      ) {
+        setScenarioLaunchDialogOpen(true);
+        return;
+      }
+
       setScenarioPaused(false);
       props.playOnClick();
     } else {
+      setScenarioLaunchDialogOpen(false);
       setScenarioPaused(true);
       props.pauseOnClick();
     }
@@ -886,7 +1097,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   const handleUnitClassSelect = (
     unitType: "aircraft" | "airbase" | "facility" | "ship",
     unitClassName: string,
-    displayName?: string
+    options?: AssetSelectionOptions
   ) => {
     const placementLabels = {
       aircraft: "항공기",
@@ -899,16 +1110,210 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
       return;
     }
 
+    if (options?.selectionKey) {
+      setSelectedBaseSelectionKey(options.selectionKey);
+    }
+
+    let guideRailAssetType: GuideRailAssetMixId | null = null;
+
+    switch (unitType) {
+      case "aircraft":
+        setSelectedAircraftUnitClass(unitClassName);
+        if (isDroneAircraftClassName(unitClassName)) {
+          guideRailAssetType = "drone";
+          setSelectedDroneUnitClass(unitClassName);
+          writeGuideRailSelection(
+            GUIDE_RAIL_SELECTION_STORAGE_KEYS.drone,
+            unitClassName
+          );
+        } else {
+          guideRailAssetType = "manned-aircraft";
+          setSelectedMannedAircraftUnitClass(unitClassName);
+          writeGuideRailSelection(
+            GUIDE_RAIL_SELECTION_STORAGE_KEYS.mannedAircraft,
+            unitClassName
+          );
+        }
+        break;
+      case "airbase":
+        guideRailAssetType = "airbase";
+        setSelectedAirbaseUnitClass(unitClassName);
+        writeGuideRailSelection(
+          GUIDE_RAIL_SELECTION_STORAGE_KEYS.airbase,
+          unitClassName
+        );
+        break;
+      case "facility":
+        setSelectedSamUnitClass(unitClassName);
+        if (isTankFacilityClassName(unitClassName)) {
+          guideRailAssetType = "armor";
+          setSelectedArmorUnitClass(unitClassName);
+          writeGuideRailSelection(
+            GUIDE_RAIL_SELECTION_STORAGE_KEYS.armor,
+            unitClassName
+          );
+        } else {
+          guideRailAssetType = "facility";
+          setSelectedSupportFacilityUnitClass(unitClassName);
+          writeGuideRailSelection(
+            GUIDE_RAIL_SELECTION_STORAGE_KEYS.facility,
+            unitClassName
+          );
+        }
+        break;
+      case "ship":
+        guideRailAssetType = "ship";
+        setSelectedShipUnitClass(unitClassName);
+        writeGuideRailSelection(
+          GUIDE_RAIL_SELECTION_STORAGE_KEYS.ship,
+          unitClassName
+        );
+        break;
+      default:
+        break;
+    }
+
+    if (guideRailAssetType) {
+      props.onGuideRailActiveAssetTypeChange(guideRailAssetType);
+    }
+
+    if (options?.focusCenter) {
+      props.updateMapView(
+        options.focusCenter,
+        options.focusZoom ?? props.game.mapView.currentCameraZoom
+      );
+    }
+
     setAssetPlacementPreview(
       buildAssetPlacementPreview(
         unitDbContext,
         props.game.currentScenario.getSideName(props.game.currentSideId),
         unitType,
         unitClassName,
-        { displayName }
+        {
+          displayName: options?.displayName,
+          previewBadgeLabel: options?.previewBadgeLabel,
+          previewTitle: options?.previewTitle,
+          previewDescription: options?.previewDescription,
+          presetContext: options?.presetContext,
+          deploymentDefaults: options?.deploymentDefaults,
+        }
       )
     );
   };
+
+  useEffect(() => {
+    if (props.assetPlacementFocusIntent.signal === 0) {
+      return;
+    }
+    if (
+      processedGuideRailPlacementSignalRef.current ===
+      props.assetPlacementFocusIntent.signal
+    ) {
+      return;
+    }
+    processedGuideRailPlacementSignalRef.current =
+      props.assetPlacementFocusIntent.signal;
+
+    const currentSideFilters = props.scenarioCurrentSideId
+      ? [props.scenarioCurrentSideId]
+      : [];
+
+    switch (props.assetPlacementFocusIntent.assetType) {
+      case "manned-aircraft": {
+        const nextAircraftClass = mannedAircraftDb.some(
+          (aircraft) => aircraft.className === selectedMannedAircraftUnitClass
+        )
+          ? selectedMannedAircraftUnitClass
+          : mannedAircraftDb[0]?.className;
+        setEntityFilterSelectedOptions([...currentSideFilters, "aircraft"]);
+        if (nextAircraftClass) {
+          handleUnitClassSelect("aircraft", nextAircraftClass);
+        }
+        break;
+      }
+      case "drone": {
+        const nextDroneClass = droneAircraftDb.some(
+          (aircraft) => aircraft.className === selectedDroneUnitClass
+        )
+          ? selectedDroneUnitClass
+          : droneAircraftDb[0]?.className;
+        setEntityFilterSelectedOptions([...currentSideFilters, "aircraft"]);
+        if (nextDroneClass) {
+          handleUnitClassSelect("aircraft", nextDroneClass);
+        }
+        break;
+      }
+      case "airbase": {
+        const nextAirbaseClass = airbaseDb.some(
+          (airbase) => airbase.name === selectedAirbaseUnitClass
+        )
+          ? selectedAirbaseUnitClass
+          : airbaseDb[0]?.name;
+        setEntityFilterSelectedOptions([...currentSideFilters, "airbase"]);
+        if (nextAirbaseClass) {
+          handleUnitClassSelect("airbase", nextAirbaseClass);
+        }
+        break;
+      }
+      case "facility": {
+        const nextFacilityClass = supportFacilityDb.some(
+          (facility) => facility.className === selectedSupportFacilityUnitClass
+        )
+          ? selectedSupportFacilityUnitClass
+          : supportFacilityDb[0]?.className;
+        setEntityFilterSelectedOptions([...currentSideFilters, "facility"]);
+        if (nextFacilityClass) {
+          handleUnitClassSelect("facility", nextFacilityClass);
+        }
+        break;
+      }
+      case "armor": {
+        const nextArmorClass = tankFacilityDb.some(
+          (facility) => facility.className === selectedArmorUnitClass
+        )
+          ? selectedArmorUnitClass
+          : tankFacilityDb[0]?.className;
+        setEntityFilterSelectedOptions([...currentSideFilters, "facility"]);
+        if (nextArmorClass) {
+          handleUnitClassSelect("facility", nextArmorClass);
+        }
+        break;
+      }
+      case "ship": {
+        const nextShipClass = shipDb.some(
+          (ship) => ship.className === selectedShipUnitClass
+        )
+          ? selectedShipUnitClass
+          : shipDb[0]?.className;
+        setEntityFilterSelectedOptions([...currentSideFilters, "ship"]);
+        if (nextShipClass) {
+          handleUnitClassSelect("ship", nextShipClass);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }, [
+    aircraftDb,
+    airbaseDb,
+    droneAircraftDb,
+    facilityDb,
+    mannedAircraftDb,
+    props.assetPlacementFocusIntent.assetType,
+    props.assetPlacementFocusIntent.signal,
+    props.scenarioCurrentSideId,
+    selectedAirbaseUnitClass,
+    selectedArmorUnitClass,
+    selectedDroneUnitClass,
+    selectedMannedAircraftUnitClass,
+    selectedShipUnitClass,
+    selectedSupportFacilityUnitClass,
+    shipDb,
+    supportFacilityDb,
+    tankFacilityDb,
+  ]);
 
   const handleAssetPlacementPreviewClose = () => {
     setAssetPlacementPreview(null);
@@ -937,7 +1342,10 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
       }
       case "facility":
         setSelectedSamUnitClass(assetPlacementPreview.unitClassName);
-        props.addFacilityOnClick(assetPlacementPreview.unitClassName);
+        props.addFacilityOnClick(
+          assetPlacementPreview.unitClassName,
+          assetPlacementPreview.deploymentDefaults ?? undefined
+        );
         break;
       case "ship":
         setSelectedShipUnitClass(assetPlacementPreview.unitClassName);
@@ -1002,6 +1410,11 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
       value: className,
       description,
     });
+    const prioritizedQuickAddAirbaseOptions =
+      sortBaseSelectionOptionsByDistance(
+        buildPriorityQuickAddAirbaseOptions(airbaseDb),
+        props.game.mapView.currentCameraCenter
+      );
 
     const sections: QuickAddSection[] = [
       {
@@ -1101,8 +1514,8 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
       {
         title: "기지 / 유틸",
         items: [
-          ...PRIORITY_ARTILLERY_BASE_OPTIONS,
-          ...buildPriorityQuickAddAirbaseOptions(airbaseDb),
+          ...recommendedArtilleryBaseOptions,
+          ...prioritizedQuickAddAirbaseOptions,
           {
             key: "reference-point",
             label: "참조점",
@@ -1117,16 +1530,43 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
     return sections.filter((section) => section.items.length > 0);
   };
 
+  const recommendedArtilleryBaseOptions = buildAdaptiveArtilleryPresetOptions(
+    sortBaseSelectionOptionsByDistance(
+      PRIORITY_ARTILLERY_BASE_OPTIONS,
+      props.game.mapView.currentCameraCenter
+    ),
+    props.game.currentScenario,
+    props.game.currentSideId
+  ).map((item) => ({
+    ...item,
+    presetContext: {
+      regionLabel: item.regionLabel,
+      coverageLabel: item.coverageLabel,
+      representativeAssetLabel: item.representativeAssetLabel,
+      sourceLabel: item.sourceLabel,
+      threatAxisLabel: item.threatAxisLabel,
+    },
+    deploymentDefaults:
+      item.deploymentHeadingDegrees !== undefined
+        ? {
+            headingDegrees: item.deploymentHeadingDegrees,
+            arcDegrees: item.deploymentArcDegrees,
+            recommendationLabel: item.deploymentRecommendationLabel,
+            formation: item.formation,
+          }
+        : undefined,
+  }));
+
   const experienceSections = [
     {
       title: "지상전",
       items: [
         {
-          key: "experience-battle-spectator",
-          label: "전장 3D 관전",
-          description: "현재 시나리오를 3D 지형 위에서 실시간 관전",
+          key: "experience-airwatch-3d",
+          label: "공중 관측 3D",
+          description: "현재 시나리오를 공중 관측형 3D 화면으로 표시",
           entityType: "facility" as const,
-          onClick: props.openBattleSpectator,
+          onClick: props.openScenario3dView,
         },
         {
           key: "experience-ground",
@@ -1200,21 +1640,269 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   const focusFireSummary = props.game.getFocusFireSummary();
   const focusFireInsight = buildFocusFireInsight(focusFireSummary);
   const focusFireDockStage = resolveFocusFireDockStage(focusFireSummary);
-  const showEmptyScenarioGuide = isScenarioEmptyForOnboarding(
+  const isEmptyScenario = isScenarioEmptyForOnboarding(
     props.game.currentScenario
   );
+  const scenarioAssetCount =
+    props.game.currentScenario.aircraft.length +
+    props.game.currentScenario.airbases.length +
+    props.game.currentScenario.armies.length +
+    props.game.currentScenario.facilities.length +
+    props.game.currentScenario.ships.length;
+  const currentSideId = props.game.currentScenario.getSide(
+    props.game.currentSideId
+  )?.id;
+  const currentSideName = props.game.currentScenario.getSideName(
+    props.game.currentSideId
+  );
+  const currentSideMissionCount = props.game.currentScenario.missions.filter(
+    (mission) => mission.sideId === currentSideId
+  ).length;
+  const entityFilterTypeOptions = [
+    "airbase",
+    "aircraft",
+    "army",
+    "ship",
+    "facility",
+    "referencePoint",
+  ];
+  const scenarioSideIds = props.game.currentScenario.sides.map(
+    (side) => side.id
+  );
+  const currentlySelectedSideIds = props.game.godMode
+    ? scenarioSideIds
+    : [props.game.currentSideId];
+  const plottedSideFeatures = props.featureEntitiesPlotted.filter(
+    (feature: FeatureEntityState) =>
+      currentlySelectedSideIds.includes(feature.sideId)
+  );
+  const selectedEntitySideIds = entityFilterSelectedOptions.filter(
+    (selectedOption: string) => scenarioSideIds.includes(selectedOption)
+  );
+  const selectedEntityTypes = entityFilterSelectedOptions.filter(
+    (selectedOption: string) => entityFilterTypeOptions.includes(selectedOption)
+  );
+  const filteredEntityFeatures = props.featureEntitiesPlotted.filter(
+    (feature: FeatureEntityState) => {
+      if (selectedEntitySideIds.length > 0) {
+        if (selectedEntityTypes.length > 0) {
+          return (
+            selectedEntityTypes.includes(feature.type) &&
+            selectedEntitySideIds.includes(feature.sideId)
+          );
+        }
+
+        return selectedEntitySideIds.includes(feature.sideId);
+      }
+
+      return selectedEntityTypes.includes(feature.type);
+    }
+  );
+  const currentSideOperationalFeatureCount =
+    props.featureEntitiesPlotted.filter(
+      (feature: FeatureEntityState) =>
+        feature.sideId === currentSideId &&
+        !feature.type.startsWith("reference")
+    ).length;
+  const scenarioMissionCount = props.game.currentScenario.missions.length;
+  const scenarioWeaponsInFlight = props.game.currentScenario.weapons.length;
+  const scenarioStatusLabel = props.game.scenarioPaused
+    ? "일시정지"
+    : "실행 중";
+  const focusFireSectionOpen =
+    focusFireSummary.enabled ||
+    focusFireSummary.active ||
+    Boolean(focusFireSummary.objectiveName);
+  const missionSectionOpen = props.game.currentScenario.missions.length > 0;
+  const focusFireRiskTone =
+    focusFireInsight.shockIndex >= 70 || scenarioWeaponsInFlight >= 4
+      ? "danger"
+      : focusFireInsight.shockIndex >= 40 || scenarioWeaponsInFlight >= 2
+        ? "warning"
+        : focusFireSummary.enabled || focusFireSummary.objectiveName
+          ? "accent"
+          : "neutral";
+  const commandPanelSummary = (() => {
+    if (isEmptyScenario) {
+      return {
+        riskLabel: "구성 전",
+        riskTone: "neutral" as const,
+        summary: "자산 배치 필요",
+        action: "정찰·화력 자산 우선 배치",
+        recommendedMissionValue: "초기 배치",
+        recommendedMissionDetail: "첫 임무 생성",
+      };
+    }
+
+    if (
+      focusFireSummary.active &&
+      (focusFireInsight.shockIndex >= 70 || scenarioWeaponsInFlight >= 4)
+    ) {
+      return {
+        riskLabel: "긴급",
+        riskTone: "danger" as const,
+        summary: `${
+          focusFireSummary.objectiveName ?? "목표 축"
+        } 화력 집중 · 비행탄 ${scenarioWeaponsInFlight}발`,
+        action: focusFireSummary.recommendation?.targetName
+          ? `${focusFireSummary.recommendation.targetName} 후속 타격 정리`
+          : "방호 축 우선 정리",
+        recommendedMissionValue: focusFireSummary.recommendation?.missionKind
+          ? `${focusFireSummary.recommendation.missionKind}`
+          : "화력 대응",
+        recommendedMissionDetail: focusFireSummary.recommendation
+          ?.recommendedOptionLabel
+          ? `${focusFireSummary.recommendation.recommendedOptionLabel} · ${focusFireSummary.recommendation.launchReadinessLabel}`
+          : "즉응 자산 우선",
+      };
+    }
+
+    if (
+      currentSideMissionCount === 0 &&
+      currentSideOperationalFeatureCount > 0
+    ) {
+      return {
+        riskLabel: "주의",
+        riskTone: "warning" as const,
+        summary: `자산 ${currentSideOperationalFeatureCount} · 임무 없음`,
+        action: "초계/타격 임무 생성",
+        recommendedMissionValue: "임무 생성 필요",
+        recommendedMissionDetail: "표적 또는 순찰 축 지정",
+      };
+    }
+
+    if (focusFireSummary.enabled || focusFireSummary.objectiveName) {
+      return {
+        riskLabel: "공세 준비",
+        riskTone: "accent" as const,
+        summary: `${
+          focusFireSummary.objectiveName ?? "목표 축"
+        } ${focusFireSummary.statusLabel}`,
+        action: focusFireSummary.recommendation?.targetName
+          ? `${focusFireSummary.recommendation.targetName} 패키지 점검`
+          : "목표·발사 패키지 점검",
+        recommendedMissionValue: focusFireSummary.recommendation?.targetName
+          ? `${focusFireSummary.recommendation.targetName} 타격`
+          : "화력 임무 준비",
+        recommendedMissionDetail:
+          focusFireSummary.recommendation?.launchReadinessLabel ??
+          "발사 준비 확인",
+      };
+    }
+
+    if (scenarioWeaponsInFlight > 0 || currentSideMissionCount >= 3) {
+      return {
+        riskLabel: "경계",
+        riskTone: "warning" as const,
+        summary: `임무 ${currentSideMissionCount} · 비행탄 ${scenarioWeaponsInFlight}`,
+        action: "우선순위 재정렬",
+        recommendedMissionValue: "임무 재정렬",
+        recommendedMissionDetail: "핵심 축 재집중",
+      };
+    }
+
+    return {
+      riskLabel: "안정",
+      riskTone: "accent" as const,
+      summary: `자산 ${currentSideOperationalFeatureCount} · 임무 ${currentSideMissionCount}`,
+      action: "현재 흐름 유지",
+      recommendedMissionValue: "현재 임무 유지",
+      recommendedMissionDetail:
+        focusFireSummary.recommendation?.recommendedOptionLabel ??
+        "필요 시 화력 전환",
+    };
+  })();
+  const sectionHeaderBadges = {
+    recording: [
+      {
+        label: props.game.recordingPlayer.hasRecording()
+          ? "재생 준비"
+          : "기록 대기",
+        tone: props.game.recordingPlayer.hasRecording() ? "accent" : "default",
+      },
+      {
+        label: recordingScenario
+          ? "REC"
+          : `간격 ${formatSecondsToString(
+              props.game.playbackRecorder.recordEverySeconds
+            )}`,
+        tone: recordingScenario ? "warning" : "default",
+      },
+    ] as const,
+    assets: [
+      {
+        label: `${filteredEntityFeatures.length}개`,
+        tone: filteredEntityFeatures.length > 0 ? "accent" : "default",
+      },
+      {
+        label: props.game.godMode ? "전체 시점" : currentSideName,
+        tone: props.game.godMode ? "warning" : "default",
+      },
+    ] as const,
+    focusFire: [
+      {
+        label: `충격량 ${focusFireInsight.shockIndex}`,
+        tone:
+          focusFireRiskTone === "danger"
+            ? "danger"
+            : focusFireRiskTone === "warning"
+              ? "warning"
+              : "accent",
+      },
+      {
+        label: focusFireSummary.statusLabel,
+        tone: focusFireSummary.active
+          ? "danger"
+          : focusFireSummary.enabled
+            ? "accent"
+            : "default",
+      },
+    ] as const,
+    mission: [
+      {
+        label: `${currentSideMissionCount}개`,
+        tone: currentSideMissionCount > 0 ? "accent" : "default",
+      },
+      {
+        label: currentSideName,
+        tone: "default",
+      },
+    ] as const,
+  };
+  const armyGptBriefingCards: ArmyGptBriefingCard[] = [
+    {
+      label: "전력",
+      value: `자산 ${currentSideOperationalFeatureCount} · 임무 ${currentSideMissionCount}`,
+      description: props.game.godMode
+        ? `전체 시점 기준 표시 자산 ${plottedSideFeatures.length}개를 추적 중입니다.`
+        : `${currentSideName} 기준 현재 전장 자산과 임무 흐름을 추적합니다.`,
+      tone: currentSideMissionCount > 0 ? "accent" : "neutral",
+    },
+    {
+      label: "위협",
+      value: commandPanelSummary.riskLabel,
+      description: commandPanelSummary.summary,
+      tone: commandPanelSummary.riskTone,
+    },
+    {
+      label: "권고 임무",
+      value: commandPanelSummary.recommendedMissionValue,
+      description: commandPanelSummary.recommendedMissionDetail,
+      tone: commandPanelSummary.riskTone === "danger" ? "warning" : "accent",
+    },
+  ];
 
   const focusFireSection = () => (
-    <Stack spacing={1.2} sx={{ p: 1.5 }}>
+    <Stack spacing={1} sx={{ p: 0.35 }}>
       <Box
         sx={{
-          p: 1.2,
+          p: 1,
           borderRadius: 2,
-          backgroundColor: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(45, 214, 196, 0.12)",
+          backgroundColor: "rgba(255,255,255,0.025)",
+          border: "1px solid rgba(45, 214, 196, 0.08)",
         }}
       >
-        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+        <Stack direction="row" spacing={0.8} sx={{ flexWrap: "wrap" }}>
           <Chip
             size="small"
             color={focusFireSummary.active ? "warning" : "default"}
@@ -1227,52 +1915,15 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
           />
         </Stack>
 
-        <Typography variant="body2" sx={{ mt: 1, color: "text.secondary" }}>
-          목표: {focusFireSummary.objectiveName ?? "미지정"}
+        <Typography variant="body2" sx={{ mt: 0.85, color: "text.secondary" }}>
+          목표 {focusFireSummary.objectiveName ?? "미지정"}
         </Typography>
         <Typography variant="body2" sx={{ mt: 0.45, color: "text.secondary" }}>
-          화력 포대 {focusFireSummary.artilleryCount} / 기갑{" "}
-          {focusFireSummary.armorCount} / 항공 {focusFireSummary.aircraftCount}
+          포대 {focusFireSummary.artilleryCount} · 기갑{" "}
+          {focusFireSummary.armorCount} · 항공 {focusFireSummary.aircraftCount}
         </Typography>
         <Typography variant="body2" sx={{ mt: 0.45, color: "text.secondary" }}>
-          비행 중 탄체: {focusFireSummary.weaponsInFlight}
-        </Typography>
-        <Typography variant="body2" sx={{ mt: 0.55, color: "text.secondary" }}>
-          다음 단계: {focusFireDockStage.title}
-        </Typography>
-      </Box>
-
-      <Box
-        sx={{
-          p: 1.2,
-          borderRadius: 2,
-          background:
-            "linear-gradient(180deg, rgba(10, 26, 34, 0.96) 0%, rgba(6, 17, 22, 0.94) 100%)",
-          border: "1px solid rgba(45, 214, 196, 0.16)",
-        }}
-      >
-        <Stack
-          direction="row"
-          spacing={1}
-          alignItems="center"
-          sx={{ flexWrap: "wrap" }}
-        >
-          <Typography sx={{ fontWeight: 700 }}>작전 패널</Typography>
-          <Chip
-            size="small"
-            variant="outlined"
-            label={`충격량 ${focusFireInsight.shockIndex}`}
-          />
-        </Stack>
-        <Typography sx={{ mt: 0.8, fontSize: 12.5, color: "text.secondary" }}>
-          상세 화력 추천, AI 학습, 데이터 내보내기는 우하단 작전 패널에서
-          다룹니다.
-        </Typography>
-        <Typography sx={{ mt: 0.7, fontSize: 12.5, color: "text.secondary" }}>
-          {focusFireInsight.intensityLabel} · {focusFireInsight.dominantAxis}
-        </Typography>
-        <Typography sx={{ mt: 0.7, fontSize: 12.5, color: "text.secondary" }}>
-          {focusFireDockStage.description}
+          다음 단계 {focusFireDockStage.title}
         </Typography>
       </Box>
 
@@ -1293,12 +1944,16 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
         </Button>
         <Button
           size="small"
-          variant="contained"
+          variant="outlined"
           onClick={props.openFocusFireDock}
         >
-          {focusFireDockStage.panelButtonLabel}
+          작전 패널
         </Button>
       </Stack>
+
+      <Typography sx={{ fontSize: 12, color: "text.secondary", px: 0.2 }}>
+        충격량 {focusFireInsight.shockIndex} · {focusFireInsight.intensityLabel}
+      </Typography>
     </Stack>
   );
 
@@ -1418,7 +2073,8 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
     props.keyboardShortcutsEnabled &&
     !scenarioEditNameAnchorEl &&
     !isChatInputFocused &&
-    !assetPlacementPreview
+    !assetPlacementPreview &&
+    !scenarioLaunchDialogOpen
   ) {
     document.onkeydown = keyboardEventHandler;
   } else {
@@ -1600,9 +2256,6 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   };
 
   const missionSection = () => {
-    const currentSideId = props.game.currentScenario.getSide(
-      props.game.currentSideId
-    )?.id;
     const sideMissions = props.game.currentScenario.missions.filter(
       (mission) => mission.sideId === currentSideId
     );
@@ -1664,8 +2317,10 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   };
 
   const quickAddSections = buildQuickAddSections();
-  const baseSelectionAirbaseOptions =
-    buildBaseSelectionAirbaseOptions(airbaseDb);
+  const baseSelectionAirbaseOptions = sortBaseSelectionOptionsByDistance(
+    buildBaseSelectionAirbaseOptions(airbaseDb),
+    props.game.mapView.currentCameraCenter
+  );
 
   const quickAddMenu = () => (
     <Menu
@@ -1709,7 +2364,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                   handleUnitClassSelect(
                     item.unitType,
                     item.value,
-                    item.displayName
+                    toSelectionOptions(item)
                   );
                 }
                 handleQuickAddMenuClose();
@@ -1921,7 +2576,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                 handleUnitClassSelect("aircraft", aircraft.className);
                 handleDroneIconClose();
               }}
-              selected={aircraft.className === selectedAircraftUnitClass}
+              selected={aircraft.className === selectedDroneUnitClass}
               key={aircraft.className}
               value={aircraft.className}
             >
@@ -1991,18 +2646,19 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
               lineHeight: 2.2,
             }}
           >
-            포병 우선
+            포병 우선 · 가까운 권역순
           </ListSubheader>
-          {PRIORITY_ARTILLERY_BASE_OPTIONS.map((item) => (
+          {recommendedArtilleryBaseOptions.map((item) => (
             <MenuItem
               onClick={(_event: React.MouseEvent<HTMLElement>) => {
                 handleUnitClassSelect(
                   item.unitType,
                   item.value,
-                  item.displayName
+                  toSelectionOptions(item)
                 );
                 handleAirbaseClose();
               }}
+              selected={item.key === selectedBaseSelectionKey}
               key={item.key}
               value={item.value}
             >
@@ -2021,7 +2677,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
               lineHeight: 2.2,
             }}
           >
-            공군기지
+            공군기지 · 가까운 권역순
           </ListSubheader>
           {baseSelectionAirbaseOptions.map((item) => (
             <MenuItem
@@ -2029,11 +2685,11 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                 handleUnitClassSelect(
                   item.unitType,
                   item.value,
-                  item.displayName
+                  toSelectionOptions(item)
                 );
                 handleAirbaseClose();
               }}
-              selected={item.value === selectedAirbaseUnitClass}
+              selected={item.key === selectedBaseSelectionKey}
               key={item.key}
               value={item.value}
             >
@@ -2152,7 +2808,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                 handleUnitClassSelect("facility", facility.className);
                 handleTankIconClose();
               }}
-              selected={facility.className === selectedSamUnitClass}
+              selected={facility.className === selectedArmorUnitClass}
               key={facility.className}
               value={facility.className}
             >
@@ -2418,18 +3074,11 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   };
 
   const entitiesSection = () => {
-    const sideIds = props.game.currentScenario.sides.map((side) => side.id);
-    const currentlySelectedSides = props.game.godMode
-      ? sideIds
-      : [props.game.currentSideId];
-    const plottedSideFeatures = props.featureEntitiesPlotted.filter(
-      (feature: FeatureEntityState) =>
-        currentlySelectedSides.includes(feature.sideId)
-    );
     if (
       !entityFilterSelectedOptions.length ||
       !props.featureEntitiesPlotted.length ||
-      !plottedSideFeatures.length
+      !plottedSideFeatures.length ||
+      !filteredEntityFeatures.length
     ) {
       return (
         <Box
@@ -2451,97 +3100,108 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
     return (
       <Stack spacing={1} direction={"column"} sx={{ gap: "8px" }}>
         {props.mobileView && entityMenuButtons()}
-        {props.featureEntitiesPlotted
-          .filter((feature: FeatureEntityState) => {
-            const selectedSideIds = entityFilterSelectedOptions.filter(
-              (selectedOption: string) => sideIds.includes(selectedOption)
-            );
-            const selectedTypes = entityFilterSelectedOptions.filter(
-              (selectedOption: string) =>
-                [
-                  "airbase",
-                  "aircraft",
-                  "army",
-                  "ship",
-                  "facility",
-                  "referencePoint",
-                ].includes(selectedOption)
-            );
-
-            // Side color(s) selected, prioritize 'side color' first
-            if (selectedSideIds.length) {
-              // Type(s) selected too - filter both 'type' and 'side color'
-              if (selectedTypes.length) {
-                return (
-                  selectedTypes.includes(feature.type) &&
-                  selectedSideIds.includes(feature.sideId)
-                );
-              }
-              // Only side color selected in options - filter 'side color'
-              return selectedSideIds.includes(feature.sideId);
+        {filteredEntityFeatures.map((feature: FeatureEntityState) => (
+          <Tooltip
+            key={feature.id}
+            placement="right"
+            arrow
+            title={
+              <Stack direction={"column"} spacing={0.1}>
+                <Typography variant="body2" sx={{ fontWeight: "bold" }}>
+                  이름: {feature.name}
+                </Typography>
+                {!feature.type.startsWith("reference") && (
+                  <Typography variant="body2" sx={{ fontWeight: "bold" }}>
+                    유형: {getEntityTypeLabel(feature.type)}
+                  </Typography>
+                )}
+                <Typography variant="body2" sx={{ fontWeight: "bold" }}>
+                  세력: {props.game.currentScenario.getSideName(feature.sideId)}
+                </Typography>
+              </Stack>
             }
-
-            // No side color filter(s) - filter 'type'
-            return selectedTypes.includes(feature.type);
-          })
-          .map((feature: FeatureEntityState) => (
-            <Tooltip
+          >
+            <MenuItem
+              disableRipple
+              sx={{
+                cursor: "help",
+                borderRadius: 1.5,
+                border: "1px solid rgba(45, 214, 196, 0.1)",
+                backgroundColor: "rgba(255,255,255,0.03)",
+              }}
               key={feature.id}
-              placement="right"
-              arrow
-              title={
-                <Stack direction={"column"} spacing={0.1}>
-                  <Typography variant="body2" sx={{ fontWeight: "bold" }}>
-                    이름: {feature.name}
-                  </Typography>
-                  {!feature.type.startsWith("reference") && (
-                    <Typography variant="body2" sx={{ fontWeight: "bold" }}>
-                      유형: {getEntityTypeLabel(feature.type)}
-                    </Typography>
-                  )}
-                  <Typography variant="body2" sx={{ fontWeight: "bold" }}>
-                    세력:{" "}
-                    {props.game.currentScenario.getSideName(feature.sideId)}
-                  </Typography>
-                </Stack>
-              }
+              value={feature.name}
             >
-              <MenuItem
-                disableRipple
-                sx={{
-                  cursor: "help",
-                  borderRadius: 1.5,
-                  border: "1px solid rgba(45, 214, 196, 0.1)",
-                  backgroundColor: "rgba(255,255,255,0.03)",
-                }}
-                key={feature.id}
-                value={feature.name}
-              >
-                <ListItemIcon>
-                  <EntityIcon type={feature.type} color={feature.sideColor} />
-                </ListItemIcon>
-                <ListItemText primary={feature.name} sx={{ mr: 1 }} />
-                <Tooltip title={`${feature.name} 삭제`}>
-                  <IconButton
-                    size="small"
-                    color="error"
-                    aria-label={`${feature.name} 삭제`}
-                    onClick={(event) =>
-                      handleDeleteFeatureEntity(event, feature)
-                    }
-                  >
-                    <Delete fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </MenuItem>
-            </Tooltip>
-          ))}
+              <ListItemIcon>
+                <EntityIcon type={feature.type} color={feature.sideColor} />
+              </ListItemIcon>
+              <ListItemText primary={feature.name} sx={{ mr: 1 }} />
+              <Tooltip title={`${feature.name} 삭제`}>
+                <IconButton
+                  size="small"
+                  color="error"
+                  aria-label={`${feature.name} 삭제`}
+                  onClick={(event) => handleDeleteFeatureEntity(event, feature)}
+                >
+                  <Delete fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </MenuItem>
+          </Tooltip>
+        ))}
       </Stack>
     );
   };
 
   return (
     <>
+      <Dialog
+        open={scenarioLaunchDialogOpen}
+        onClose={() => setScenarioLaunchDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            px: { xs: 2, sm: 3 },
+            py: { xs: 2.5, sm: 3 },
+            borderRadius: 4,
+          },
+        }}
+      >
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={2}
+          sx={{ width: "100%" }}
+        >
+          <Button
+            variant="contained"
+            onClick={startScenarioIn2dMode}
+            sx={{
+              flex: 1,
+              minHeight: 92,
+              fontSize: "1.3rem",
+              fontWeight: 800,
+              borderRadius: 3,
+            }}
+          >
+            2D모드
+          </Button>
+          <Button
+            variant="contained"
+            onClick={startScenarioIn3dMode}
+            sx={{
+              flex: 1,
+              minHeight: 92,
+              fontSize: "1.3rem",
+              fontWeight: 800,
+              borderRadius: 3,
+            }}
+          >
+            3D모드
+          </Button>
+        </Stack>
+      </Dialog>
+
       <AppBar
         position="fixed"
         elevation={0}
@@ -2549,44 +3209,41 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
       >
         <MapToolbar
           variant="dense"
-          sx={{ ...toolbarStyle, overflow: "hidden", gap: 0.8 }}
+          sx={{
+            ...toolbarStyle,
+            overflow: "hidden",
+            gap: 1,
+            px: 1.25,
+            py: 0.65,
+          }}
           disableGutters
         >
           {props.drawerOpen ? (
-            <Tooltip title="패널 닫기">
+            <Tooltip title="실행 도크 닫기">
               <IconButton
                 color="inherit"
-                aria-label="패널 닫기"
+                aria-label="실행 도크 닫기"
                 onClick={props.closeDrawer}
                 edge="start"
-                sx={[
-                  {
-                    ml: 1,
-                    color: COLOR_PALETTE.BLACK,
-                  },
-                ]}
+                sx={{ color: COLOR_PALETTE.BLACK }}
               >
                 <MenuOpenOutlinedIcon />
               </IconButton>
             </Tooltip>
           ) : (
-            <Tooltip title="패널 열기">
+            <Tooltip title="실행 도크 열기">
               <IconButton
                 color="inherit"
-                aria-label="패널 열기"
+                aria-label="실행 도크 열기"
                 onClick={props.openDrawer}
                 edge="start"
-                sx={[
-                  {
-                    ml: 1,
-                    color: COLOR_PALETTE.BLACK,
-                  },
-                ]}
+                sx={{ color: COLOR_PALETTE.BLACK }}
               >
                 <MenuIcon />
               </IconButton>
             </Tooltip>
           )}
+
           <Stack
             direction={"row"}
             sx={{
@@ -2642,7 +3299,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                       letterSpacing: "0.06em",
                     }}
                   >
-                    ArmyAicenter 제작
+                    3D 시뮬레이션 중심 전장 체험
                   </Typography>
                 )}
               </Box>
@@ -2730,23 +3387,16 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
             {showExperienceShortcut && (
               <Button
                 variant="outlined"
-                onClick={props.openBattleSpectator}
+                onClick={props.openScenario3dView}
                 startIcon={<VisibilityOutlinedIcon />}
                 sx={{
-                  ml: 1.2,
-                  borderRadius: "999px",
-                  borderColor: "rgba(45, 214, 196, 0.32)",
-                  color: "var(--fs-text)",
+                  borderColor: "rgba(45, 214, 196, 0.28)",
+                  backgroundColor: "rgba(255,255,255,0.04)",
                   fontWeight: 700,
                   whiteSpace: "nowrap",
-                  backgroundColor: "rgba(255,255,255,0.04)",
-                  "&:hover": {
-                    borderColor: "var(--fs-accent)",
-                    backgroundColor: "rgba(45, 214, 196, 0.08)",
-                  },
                 }}
               >
-                {compactToolbar ? "관전" : "전장 3D 관전"}
+                {compactToolbar ? "3D" : "공중 관측 3D"}
               </Button>
             )}
             {showExperienceShortcut && (
@@ -2755,57 +3405,14 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                 onClick={handleExperienceMenuToggle}
                 startIcon={<ViewInArOutlinedIcon />}
                 endIcon={<KeyboardArrowDownIcon />}
-                sx={{
-                  ml: 1.2,
-                  borderRadius: "999px",
-                  backgroundColor: "var(--fs-accent)",
-                  color: "#031114",
-                  fontWeight: 700,
-                  whiteSpace: "nowrap",
-                  boxShadow: "none",
-                  "&:hover": {
-                    backgroundColor: "var(--fs-accent-strong)",
-                    color: "#031114",
-                    boxShadow: "none",
-                  },
-                }}
+                sx={{ fontWeight: 700, whiteSpace: "nowrap" }}
               >
                 {compactToolbar ? "3D" : "3D 모드"}
               </Button>
             )}
             {experienceMenu()}
-            {showRlLabShortcut && (
-              <Button
-                variant="outlined"
-                onClick={props.openRlLabPage}
-                startIcon={<Storage />}
-                sx={{
-                  ml: 1.2,
-                  borderRadius: "999px",
-                  borderColor: "rgba(45, 214, 196, 0.28)",
-                  color: COLOR_PALETTE.BLACK,
-                  fontWeight: 700,
-                  whiteSpace: "nowrap",
-                  "&:hover": {
-                    borderColor: "var(--fs-accent)",
-                    backgroundColor: "rgba(45, 214, 196, 0.08)",
-                  },
-                }}
-              >
-                {compactToolbar ? "RL" : "강화학습 설계"}
-              </Button>
-            )}
           </Stack>
           <Box sx={{ flexGrow: 1 }} />
-          {showHealthCheck && <HealthCheck />}
-          {showHealthCheck && (
-            <Divider
-              orientation="vertical"
-              variant="middle"
-              flexItem
-              sx={{ borderColor: COLOR_PALETTE.DARK_GRAY, mr: 1.6 }}
-            />
-          )}
           <LoginLogout />
         </MapToolbar>
       </AppBar>
@@ -2813,7 +3420,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
       <Drawer
         sx={toolbarDrawerStyle}
         variant="persistent"
-        anchor="left"
+        anchor="right"
         open={props.drawerOpen}
       >
         {/** Container/Wrapper */}
@@ -2821,50 +3428,125 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
           disableGutters
           sx={{
             backgroundColor: COLOR_PALETTE.LIGHT_GRAY,
-            // The container is now a flex column to manage the main layout.
             display: "flex",
             flexDirection: "column",
             height: "100%",
+            minHeight: 0,
             flexGrow: 1,
-            borderRight: "1px solid",
-            borderRightColor: COLOR_PALETTE.DARK_GRAY,
-            overflow: "hidden", // Hide overflow here, child will handle scrolling
+            borderLeft: "1px solid",
+            borderLeftColor: COLOR_PALETTE.DARK_GRAY,
+            overflow: "hidden",
           }}
         >
           <DrawerHeader />
-          {/* Two boxes for the side drawer, utils and chatbot */}
-          {/* This new Box contains all the scrollable content. */}
-          {/* It will grow to fill available space, pushing the chatbot down. */}
-          <Box sx={{ flexGrow: 1, overflowY: "auto", padding: 1 }}>
-            {/** Scenario Section */}
+          <Box
+            sx={{ flexGrow: 1, minHeight: 0, overflowY: "auto", padding: 1 }}
+          >
             <Stack>
-              {/** Scenario Name */}
               <Box
                 sx={{
                   mx: 1,
-                  mb: 1,
-                  px: 1.2,
-                  py: 1.05,
-                  borderRadius: 2,
-                  backgroundColor: "rgba(255,255,255,0.03)",
+                  mb: 0.9,
+                  p: 1.15,
+                  borderRadius: 2.6,
+                  background:
+                    "radial-gradient(circle at top left, rgba(53, 217, 198, 0.12) 0%, transparent 42%), linear-gradient(180deg, rgba(9, 24, 30, 0.98) 0%, rgba(6, 16, 21, 0.96) 100%)",
                   border: "1px solid rgba(45, 214, 196, 0.12)",
                 }}
               >
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                  {props.game.currentScenario.name}
-                </Typography>
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  alignItems="flex-start"
+                  justifyContent="space-between"
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                      {props.game.currentScenario.name}
+                    </Typography>
+                    <Typography
+                      sx={{
+                        mt: 0.45,
+                        fontSize: 11.8,
+                        lineHeight: 1.45,
+                        color: "text.secondary",
+                      }}
+                    >
+                      {isEmptyScenario
+                        ? "자산 배치 필요"
+                        : `자산 ${scenarioAssetCount} · 임무 ${scenarioMissionCount} · 비행탄 ${scenarioWeaponsInFlight}`}
+                    </Typography>
+                    <Box
+                      sx={{
+                        mt: 0.95,
+                        px: 0.95,
+                        py: 0.8,
+                        borderRadius: 2.2,
+                        backgroundColor: "rgba(255,255,255,0.03)",
+                        border: "1px solid rgba(45, 214, 196, 0.1)",
+                      }}
+                    >
+                      <Typography
+                        sx={{
+                          fontSize: 11.2,
+                          fontWeight: 700,
+                          lineHeight: 1.45,
+                          color:
+                            commandPanelSummary.riskTone === "danger"
+                              ? "#ffb0b0"
+                              : commandPanelSummary.riskTone === "warning"
+                                ? "var(--fs-sand)"
+                                : "var(--fs-accent-soft)",
+                        }}
+                      >
+                        {commandPanelSummary.summary}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Stack spacing={0.8} sx={{ flexShrink: 0 }}>
+                    <Chip
+                      size="small"
+                      variant={
+                        props.game.scenarioPaused ? "outlined" : "filled"
+                      }
+                      label={scenarioStatusLabel}
+                      sx={{ flexShrink: 0 }}
+                    />
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={commandPanelSummary.riskLabel}
+                      sx={{
+                        flexShrink: 0,
+                        color:
+                          commandPanelSummary.riskTone === "danger"
+                            ? "#ffb0b0"
+                            : commandPanelSummary.riskTone === "warning"
+                              ? "var(--fs-sand)"
+                              : "var(--fs-accent-soft)",
+                        borderColor:
+                          commandPanelSummary.riskTone === "danger"
+                            ? "rgba(255, 122, 122, 0.26)"
+                            : commandPanelSummary.riskTone === "warning"
+                              ? "rgba(240, 187, 109, 0.28)"
+                              : "rgba(45, 214, 196, 0.24)",
+                        backgroundColor:
+                          commandPanelSummary.riskTone === "danger"
+                            ? "rgba(255, 122, 122, 0.08)"
+                            : commandPanelSummary.riskTone === "warning"
+                              ? "rgba(240, 187, 109, 0.08)"
+                              : "rgba(45, 214, 196, 0.08)",
+                      }}
+                    />
+                  </Stack>
+                </Stack>
               </Box>
-              {/** Context Notification Text Section */}
-              <Stack spacing={0.5} direction="column" sx={{ p: 0, mt: 0 }}>
-                <CurrentActionContextDisplay />
-              </Stack>
-              {/** Scenario Actions */}{" "}
               <CardActions
                 sx={{
                   display: "flex",
                   justifyContent: "center",
                   px: 1,
-                  py: 0.5,
+                  py: 0.2,
                 }}
               >
                 <Stack
@@ -2875,11 +3557,11 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                     justifyContent: "center",
                     alignItems: "center",
                     width: "100%",
-                    px: 0.9,
-                    py: 0.35,
-                    borderRadius: 2,
-                    backgroundColor: "rgba(255,255,255,0.03)",
-                    border: "1px solid rgba(45, 214, 196, 0.12)",
+                    px: 0.75,
+                    py: 0.45,
+                    borderRadius: 2.2,
+                    backgroundColor: "rgba(255,255,255,0.025)",
+                    border: "1px solid rgba(45, 214, 196, 0.08)",
                   }}
                 >
                   <Tooltip title="새로 만들기">
@@ -3008,77 +3690,12 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                 </form>
               </Menu>
               {presetScenarioSelectionMenu()}
-              {showEmptyScenarioGuide && (
-                <Box
-                  sx={{
-                    mx: 1,
-                    mb: 1.5,
-                    p: 1.5,
-                    borderRadius: 1.5,
-                    background:
-                      "linear-gradient(180deg, rgba(10, 26, 34, 0.95) 0%, rgba(6, 17, 22, 0.92) 100%)",
-                    border: "1px solid rgba(45, 214, 196, 0.18)",
-                  }}
-                >
-                  <Stack spacing={1}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                      빈 화면에서 바로 배치를 시작할 수 있습니다.
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ color: "text.secondary" }}
-                    >
-                      기존 데모나 저장된 시나리오는 <strong>불러오기</strong>를
-                      눌러야만 지도에 표시됩니다.
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ color: "text.secondary" }}
-                    >
-                      새 배치를 시작하려면 세력을 확인한 뒤 상단의{" "}
-                      <strong>자산 종류</strong> 또는 자산 아이콘을 선택하고,
-                      지도에서 원하는 위치를 클릭하세요.
-                    </Typography>
-                    <Stack direction="row" spacing={1}>
-                      <Button
-                        size="small"
-                        variant="contained"
-                        onClick={handleLoadScenarioIconClick}
-                        sx={{
-                          backgroundColor: "var(--fs-accent)",
-                          color: "#031114",
-                          boxShadow: "none",
-                          "&:hover": {
-                            backgroundColor: "var(--fs-accent-strong)",
-                            boxShadow: "none",
-                          },
-                        }}
-                      >
-                        불러오기
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() =>
-                          props.handleOpenSideEditor(selectedSideId || null)
-                        }
-                        sx={{
-                          borderColor: "rgba(45, 214, 196, 0.24)",
-                          color: COLOR_PALETTE.BLACK,
-                        }}
-                      >
-                        세력 편집
-                      </Button>
-                    </Stack>
-                  </Stack>
-                </Box>
-              )}
               <CardActions
                 sx={{
                   display: "flex",
                   justifyContent: "center",
                   px: 1,
-                  py: 0.5,
+                  py: 0.35,
                 }}
               >
                 <Stack
@@ -3089,11 +3706,11 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                     justifyContent: "center",
                     alignItems: "center",
                     width: "100%",
-                    px: 0.9,
-                    py: 0.35,
-                    borderRadius: 2,
-                    backgroundColor: "rgba(255,255,255,0.03)",
-                    border: "1px solid rgba(45, 214, 196, 0.12)",
+                    px: 0.75,
+                    py: 0.3,
+                    borderRadius: 2.2,
+                    backgroundColor: "rgba(255,255,255,0.025)",
+                    border: "1px solid rgba(45, 214, 196, 0.08)",
                   }}
                 >
                   <Tooltip title="1단계 진행">
@@ -3137,7 +3754,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                 backgroundColor: COLOR_PALETTE.LIGHT_GRAY,
                 display: "flex",
                 flexDirection: "column",
-                gap: "15px",
+                gap: "10px",
               }}
               component="nav"
               aria-labelledby="feature-controls-dropdown-list"
@@ -3156,16 +3773,19 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
               }
             >
               <ToolbarCollapsible
-                title="기록"
+                title="기록 / 재생"
+                headerBadges={sectionHeaderBadges.recording}
                 prependIcon={RadioButtonCheckedIcon}
                 content={recordingSection()}
                 open={false}
               />
               <ToolbarCollapsible
-                title="배치 목록"
+                title="자산 배치"
+                headerBadges={sectionHeaderBadges.assets}
                 prependIcon={DocumentScannerOutlinedIcon}
                 content={entitiesSection()}
                 enableFilter={true}
+                openSignal={props.assetPlacementOpenSignal}
                 filterProps={{
                   options: [
                     { label: "항공기", value: "aircraft" },
@@ -3190,16 +3810,19 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                     setEntityFilterSelectedOptions(updatedOptions);
                   },
                 }}
-                open={false}
+                open={isEmptyScenario}
               />
               <ToolbarCollapsible
-                title="집중포격"
+                title="화력 작전"
+                subtitle={focusFireDockStage.title}
+                headerBadges={sectionHeaderBadges.focusFire}
                 prependIcon={RadioButtonCheckedIcon}
                 content={focusFireSection()}
-                open={true}
+                open={focusFireSectionOpen}
               />
               <ToolbarCollapsible
                 title="임무"
+                headerBadges={sectionHeaderBadges.mission}
                 prependIcon={AirlineStopsOutlinedIcon}
                 content={missionSection()}
                 appendIcon={AddBoxIcon}
@@ -3211,115 +3834,25 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                     props.toggleMissionCreator();
                   },
                 }}
-                open={true}
+                open={missionSectionOpen}
               />
             </List>
           </Box>
-          {/* The chatbot interface is now outside the scrollable Box and a direct */}
-          {/* child of the main flex container, making it stick to the bottom. */}
-          <Box
-            sx={{
-              flexShrink: 0,
-              display: "flex",
-              flexDirection: "column",
-              borderTop: "1px solid rgba(45, 214, 196, 0.22)",
-              background:
-                "linear-gradient(180deg, rgba(9, 22, 28, 0.96) 0%, rgba(5, 14, 18, 0.98) 100%)",
-            }}
-          >
-            {/* Chatbot Label */}
-            <Box
-              sx={{
-                p: 1.5,
-                borderBottom: "1px solid rgba(45, 214, 196, 0.18)",
-              }}
-            >
-              <Typography
-                variant="h5"
-                sx={{ textAlign: "center", fontWeight: 600 }}
-              >
-                AI지휘결심지원(ArmyGPT)
-              </Typography>
-              <Typography
-                variant="caption"
-                sx={{
-                  display: "block",
-                  textAlign: "center",
-                  mt: 0.35,
-                  color: "text.secondary",
-                }}
-              >
-                생성형 AI 기반 작전·지휘결심 지원
-              </Typography>
-            </Box>
-            {/* Message Display Area */}
-            <Box
-              ref={chatMessagesContainerRef}
-              sx={{ height: "250px", overflowY: "auto", p: 2 }}
-            >
-              {messages.map((message) => {
-                const isUser = message.sender === "user";
-                return (
-                  <Box
-                    key={message.id}
-                    sx={{
-                      display: "flex",
-                      justifyContent: isUser ? "flex-end" : "flex-start", // Align bubble left or right
-                      mb: 1,
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        p: 1.5,
-                        borderRadius: "3px",
-                        backgroundColor: isUser
-                          ? "rgba(45, 214, 196, 0.9)"
-                          : "rgba(255,255,255,0.05)",
-                        color: isUser ? "#031114" : "var(--fs-text)",
-                        border: isUser
-                          ? "1px solid rgba(45, 214, 196, 0.72)"
-                          : "1px solid rgba(45, 214, 196, 0.16)",
-                        maxWidth: "80%",
-                        whiteSpace: "pre-wrap",
-                      }}
-                    >
-                      <Typography variant="body2">{message.text}</Typography>
-                    </Box>
-                  </Box>
-                );
-              })}
-            </Box>
-
-            {/* Input Area */}
-            <Stack
-              direction="row"
-              spacing={1}
-              sx={{ p: 1, borderTop: "1px solid rgba(45, 214, 196, 0.18)" }}
-            >
-              <TextField
-                id="chatbot-input"
-                fullWidth
-                size="small"
-                placeholder="예: 현재 전력 요약 / 가장 위험한 위협 분석 / 블루팀 임무 추천"
-                value={inputValue}
-                disabled={isLoading}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSendMessage();
-                }}
-                onFocus={() => setIsChatInputFocused(true)}
-                onBlur={() => setIsChatInputFocused(false)}
-                sx={{ mb: 0, bgcolor: "rgba(255,255,255,0.05)" }}
-              />
-              <IconButton
-                color="primary"
-                onClick={handleSendMessage}
-                disabled={isLoading || inputValue.trim().length === 0}
-              >
-                <SendIcon />
-              </IconButton>
-            </Stack>
-          </Box>
+          <ArmyGptPanel
+            currentSideName={currentSideName}
+            scenarioAssetCount={scenarioAssetCount}
+            scenarioMissionCount={scenarioMissionCount}
+            scenarioWeaponsInFlight={scenarioWeaponsInFlight}
+            briefingCards={armyGptBriefingCards}
+            messages={messages}
+            inputValue={inputValue}
+            isInputFocused={isChatInputFocused}
+            isLoading={isLoading}
+            chatMessagesContainerRef={chatMessagesContainerRef}
+            onInputChange={setInputValue}
+            onFocusChange={setIsChatInputFocused}
+            onSendMessage={handleSendMessage}
+          />
         </Container>
       </Drawer>
       <AssetPlacementPreviewDialog

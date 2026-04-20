@@ -45,8 +45,8 @@ export const useChatbot = ({ game }: UseChatbotOptions) => {
     return requestAssistantCompletion(llmMessages);
   };
 
-  const handleSendMessage = async () => {
-    const trimmedInput = inputValue.trim();
+  const handleSendMessage = async (messageOverride?: string) => {
+    const trimmedInput = (messageOverride ?? inputValue).trim();
     if (trimmedInput === "" || isLoading) return;
 
     const userMessage: ChatMessage = {

@@ -5,11 +5,13 @@ import ViewInArOutlinedIcon from "@mui/icons-material/ViewInArOutlined";
 interface ExperienceLaunchButtonProps {
   tooltip: string;
   onClick: () => void;
+  label?: string;
 }
 
 export default function ExperienceLaunchButton({
   tooltip,
   onClick,
+  label = "3D",
 }: Readonly<ExperienceLaunchButtonProps>) {
   return (
     <Tooltip title={tooltip}>
@@ -32,7 +34,7 @@ export default function ExperienceLaunchButton({
           },
         }}
       >
-        3D
+        {label}
       </Button>
     </Tooltip>
   );

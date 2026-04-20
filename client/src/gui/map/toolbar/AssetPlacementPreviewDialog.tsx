@@ -89,6 +89,31 @@ function formatMetricValue(
   }).format(value)} ${suffix}`.trim();
 }
 
+function formatHeadingDirection(headingDegrees: number) {
+  const normalizedHeading = ((headingDegrees % 360) + 360) % 360;
+  const labels = [
+    "북",
+    "북북동",
+    "북동",
+    "동북동",
+    "동",
+    "동남동",
+    "남동",
+    "남남동",
+    "남",
+    "남남서",
+    "남서",
+    "서남서",
+    "서",
+    "서북서",
+    "북서",
+    "북북서",
+  ];
+  const bucket = Math.round(normalizedHeading / 22.5) % labels.length;
+
+  return `${labels[bucket]} (${Math.round(normalizedHeading)}deg)`;
+}
+
 export default function AssetPlacementPreviewDialog({
   preview,
   open,
@@ -111,6 +136,66 @@ export default function AssetPlacementPreviewDialog({
     preview.asset.aircraftCount,
     "EA"
   );
+  const visualPolicyDetails = preview.visualPolicyDetails;
+  const presetDetails = preview.presetContext
+    ? [
+        { label: "권역", value: preview.presetContext.regionLabel },
+        { label: "담당 축선", value: preview.presetContext.coverageLabel },
+        { label: "현재 위협축", value: preview.presetContext.threatAxisLabel },
+        {
+          label: "대표 장비",
+          value: preview.presetContext.representativeAssetLabel,
+        },
+        { label: "자료 근거", value: preview.presetContext.sourceLabel },
+      ].filter(
+        (detail): detail is { label: string; value: string } =>
+          Boolean(detail.value)
+      )
+    : [];
+  const deploymentDetails = preview.deploymentDefaults
+    ? [
+        {
+          label: "권장 방위",
+          value: formatHeadingDirection(
+            preview.deploymentDefaults.headingDegrees
+          ),
+        },
+        {
+          label: "부채꼴",
+          value: `${preview.deploymentDefaults.arcDegrees ?? 120}deg`,
+        },
+        {
+          label: "추천 근거",
+          value: preview.deploymentDefaults.recommendationLabel ?? "",
+        },
+        {
+          label: "유효 사거리",
+          value: rangeLabel ?? "DB 미상",
+        },
+        preview.deploymentDefaults.formation
+          ? {
+              label: "포대 편성",
+              value: `${preview.deploymentDefaults.formation.unitCount}개 포대`,
+            }
+          : null,
+        preview.deploymentDefaults.formation
+          ? {
+              label: "포대 간격",
+              value: `${preview.deploymentDefaults.formation.lateralSpacingKm} km`,
+            }
+          : null,
+        preview.deploymentDefaults.formation?.templateLabel
+          ? {
+              label: "템플릿",
+              value: preview.deploymentDefaults.formation.templateLabel,
+            }
+          : null,
+      ]
+        .filter(
+          (detail): detail is { label: string; value: string } =>
+            Boolean(detail?.value)
+        )
+    : [];
 
   return (
     <Dialog
@@ -269,6 +354,120 @@ export default function AssetPlacementPreviewDialog({
               </Box>
             )}
 
+            {visualPolicyDetails.length > 0 && (
+              <Box
+                sx={{
+                  p: 1.6,
+                  borderRadius: 2.5,
+                  border: "1px solid rgba(143, 225, 255, 0.18)",
+                  backgroundColor: "rgba(143, 225, 255, 0.05)",
+                }}
+              >
+                <Typography
+                  sx={{ fontSize: 12, color: "rgba(226,240,255,0.62)" }}
+                >
+                  시각화 정책
+                </Typography>
+                <Stack spacing={0.95} sx={{ mt: 0.85 }}>
+                  {visualPolicyDetails.map((detail) => (
+                    <Box
+                      key={detail.label}
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 2,
+                      }}
+                    >
+                      <Typography sx={{ color: "rgba(226, 240, 255, 0.68)" }}>
+                        {detail.label}
+                      </Typography>
+                      <Typography
+                        sx={{ textAlign: "right", fontWeight: 700 }}
+                      >
+                        {detail.value}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+
+            {presetDetails.length > 0 && (
+              <Box
+                sx={{
+                  p: 1.6,
+                  borderRadius: 2.5,
+                  border: "1px solid rgba(149, 255, 160, 0.16)",
+                  backgroundColor: "rgba(149, 255, 160, 0.05)",
+                }}
+              >
+                <Typography
+                  sx={{ fontSize: 12, color: "rgba(226,240,255,0.62)" }}
+                >
+                  프리셋 정보
+                </Typography>
+                <Stack spacing={0.95} sx={{ mt: 0.85 }}>
+                  {presetDetails.map((detail) => (
+                    <Box
+                      key={detail.label}
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 2,
+                      }}
+                    >
+                      <Typography sx={{ color: "rgba(226, 240, 255, 0.68)" }}>
+                        {detail.label}
+                      </Typography>
+                      <Typography
+                        sx={{ textAlign: "right", fontWeight: 700 }}
+                      >
+                        {detail.value}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+
+            {deploymentDetails.length > 0 && (
+              <Box
+                sx={{
+                  p: 1.6,
+                  borderRadius: 2.5,
+                  border: "1px solid rgba(255, 214, 102, 0.18)",
+                  backgroundColor: "rgba(255, 214, 102, 0.05)",
+                }}
+              >
+                <Typography
+                  sx={{ fontSize: 12, color: "rgba(226,240,255,0.62)" }}
+                >
+                  권장 전개
+                </Typography>
+                <Stack spacing={0.95} sx={{ mt: 0.85 }}>
+                  {deploymentDetails.map((detail) => (
+                    <Box
+                      key={detail.label}
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 2,
+                      }}
+                    >
+                      <Typography sx={{ color: "rgba(226, 240, 255, 0.68)" }}>
+                        {detail.label}
+                      </Typography>
+                      <Typography
+                        sx={{ textAlign: "right", fontWeight: 700 }}
+                      >
+                        {detail.value}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+
             <Stack spacing={1}>
               {speedLabel && (
                 <Box
@@ -374,6 +573,7 @@ export default function AssetPlacementPreviewDialog({
               >
                 <AssetExperienceViewer
                   kind={preview.asset.kind}
+                  conceptVariant={preview.conceptVariant ?? undefined}
                   accentColor={palette.accentColor}
                   glowColor={palette.glowColor}
                 />

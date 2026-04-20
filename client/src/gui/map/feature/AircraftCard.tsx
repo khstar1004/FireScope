@@ -71,7 +71,7 @@ interface AircraftCardProps {
     weaponId: string,
     increment: number
   ) => Weapon[];
-  openAssetExperience: () => void;
+  openTacticalExperience: () => void;
   handleCloseOnMap: () => void;
   anchorPositionTop: number;
   anchorPositionLeft: number;
@@ -147,9 +147,9 @@ export default function AircraftCard(props: Readonly<AircraftCardProps>) {
     props.handleTeleportUnit(props.aircraft.id);
   };
 
-  const _handleOpenAssetExperience = () => {
+  const _handleOpenTacticalExperience = () => {
     props.handleCloseOnMap();
-    props.openAssetExperience();
+    props.openTacticalExperience();
   };
 
   const toggleEdit = () => {
@@ -556,8 +556,9 @@ export default function AircraftCard(props: Readonly<AircraftCardProps>) {
                     </IconButton>
                   </Tooltip>
                   <ExperienceLaunchButton
-                    tooltip={`${props.aircraft.name} 3D 쇼룸`}
-                    onClick={_handleOpenAssetExperience}
+                    tooltip={`${props.aircraft.name} 조종 HUD`}
+                    onClick={_handleOpenTacticalExperience}
+                    label="HUD"
                   />
                   <Tooltip title={`추가 작업`}>
                     <Button

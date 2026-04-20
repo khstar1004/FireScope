@@ -16,6 +16,10 @@ import Relationships from "@/game/Relationships";
 import { randomUUID } from "@/utils/generateUUID";
 import Doctrine, { DoctrineType, SideDoctrine } from "@/game/Doctrine";
 import {
+  cloneScenarioMetadata,
+  type ScenarioMetadata,
+} from "@/game/facilityPlacementGroups";
+import {
   isFiresFacilityClassName,
   isTankFacilityClassName,
 } from "@/utils/assetTypeCatalog";
@@ -42,6 +46,7 @@ interface IScenario {
   missions?: PatrolMission[];
   relationships?: Relationships;
   doctrine?: Doctrine;
+  metadata?: ScenarioMetadata;
 }
 
 export default class Scenario {
@@ -63,6 +68,7 @@ export default class Scenario {
   missions: Mission[];
   relationships: Relationships;
   doctrine: Doctrine;
+  metadata: ScenarioMetadata;
 
   constructor(parameters: IScenario) {
     this.id = parameters.id;
@@ -83,6 +89,7 @@ export default class Scenario {
     this.missions = parameters.missions ?? [];
     this.relationships = parameters.relationships ?? new Relationships({});
     this.doctrine = parameters.doctrine ?? this.getDefaultDoctrine();
+    this.metadata = cloneScenarioMetadata(parameters.metadata);
   }
 
   getDefaultDoctrine(): Doctrine {
@@ -361,7 +368,11 @@ export default class Scenario {
     return facilityWeapons;
   }
 
-  updateArmyWeaponQuantity(armyId: string, weaponId: string, increment: number) {
+  updateArmyWeaponQuantity(
+    armyId: string,
+    weaponId: string,
+    increment: number
+  ) {
     const army = this.getArmy(armyId);
     let armyWeapons: Weapon[] = [];
     if (army) {

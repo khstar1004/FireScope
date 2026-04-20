@@ -17,10 +17,7 @@ import {
 } from "@mui/material";
 import { colorPalette } from "@/utils/constants";
 import Game, { type FireRecommendationTargetPriority } from "@/game/Game";
-import {
-  getDisplayName,
-  getEntityTypeLabel,
-} from "@/utils/koreanCatalog";
+import { getDisplayName, getEntityTypeLabel } from "@/utils/koreanCatalog";
 import FireRecommendationPanel, {
   FireRecommendationPriorityList,
 } from "@/gui/fires/FireRecommendationPanel";
@@ -29,6 +26,7 @@ interface DragSelectionCardProps {
   game: Game;
   sideId: string;
   mobileView: boolean;
+  rightOffset?: string | number;
   features: Feature<Geometry>[];
   priorities: FireRecommendationTargetPriority[];
   selectedTargetId: string | null;
@@ -36,6 +34,12 @@ interface DragSelectionCardProps {
   onCreateStrikeMission: () => void;
   onInspectFeature: (feature: Feature<Geometry>) => void;
   onClearSelection: () => void;
+  facilityGroupSummary?: {
+    label: string;
+    memberCount: number;
+  } | null;
+  onMoveFacilityGroup?: () => void;
+  onDeleteFacilityGroup?: () => void;
 }
 
 const cardHeaderStyle = {
@@ -52,6 +56,7 @@ export default function DragSelectionCard({
   game,
   sideId,
   mobileView,
+  rightOffset,
   features,
   priorities,
   selectedTargetId,
@@ -59,11 +64,17 @@ export default function DragSelectionCard({
   onCreateStrikeMission,
   onInspectFeature,
   onClearSelection,
+  facilityGroupSummary = null,
+  onMoveFacilityGroup,
+  onDeleteFacilityGroup,
 }: Readonly<DragSelectionCardProps>) {
   const nodeRef = useRef(null);
   const hostileFeatureCount = features.filter((feature) => {
     const featureSideId = feature.get("sideId");
-    return featureSideId && game.getFocusFireHostileSideIds(sideId).has(featureSideId);
+    return (
+      featureSideId &&
+      game.getFocusFireHostileSideIds(sideId).has(featureSideId)
+    );
   }).length;
   const selectedRecommendation = selectedTargetId
     ? game.getFireRecommendationForTarget(selectedTargetId, sideId)
@@ -73,7 +84,7 @@ export default function DragSelectionCard({
     <div
       style={{
         position: "absolute",
-        right: mobileView ? "1rem" : "1.5rem",
+        right: rightOffset ?? (mobileView ? "1rem" : "1.5rem"),
         top: mobileView ? "5.2rem" : "6rem",
         zIndex: "1001",
       }}
@@ -137,8 +148,49 @@ export default function DragSelectionCard({
               </Button>
             </Stack>
 
+            {facilityGroupSummary && (
+              <Box
+                sx={{
+                  p: 1.1,
+                  borderRadius: 1.5,
+                  backgroundColor: "rgba(45, 214, 196, 0.08)",
+                  border: "1px solid rgba(45, 214, 196, 0.16)",
+                }}
+              >
+                <Typography sx={{ fontSize: 12.5, fontWeight: 700 }}>
+                  포대 묶음
+                </Typography>
+                <Typography sx={{ mt: 0.35, fontSize: 12.5 }}>
+                  {facilityGroupSummary.label} ·{" "}
+                  {facilityGroupSummary.memberCount}개
+                </Typography>
+                <Stack direction="row" spacing={0.8} sx={{ mt: 0.9 }}>
+                  {onMoveFacilityGroup && (
+                    <Button
+                      size="small"
+                      variant="contained"
+                      onClick={onMoveFacilityGroup}
+                    >
+                      묶음 이동
+                    </Button>
+                  )}
+                  {onDeleteFacilityGroup && (
+                    <Button
+                      size="small"
+                      color="error"
+                      variant="outlined"
+                      onClick={onDeleteFacilityGroup}
+                    >
+                      묶음 삭제
+                    </Button>
+                  )}
+                </Stack>
+              </Box>
+            )}
+
             <Typography sx={{ fontSize: 12.5, color: "text.secondary" }}>
-              `Ctrl`을 누른 채 드래그하면 현재 화면의 개체를 바탕화면처럼 묶어서 고를 수 있습니다.
+              `Ctrl`을 누른 채 드래그하면 현재 화면의 개체를 바탕화면처럼 묶어서
+              고를 수 있습니다.
             </Typography>
 
             <Typography sx={{ fontSize: 12.5, fontWeight: 700 }}>
@@ -230,8 +282,9 @@ export default function DragSelectionCard({
                       recommendation={selectedRecommendation}
                       rerankerModel={game.getFocusFireRerankerState().model}
                       objectiveName={
-                        priorities.find((entry) => entry.targetId === selectedTargetId)
-                          ?.targetName ?? null
+                        priorities.find(
+                          (entry) => entry.targetId === selectedTargetId
+                        )?.targetName ?? null
                       }
                     />
                   </Box>

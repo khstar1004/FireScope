@@ -3,9 +3,8 @@ import type { ImmersiveExperienceProfile } from "@/gui/experience/immersiveExper
 import { resolveUnitVisualProfileId } from "@/game/db/unitVisualProfiles";
 import {
   buildAssetSignature,
-  inferDefenseProxyVisualProfileId,
-  isConceptOnlyDefenseAssetSignature,
   isDefenseAssetSignature,
+  resolveDefenseVisualizationPolicy,
 } from "@/utils/airDefenseModeling";
 
 export type BundleModelBundle =
@@ -466,9 +465,6 @@ function pickFiresModel(signature: string) {
 }
 
 function pickDefenseModel(signature: string) {
-  if (isConceptOnlyDefenseAssetSignature(signature)) {
-    return null;
-  }
   if (/\b(patriot|mim-104)\b/i.test(signature)) {
     return ARTILLERY_MODELS.patriot;
   }
@@ -481,18 +477,12 @@ function pickDefenseModel(signature: string) {
     return ARTILLERY_MODELS.thaad;
   }
 
-  const proxyProfileId = inferDefenseProxyVisualProfileId(signature);
-  if (proxyProfileId === "artillery-patriot") {
-    return ARTILLERY_MODELS.patriot;
-  }
-  if (proxyProfileId === "artillery-nasams-battery") {
-    return ARTILLERY_MODELS.nasamsBattery;
-  }
-  if (proxyProfileId === "artillery-thaad") {
-    return ARTILLERY_MODELS.thaad;
+  const defensePolicy = resolveDefenseVisualizationPolicy(signature);
+  if (defensePolicy?.proxyVisualProfileId) {
+    return getBundleModelById(defensePolicy.proxyVisualProfileId);
   }
 
-  return ARTILLERY_MODELS.patriot;
+  return null;
 }
 
 function pickShipModel(signature: string) {
@@ -555,13 +545,12 @@ export function getImmersiveExperienceModelOptions(
   asset: AssetExperienceSummary,
   profile: ImmersiveExperienceProfile
 ) {
-  const signature = buildSignature(asset);
+  const defensePolicy =
+    asset.kind === "facility" && profile === "defense"
+      ? resolveDefenseVisualizationPolicy(asset.className, asset.name)
+      : null;
 
-  if (
-    asset.kind === "facility" &&
-    profile === "defense" &&
-    isConceptOnlyDefenseAssetSignature(signature)
-  ) {
+  if (defensePolicy?.mode === "concept") {
     return [];
   }
 
@@ -636,12 +625,12 @@ export function selectImmersiveExperienceModel(
   profile: ImmersiveExperienceProfile
 ) {
   const signature = buildSignature(asset);
+  const defensePolicy =
+    asset.kind === "facility" && profile === "defense"
+      ? resolveDefenseVisualizationPolicy(asset.className, asset.name)
+      : null;
 
-  if (
-    asset.kind === "facility" &&
-    profile === "defense" &&
-    isConceptOnlyDefenseAssetSignature(signature)
-  ) {
+  if (defensePolicy?.mode === "concept") {
     return null;
   }
 

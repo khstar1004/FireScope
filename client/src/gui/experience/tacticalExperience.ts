@@ -519,6 +519,132 @@ function createConfig(
       };
     }
     case "base": {
+      if (asset.kind === "aircraft") {
+        return {
+          profile,
+          modeTitle: "항공 전투 시뮬레이터",
+          modeDescription:
+            "실제 3D 지도 위에서 선택한 전투기를 추적 시점으로 붙이고, 표적 전환과 공대공 무장 발사를 연속으로 운용합니다.",
+          unitLabel: "Combat Air Patrol",
+          controls: [
+            "`W/S`: 추력과 접근 거리 조정",
+            "`A/D`: 진입 축 조정",
+            "`Click`: 우선 대응 표적 지정",
+            "`F`: 단거리 무장",
+            "`Enter`: 장거리 무장",
+            "`Space`: 추적 / 전장 시점 전환",
+          ],
+          baseZoom: 14.6,
+          maxSpeedMps: speedToScaledMps(asset.speed, 245, 140, 340),
+          cruiseSpeedMps: speedToScaledMps(asset.speed, 210, 110, 260),
+          reverseSpeedMps: 0,
+          turnRateDeg: 68,
+          sensorRangeM: nmToScaledMeters(asset.range, 24, 4500, 26000),
+          primaryWeapon: {
+            label: "Short Range Missile",
+            kind: "missile",
+            speedMps: 920,
+            maxRangeM: 6800,
+            splashRadiusM: 90,
+            cooldownSeconds: 1.4,
+            salvo: 1,
+            homing: true,
+            damage: 130,
+            color: "#ffd166",
+          },
+          supportWeapon: {
+            label: "BVR Missile",
+            kind: "missile",
+            speedMps: 1180,
+            maxRangeM: 14000,
+            splashRadiusM: 140,
+            cooldownSeconds: 5.2,
+            salvo: 1,
+            homing: true,
+            damage: 170,
+            color: "#ff7b00",
+          },
+          hostileContacts: [
+            {
+              id: "air-hostile-strike-lead",
+              label: "Strike Lead",
+              role: "저고도 침투 편대장",
+              domain: "air",
+              position: { x: 7800, y: 320 },
+              waypoints: [
+                { x: 7800, y: 320 },
+                { x: 4200, y: 180 },
+                { x: 1400, y: -140 },
+              ],
+              speedMps: 248,
+              hitRadiusM: 46,
+              health: 112,
+            },
+            {
+              id: "air-hostile-wingman",
+              label: "Escort Wingman",
+              role: "측면 엄호기",
+              domain: "air",
+              position: { x: 7600, y: -560 },
+              waypoints: [
+                { x: 7600, y: -560 },
+                { x: 3900, y: -280 },
+                { x: 1500, y: 220 },
+              ],
+              speedMps: 236,
+              hitRadiusM: 42,
+              health: 104,
+            },
+            {
+              id: "air-hostile-decoy",
+              label: "Decoy Drone",
+              role: "기만 드론",
+              domain: "air",
+              position: { x: 6200, y: 1800 },
+              waypoints: [
+                { x: 6200, y: 1800 },
+                { x: 3600, y: 920 },
+                { x: 2100, y: 520 },
+              ],
+              speedMps: 118,
+              hitRadiusM: 28,
+              health: 72,
+            },
+            {
+              id: "air-hostile-cruise",
+              label: "Cruise Threat",
+              role: "후속 순항 위협",
+              domain: "air",
+              position: { x: 9300, y: -1440 },
+              waypoints: [
+                { x: 9300, y: -1440 },
+                { x: 5200, y: -780 },
+                { x: 1800, y: -140 },
+              ],
+              speedMps: 272,
+              hitRadiusM: 24,
+              health: 82,
+            },
+          ],
+          sites: [
+            {
+              id: "air-cap-anchor",
+              label: "CAP Gate",
+              kind: "support",
+              position: { x: -900, y: -520 },
+              radiusM: 220,
+            },
+            {
+              id: "air-intercept-box",
+              label: "Intercept Box",
+              kind: "objective",
+              position: { x: 5400, y: 260 },
+              radiusM: 420,
+            },
+          ],
+        };
+      }
+
       return {
         profile,
         modeTitle: "기지 운용 시뮬레이터",
@@ -628,6 +754,196 @@ function createConfig(
         ],
       };
     }
+  }
+}
+
+function applyBaseOperationMode(
+  config: TacticalExperienceConfig,
+  asset: AssetExperienceSummary,
+  operationMode?: string
+): TacticalExperienceConfig {
+  if (asset.kind !== "aircraft") {
+    return config;
+  }
+
+  switch (operationMode) {
+    case "drone-watch":
+      return {
+        ...config,
+        modeDescription:
+          "드론 감시 축으로 천천히 접근하며 체공 감시를 유지하고, 느린 위협부터 순차적으로 차단하는 항공 감시 시뮬레이션입니다.",
+        maxSpeedMps: speedToScaledMps(asset.speed, 98, 52, 140),
+        cruiseSpeedMps: 74,
+        turnRateDeg: 44,
+        sensorRangeM: Math.max(config.sensorRangeM, 12000),
+        primaryWeapon: {
+          ...config.primaryWeapon,
+          label: "Precision Strike",
+          cooldownSeconds: 1.1,
+          maxRangeM: 5200,
+        },
+        supportWeapon: {
+          ...config.supportWeapon,
+          label: "Guided Support Missile",
+          maxRangeM: 7600,
+          cooldownSeconds: 4.6,
+        },
+        hostileContacts: [
+          {
+            id: "drone-watch-intruder-1",
+            label: "Recon Copter",
+            role: "저고도 정찰 헬기",
+            domain: "air",
+            position: { x: 4200, y: 880 },
+            waypoints: [
+              { x: 4200, y: 880 },
+              { x: 2400, y: 460 },
+              { x: 900, y: 220 },
+            ],
+            speedMps: 92,
+            hitRadiusM: 34,
+            health: 84,
+          },
+          {
+            id: "drone-watch-intruder-2",
+            label: "Raid Drone",
+            role: "외곽 침투 드론",
+            domain: "air",
+            position: { x: 3600, y: -1240 },
+            waypoints: [
+              { x: 3600, y: -1240 },
+              { x: 1800, y: -580 },
+              { x: 640, y: 40 },
+            ],
+            speedMps: 86,
+            hitRadiusM: 26,
+            health: 72,
+          },
+          {
+            id: "drone-watch-ground",
+            label: "Border Vehicle",
+            role: "접경 침투 차량",
+            domain: "ground",
+            position: { x: 2800, y: 1600 },
+            waypoints: [
+              { x: 2800, y: 1600 },
+              { x: 2100, y: 1040 },
+              { x: 1500, y: 620 },
+            ],
+            speedMps: 18,
+            hitRadiusM: 28,
+            health: 92,
+          },
+        ],
+        sites: [
+          {
+            id: "drone-watch-orbit",
+            label: "Persistent Orbit",
+            kind: "support",
+            position: { x: -640, y: -280 },
+            radiusM: 260,
+          },
+          {
+            id: "drone-watch-box",
+            label: "Watch Sector",
+            kind: "objective",
+            position: { x: 2800, y: 420 },
+            radiusM: 340,
+          },
+        ],
+      };
+    case "quick-scramble":
+      return {
+        ...config,
+        modeDescription:
+          "경보 발령 직후 활주축을 박차고 올라가 적 침투 편대를 짧은 시간 안에 요격하는 전투기 대응 시뮬레이션입니다.",
+        supportWeapon: {
+          ...config.supportWeapon,
+          label: "Fox-3 Intercept",
+          maxRangeM: 15200,
+          cooldownSeconds: 4.8,
+        },
+        hostileContacts: [
+          {
+            id: "scramble-striker",
+            label: "Strike Package",
+            role: "전면 침투기 편대",
+            domain: "air",
+            position: { x: 8800, y: 180 },
+            waypoints: [
+              { x: 8800, y: 180 },
+              { x: 5200, y: 120 },
+              { x: 2100, y: -120 },
+            ],
+            speedMps: 264,
+            hitRadiusM: 50,
+            health: 126,
+          },
+          {
+            id: "scramble-cover",
+            label: "Cover Flight",
+            role: "측면 엄호 편대",
+            domain: "air",
+            position: { x: 8100, y: -980 },
+            waypoints: [
+              { x: 8100, y: -980 },
+              { x: 4800, y: -420 },
+              { x: 1900, y: 120 },
+            ],
+            speedMps: 248,
+            hitRadiusM: 44,
+            health: 108,
+          },
+          {
+            id: "scramble-decoy",
+            label: "Decoy UAV",
+            role: "기만 무인기",
+            domain: "air",
+            position: { x: 6200, y: 1680 },
+            waypoints: [
+              { x: 6200, y: 1680 },
+              { x: 4100, y: 760 },
+              { x: 2400, y: 520 },
+            ],
+            speedMps: 126,
+            hitRadiusM: 28,
+            health: 70,
+          },
+          {
+            id: "scramble-cruise",
+            label: "Follow-on Cruise",
+            role: "후속 순항 위협",
+            domain: "air",
+            position: { x: 10400, y: -1860 },
+            waypoints: [
+              { x: 10400, y: -1860 },
+              { x: 6200, y: -860 },
+              { x: 2400, y: -120 },
+            ],
+            speedMps: 284,
+            hitRadiusM: 24,
+            health: 86,
+          },
+        ],
+        sites: [
+          {
+            id: "scramble-line",
+            label: "Scramble Line",
+            kind: "support",
+            position: { x: -920, y: -420 },
+            radiusM: 220,
+          },
+          {
+            id: "scramble-intercept",
+            label: "Forward Intercept",
+            kind: "objective",
+            position: { x: 6200, y: 160 },
+            radiusM: 460,
+          },
+        ],
+      };
+    default:
+      return config;
   }
 }
 
@@ -1295,6 +1611,7 @@ function applyDefenseOperationMode(
 
 function applyOperationModeScenario(
   config: TacticalExperienceConfig,
+  asset: AssetExperienceSummary,
   profile: ImmersiveExperienceProfile,
   operationMode?: string
 ): TacticalExperienceConfig {
@@ -1305,6 +1622,8 @@ function applyOperationModeScenario(
       return applyFiresOperationMode(config, operationMode);
     case "defense":
       return applyDefenseOperationMode(config, operationMode);
+    case "base":
+      return applyBaseOperationMode(config, asset, operationMode);
     default:
       return config;
   }
@@ -1351,6 +1670,7 @@ export function createTacticalExperienceScenario(
 ): TacticalScenarioSeed {
   const config = applyOperationModeScenario(
     createConfig(asset, profile),
+    asset,
     profile,
     operationMode
   );

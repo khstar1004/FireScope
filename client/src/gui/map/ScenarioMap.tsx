@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Feature, MapBrowserEvent, Map as OlMap, Overlay } from "ol";
 import { unByKey } from "ol/Observable";
 import View from "ol/View";
@@ -19,7 +19,6 @@ import VectorSource from "ol/source/Vector";
 import { getLength } from "ol/sphere.js";
 import { mouseOnly } from "ol/events/condition";
 import Game, {
-  type BattleSpectatorSnapshot,
   type FocusFireLaunchPlatform,
   type FocusFireWeaponTrack,
   type GameStepResult,
@@ -39,7 +38,7 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
 import IconButton from "@mui/material/IconButton";
-import { getBearingBetweenTwoPoints, randomInt } from "@/utils/mapFunctions";
+import { randomInt } from "@/utils/mapFunctions";
 import { delay } from "@/utils/dateTimeFunctions";
 import MultipleFeatureSelector from "@/gui/map/MultipleFeatureSelector";
 import { SetScenarioTimeContext } from "@/gui/contextProviders/contexts/ScenarioTimeContext";
@@ -64,6 +63,7 @@ import {
   FacilityLayer,
   FeatureLabelLayer,
   FacilityPlacementLayer,
+  FacilityPlacementGroupLayer,
   RouteLayer,
   ShipLayer,
   ThreatRangeLayer,
@@ -78,6 +78,21 @@ import BottomInfoDisplay from "@/gui/map/toolbar/BottomInfoDisplay";
 import { type SelectedCombatantSummary } from "@/gui/map/toolbar/SelectedUnitStatusCard";
 import LayerVisibilityPanelToggle from "@/gui/map/toolbar/LayerVisibilityToggle";
 import Toolbar from "@/gui/map/toolbar/Toolbar";
+import type { AssetPlacementDeploymentDefaults } from "@/gui/map/toolbar/assetPlacementPreview";
+import {
+  buildFacilityFormationLayout,
+  resolveFacilityPlacementArcDegrees,
+  resolveFacilityPlacementHeading,
+} from "@/gui/map/facilityPlacementDefaults";
+import {
+  buildFacilityPlacementGroupTeleportLayout,
+  createFacilityPlacementGroup,
+  findFacilityPlacementGroupByFacilityId,
+  getScenarioFacilityPlacementGroups,
+  resolveMatchingFacilityPlacementGroup,
+  setScenarioFacilityPlacementGroups,
+  type FacilityPlacementGroup,
+} from "@/game/facilityPlacementGroups";
 import {
   buildSimulationOutcomeSummary,
   requestSimulationOutcomeNarrative,
@@ -139,6 +154,15 @@ import {
 import FocusFireDockPanel from "@/gui/fires/FocusFireDockPanel";
 import TargetFireRecommendationCard from "@/gui/fires/TargetFireRecommendationCard";
 import DragSelectionCard from "@/gui/map/DragSelectionCard";
+import ExperienceGuideRail from "@/gui/map/ExperienceGuideRail";
+import type {
+  GuideRailAlertId,
+  GuideRailAssetSelectionLabels,
+  GuideRailAssetMixId,
+  GuideRailPlacementFocusIntent,
+} from "@/gui/map/guideRailIntents";
+import type { ScenarioLaunchMode } from "@/gui/map/scenarioLaunchMode";
+import { openScenarioLaunch3dFlightSim } from "@/gui/map/scenarioLaunch3d";
 
 interface ScenarioMapProps {
   zoom: number;
@@ -167,6 +191,14 @@ interface ScenarioMapProps {
     },
     battleSpectator?: FlightSimBattleSpectatorState
   ) => void;
+  openAirCombatOverlay: (
+    asset: AssetExperienceSummary,
+    options?: {
+      continueSimulation?: boolean;
+      craft?: string;
+      battleSpectator?: FlightSimBattleSpectatorState;
+    }
+  ) => void;
   openAssetExperiencePage: (asset: AssetExperienceSummary) => void;
   openImmersiveExperiencePage: (asset: AssetExperienceSummary) => void;
 }
@@ -191,6 +223,25 @@ interface RlJobReplayableCheckpoint {
   recording_path?: string | null;
 }
 
+const GUIDE_RAIL_ASSET_TYPES: GuideRailAssetMixId[] = [
+  "manned-aircraft",
+  "drone",
+  "airbase",
+  "facility",
+  "armor",
+  "ship",
+];
+
+function areGuideRailSelectionLabelsEqual(
+  currentLabels: GuideRailAssetSelectionLabels,
+  nextLabels: GuideRailAssetSelectionLabels
+) {
+  return GUIDE_RAIL_ASSET_TYPES.every(
+    (assetType) =>
+      (currentLabels[assetType] ?? "") === (nextLabels[assetType] ?? "")
+  );
+}
+
 const Main = styled("main", { shouldForwardProp: (prop) => prop !== "open" })<{
   open?: boolean;
 }>(({ theme }) => ({
@@ -199,7 +250,7 @@ const Main = styled("main", { shouldForwardProp: (prop) => prop !== "open" })<{
     easing: theme.transitions.easing.sharp,
     duration: theme.transitions.duration.leavingScreen,
   }),
-  marginLeft: `-${APP_DRAWER_WIDTH}px`,
+  marginRight: `-${APP_DRAWER_WIDTH}px`,
   variants: [
     {
       props: ({ open }) => open,
@@ -208,7 +259,7 @@ const Main = styled("main", { shouldForwardProp: (prop) => prop !== "open" })<{
           easing: theme.transitions.easing.easeOut,
           duration: theme.transitions.duration.enteringScreen,
         }),
-        marginLeft: 0,
+        marginRight: 0,
       },
     },
   ],
@@ -238,6 +289,7 @@ export default function ScenarioMap({
   mobileView,
   openRlLabPage,
   openFlightSimPage,
+  openAirCombatOverlay,
   openAssetExperiencePage,
   openImmersiveExperiencePage,
 }: Readonly<ScenarioMapProps>) {
@@ -256,6 +308,16 @@ export default function ScenarioMap({
   const scenarioMapActiveRef = useRef(true);
   const defaultProjection = getProjection(DEFAULT_OL_PROJECTION_CODE);
   const [drawerOpen, setDrawerOpen] = useState(true);
+  const [assetPlacementOpenSignal, setAssetPlacementOpenSignal] = useState(0);
+  const [assetPlacementFocusIntent, setAssetPlacementFocusIntent] =
+    useState<GuideRailPlacementFocusIntent>({
+      assetType: "manned-aircraft",
+      signal: 0,
+    });
+  const [activeGuideRailAssetType, setActiveGuideRailAssetType] =
+    useState<GuideRailAssetMixId | null>(null);
+  const [guideRailSelectionLabels, setGuideRailSelectionLabels] =
+    useState<GuideRailAssetSelectionLabels>({});
   const [focusFireDockOpen, setFocusFireDockOpen] = useState(false);
   const mapTilerBasicUrl = `https://api.maptiler.com/maps/basic-v2/256/{z}/{x}/{y}.png?key=${MAPTILER_DEFAULT_KEY}`;
   const mapTilerEveningUrl = `https://api.maptiler.com/maps/dataviz-dark/256/{z}/{x}/{y}.png?key=${MAPTILER_DEFAULT_KEY}`;
@@ -291,6 +353,9 @@ export default function ScenarioMap({
   const [threatRangeLayer, setThreatRangeLayer] = useState(
     new ThreatRangeLayer(projection)
   );
+  const [facilityPlacementGroupLayer] = useState(
+    new FacilityPlacementGroupLayer(projection, 3.5)
+  );
   const [facilityPlacementLayer, setFacilityPlacementLayer] = useState(
     new FacilityPlacementLayer(projection, 5)
   );
@@ -309,9 +374,11 @@ export default function ScenarioMap({
   const [weaponLayer, setWeaponLayer] = useState(
     new WeaponLayer(projection, 2)
   );
-  const [weaponTrajectoryLayer, setWeaponTrajectoryLayer] = useState(
-    new WeaponTrajectoryLayer(projection, 1.8)
-  );
+  const [weaponTrajectoryLayer] = useState(() => {
+    const layer = new WeaponTrajectoryLayer(projection, 1.8);
+    layer.layer.setVisible(false);
+    return layer;
+  });
   const [shipLayer, setShipLayer] = useState(new ShipLayer(projection, 1));
   const [referencePointLayer, setReferencePointLayer] = useState(
     new ReferencePointLayer(projection, 1)
@@ -408,6 +475,14 @@ export default function ScenarioMap({
   const [dragSelectedFeatures, setDragSelectedFeatures] = useState<
     Feature<Geometry>[]
   >([]);
+  const [facilityPlacementGroups, setFacilityPlacementGroups] = useState<
+    FacilityPlacementGroup[]
+  >(() =>
+    getScenarioFacilityPlacementGroups(
+      game.currentScenario.metadata,
+      game.currentScenario.facilities.map((facility) => facility.id)
+    )
+  );
   const [
     selectedDragRecommendationTargetId,
     setSelectedDragRecommendationTargetId,
@@ -422,12 +497,15 @@ export default function ScenarioMap({
     number[] | null
   >(null);
   const pendingFacilityPlacementRef = useRef<number[] | null>(null);
+  const teleportingFacilityGroupIdRef = useRef<string | null>(null);
   const suppressNextMapClickRef = useRef(false);
   const [selectingFocusFireObjective, setSelectingFocusFireObjective] =
     useState(false);
   const [featureLabelVisible, setFeatureLabelVisible] = useState(true);
   const [threatRangeVisible, setThreatRangeVisible] = useState(true);
   const [routeVisible, setRouteVisible] = useState(true);
+  const [weaponTrajectoryVisible, setWeaponTrajectoryVisible] =
+    useState(false);
   const [referencePointVisible, setReferencePointVisible] = useState(true);
   const [keyboardShortcutsEnabled, setKeyboardShortcutsEnabled] =
     useState(true);
@@ -477,6 +555,7 @@ export default function ScenarioMap({
       armyLayer.layer,
       airbasesLayer.layer,
       threatRangeLayer.layer,
+      facilityPlacementGroupLayer.layer,
       threatPlacementLayer.layer,
       facilityPlacementLayer.layer,
       aircraftRouteLayer.layer,
@@ -644,11 +723,234 @@ export default function ScenarioMap({
     return latestCheckpoint;
   }
 
+  const facilityPlacementDefaultsRef =
+    useRef<AssetPlacementDeploymentDefaults | null>(null);
+
   function clearPendingFacilityPlacement() {
     pendingFacilityPlacementRef.current = null;
     setPendingFacilityPlacement(null);
     facilityPlacementLayer.clearPreview();
     threatPlacementLayer.clearPreview();
+  }
+
+  function clearPendingFacilityGroupTeleport() {
+    teleportingFacilityGroupIdRef.current = null;
+    refreshFacilityPlacementGroupLayer();
+  }
+
+  function getCurrentFacilityIds() {
+    return game.currentScenario.facilities.map((facility) => facility.id);
+  }
+
+  function persistFacilityPlacementGroups(groups: FacilityPlacementGroup[]) {
+    const activeFacilityIds = getCurrentFacilityIds();
+    game.currentScenario.metadata = setScenarioFacilityPlacementGroups(
+      game.currentScenario.metadata,
+      groups,
+      activeFacilityIds
+    );
+    const persistedGroups = getScenarioFacilityPlacementGroups(
+      game.currentScenario.metadata,
+      activeFacilityIds
+    );
+    setFacilityPlacementGroups(persistedGroups);
+    return persistedGroups;
+  }
+
+  function loadFacilityPlacementGroupsFromScenario() {
+    const loadedGroups = getScenarioFacilityPlacementGroups(
+      game.currentScenario.metadata,
+      getCurrentFacilityIds()
+    );
+    return persistFacilityPlacementGroups(loadedGroups);
+  }
+
+  function buildFacilityPlacementGroupLabel(
+    className: string,
+    memberCount: number,
+    templateLabel?: string
+  ) {
+    const formationLabel = templateLabel ?? `${memberCount}포대 분산`;
+    return `${getDisplayName(className)} · ${formationLabel}`;
+  }
+
+  function getFacilityFeaturesByIds(facilityIds: string[]) {
+    return facilityIds
+      .map((facilityId) => facilityLayer.findFeatureByKey("id", facilityId))
+      .filter((feature): feature is Feature<Geometry> => Boolean(feature));
+  }
+
+  function closeFacilityCard() {
+    setOpenFacilityCard({
+      open: false,
+      top: 0,
+      left: 0,
+      facilityId: "",
+    });
+    setKeyboardShortcutsEnabled(true);
+  }
+
+  function registerFacilityPlacementGroup(
+    facilities: Facility[],
+    templateLabel?: string
+  ) {
+    if (facilities.length < 2) {
+      return null;
+    }
+
+    const nextGroup = createFacilityPlacementGroup(
+      facilities.map((facility) => facility.id),
+      buildFacilityPlacementGroupLabel(
+        facilities[0]?.className ?? "Facility",
+        facilities.length,
+        templateLabel
+      )
+    );
+
+    const nextGroups = [
+      nextGroup,
+      ...facilityPlacementGroups
+        .map((group) => ({
+          ...group,
+          facilityIds: group.facilityIds.filter(
+            (facilityId) => !nextGroup.facilityIds.includes(facilityId)
+          ),
+        }))
+        .filter((group) => group.facilityIds.length > 1),
+    ];
+    persistFacilityPlacementGroups(nextGroups);
+
+    return nextGroup;
+  }
+
+  function selectFacilityPlacementGroup(
+    groupOrId: string | FacilityPlacementGroup
+  ) {
+    const group =
+      typeof groupOrId === "string"
+        ? facilityPlacementGroups.find((entry) => entry.id === groupOrId)
+        : groupOrId;
+    if (!group) {
+      return;
+    }
+
+    const features = getFacilityFeaturesByIds(group.facilityIds);
+    if (features.length === 0) {
+      return;
+    }
+
+    setDragSelectedFeatures(features);
+    setSelectedDragRecommendationTargetId(null);
+    setCurrentGameStatusToContext(
+      `${group.facilityIds.length}개 포대 묶음을 선택했습니다.`
+    );
+  }
+
+  function queueFacilityPlacementGroupForTeleport(groupId: string) {
+    const group = facilityPlacementGroups.find((entry) => entry.id === groupId);
+    if (!group) {
+      return;
+    }
+
+    clearPendingFacilityPlacement();
+    facilityPlacementDefaultsRef.current = null;
+    game.addingFacility = false;
+    clearPendingFacilityGroupTeleport();
+    game.selectedUnitId = "";
+    teleportingUnit = false;
+    teleportingFacilityGroupIdRef.current = groupId;
+    refreshFacilityPlacementGroupLayer();
+    changeCursorType("");
+    setCurrentGameStatusToContext(
+      `지도를 클릭해 ${group.facilityIds.length}개 포대 묶음을 평행 이동하세요.`
+    );
+  }
+
+  function removeFacilityPlacementGroup(groupId: string) {
+    const group = facilityPlacementGroups.find((entry) => entry.id === groupId);
+    if (!group) {
+      return;
+    }
+
+    const activeFacilityIds = group.facilityIds.filter((facilityId) =>
+      Boolean(game.currentScenario.getFacility(facilityId))
+    );
+    if (activeFacilityIds.length === 0) {
+      persistFacilityPlacementGroups(
+        facilityPlacementGroups.filter((entry) => entry.id !== groupId)
+      );
+      return;
+    }
+
+    if (
+      openFacilityCard.open &&
+      activeFacilityIds.includes(openFacilityCard.facilityId)
+    ) {
+      closeFacilityCard();
+    }
+
+    if (
+      dragSelectedFeatures.length > 0 &&
+      dragSelectedFeatures.some((feature) =>
+        activeFacilityIds.includes(feature.get("id"))
+      )
+    ) {
+      clearDragSelection();
+    }
+
+    if (
+      game.selectedUnitId &&
+      activeFacilityIds.includes(game.selectedUnitId)
+    ) {
+      game.selectedUnitId = "";
+    }
+
+    clearPendingFacilityGroupTeleport();
+    activeFacilityIds.forEach((facilityId) => {
+      removeFacility(facilityId, true);
+    });
+    persistFacilityPlacementGroups(
+      facilityPlacementGroups.filter((entry) => entry.id !== groupId)
+    );
+    toastContext?.addToast(
+      `${group.label} 묶음 ${activeFacilityIds.length}개를 삭제했습니다.`
+    );
+  }
+
+  function teleportFacilityPlacementGroup(
+    groupId: string,
+    coordinates: number[]
+  ) {
+    const group = facilityPlacementGroups.find((entry) => entry.id === groupId);
+    if (!group) {
+      return;
+    }
+
+    const facilities = group.facilityIds
+      .map((facilityId) => game.currentScenario.getFacility(facilityId))
+      .filter((facility): facility is Facility => Boolean(facility));
+    if (facilities.length === 0) {
+      persistFacilityPlacementGroups(
+        facilityPlacementGroups.filter((entry) => entry.id !== groupId)
+      );
+      return;
+    }
+
+    const destination = toLonLat(coordinates, theMap.getView().getProjection());
+    const nextPositions = buildFacilityPlacementGroupTeleportLayout(
+      facilities,
+      destination[1],
+      destination[0]
+    );
+    nextPositions.forEach((position) => {
+      game.teleportUnit(position.id, position.latitude, position.longitude);
+    });
+    refreshAllLayers();
+    loadFeatureEntitiesState();
+    selectFacilityPlacementGroup(groupId);
+    toastContext?.addToast(
+      `${group.label} 묶음 ${nextPositions.length}개를 이동했습니다.`
+    );
   }
 
   function dismissLiveCommentaryNotification(id: string) {
@@ -776,16 +1078,13 @@ export default function ScenarioMap({
       directionCoordinates,
       theMap.getView().getProjection()
     );
-    const heading =
-      originLatitude === directionLatitude &&
-      originLongitude === directionLongitude
-        ? 0
-        : getBearingBetweenTwoPoints(
-            originLatitude,
-            originLongitude,
-            directionLatitude,
-            directionLongitude
-          );
+    const heading = resolveFacilityPlacementHeading(
+      originLatitude,
+      originLongitude,
+      directionLatitude,
+      directionLongitude,
+      facilityPlacementDefaultsRef.current
+    );
 
     return {
       latitude: originLatitude,
@@ -794,20 +1093,42 @@ export default function ScenarioMap({
       className: facilityTemplate.className,
       sideColor: game.currentScenario.getSideColor(game.currentSideId),
       range: facilityTemplate.range,
-      detectionArcDegrees: facilityTemplate.detectionArcDegrees ?? 120,
+      detectionArcDegrees: resolveFacilityPlacementArcDegrees(
+        facilityTemplate.detectionArcDegrees,
+        facilityPlacementDefaultsRef.current
+      ),
     };
+  }
+
+  function getPendingFacilityPlacementPreviews(directionCoordinates: number[]) {
+    const preview = getPendingFacilityPlacementPreview(directionCoordinates);
+    if (!preview) {
+      return null;
+    }
+
+    return buildFacilityFormationLayout(
+      preview.latitude,
+      preview.longitude,
+      preview.heading,
+      facilityPlacementDefaultsRef.current
+    ).map((layoutEntry) => ({
+      ...preview,
+      latitude: layoutEntry.latitude,
+      longitude: layoutEntry.longitude,
+      heading: layoutEntry.heading,
+    }));
   }
 
   function updatePendingFacilityPlacementPreview(
     directionCoordinates: number[]
   ) {
-    const preview = getPendingFacilityPlacementPreview(directionCoordinates);
-    if (!preview) {
+    const previews = getPendingFacilityPlacementPreviews(directionCoordinates);
+    if (!previews) {
       return;
     }
 
-    facilityPlacementLayer.showPreview(preview);
-    threatPlacementLayer.showPreview(preview);
+    facilityPlacementLayer.showPreview(previews);
+    threatPlacementLayer.showPreview(previews);
   }
 
   function clearRecordingPlayer() {
@@ -902,6 +1223,7 @@ export default function ScenarioMap({
               facilityLayer.layer,
               airbasesLayer.layer,
               threatRangeLayer.layer,
+              facilityPlacementGroupLayer.layer,
               threatPlacementLayer.layer,
               facilityPlacementLayer.layer,
               aircraftRouteLayer.layer,
@@ -1333,6 +1655,8 @@ export default function ScenarioMap({
       context = "moveArmy";
     } else if (selectedFeatureType === "ship" && routeMeasurementDrawLine) {
       context = "moveShip";
+    } else if (teleportingFacilityGroupIdRef.current) {
+      context = "teleportFacilityGroup";
     } else if (game.selectedUnitId && teleportingUnit) {
       context = "teleportUnit";
     } else if (selectingFocusFireObjective) {
@@ -1413,6 +1737,17 @@ export default function ScenarioMap({
         teleportingUnit = false;
         teleportUnit(game.selectedUnitId, event.coordinate);
         game.selectedUnitId = "";
+        setCurrentGameStatusToContext(
+          game.scenarioPaused ? "시뮬레이션 일시정지" : "시뮬레이션 진행 중"
+        );
+        break;
+      }
+      case "teleportFacilityGroup": {
+        const teleportingGroupId = teleportingFacilityGroupIdRef.current;
+        clearPendingFacilityGroupTeleport();
+        if (teleportingGroupId) {
+          teleportFacilityPlacementGroup(teleportingGroupId, event.coordinate);
+        }
         setCurrentGameStatusToContext(
           game.scenarioPaused ? "시뮬레이션 일시정지" : "시뮬레이션 진행 중"
         );
@@ -1696,7 +2031,13 @@ export default function ScenarioMap({
         setPendingFacilityPlacement([...coordinates]);
         updatePendingFacilityPlacementPreview(coordinates);
         setCurrentGameStatusToContext(
-          "위치를 고정했습니다. 마우스를 움직여 부채꼴 방향을 맞추고 한 번 더 클릭해 확정하세요."
+          facilityPlacementDefaultsRef.current
+            ? `위치를 고정했습니다. ${
+                facilityPlacementDefaultsRef.current.formation
+                  ? `${facilityPlacementDefaultsRef.current.formation.unitCount}개 포대 분산 템플릿과 권장 부채꼴이 먼저 적용됐습니다.`
+                  : "권장 부채꼴이 먼저 적용됐습니다."
+              } 마우스를 움직여 수정한 뒤 한 번 더 클릭해 확정하세요.`
+            : "위치를 고정했습니다. 마우스를 움직여 부채꼴 방향을 맞추고 한 번 더 클릭해 확정하세요."
         );
         return;
       }
@@ -1735,21 +2076,41 @@ export default function ScenarioMap({
       return;
     }
 
-    const preview = getPendingFacilityPlacementPreview(directionCoordinates);
-    if (!preview) {
+    const deploymentDefaults = facilityPlacementDefaultsRef.current;
+    const previews = getPendingFacilityPlacementPreviews(directionCoordinates);
+    if (!previews || previews.length === 0) {
       clearPendingFacilityPlacement();
       return;
     }
 
-    addFacility(
-      pendingFacilityPlacementRef.current,
-      preview.className,
-      preview.range,
-      preview.heading
+    const createdFacilities = previews
+      .map((preview) =>
+        addFacility(
+          fromLonLat(
+            [preview.longitude, preview.latitude],
+            theMap.getView().getProjection()
+          ),
+          preview.className,
+          preview.range,
+          preview.heading
+        )
+      )
+      .filter((facility): facility is Facility => Boolean(facility));
+    const createdFacilityGroup = registerFacilityPlacementGroup(
+      createdFacilities,
+      deploymentDefaults?.formation?.templateLabel
     );
+
     clearPendingFacilityPlacement();
+    facilityPlacementDefaultsRef.current = null;
     game.addingFacility = false;
     changeCursorType("");
+    if (createdFacilityGroup) {
+      selectFacilityPlacementGroup(createdFacilityGroup);
+      toastContext?.addToast(
+        `${createdFacilityGroup.label} 묶음 ${createdFacilityGroup.facilityIds.length}개를 배치했습니다.`
+      );
+    }
     setCurrentGameStatusToContext(
       game.scenarioPaused ? "시뮬레이션 일시정지" : "시뮬레이션 진행 중"
     );
@@ -1758,6 +2119,7 @@ export default function ScenarioMap({
 
   function toggleFocusFireMode() {
     clearPendingFacilityPlacement();
+    clearPendingFacilityGroupTeleport();
     if (!game.focusFireOperation.enabled) {
       if (!game.currentSideId || game.currentScenario.sides.length === 0) {
         toastContext?.addToast(
@@ -1784,6 +2146,7 @@ export default function ScenarioMap({
 
   function armFocusFireObjectiveSelection() {
     clearPendingFacilityPlacement();
+    clearPendingFacilityGroupTeleport();
     if (!game.currentSideId || game.currentScenario.sides.length === 0) {
       toastContext?.addToast(
         "집중포격 목표를 지정하려면 먼저 세력을 선택하세요.",
@@ -1865,31 +2228,33 @@ export default function ScenarioMap({
     );
   }
 
-  function openBattleSpectator() {
-    const snapshot: BattleSpectatorSnapshot = game.getBattleSpectatorSnapshot();
-    if (snapshot.units.length === 0 && snapshot.weapons.length === 0) {
-      toastContext?.addToast(
-        "관전할 전투 자산이 없습니다. 시나리오를 먼저 불러오거나 유닛을 추가하세요.",
-        "error"
-      );
+  function openScenarioFlightSim(options?: { launchSimulation?: boolean }) {
+    if (options?.launchSimulation) {
+      resumeScenarioSimulation();
+    }
+
+    openScenarioLaunch3dFlightSim({
+      openFlightSimPage,
+      defaultCenter: game.mapView.currentCameraCenter,
+      focusFireSummary: game.getFocusFireSummary(),
+      continueSimulation: options?.launchSimulation ? true : !game.scenarioPaused,
+    });
+  }
+
+  function resumeScenarioSimulation() {
+    game.recordStep(true);
+    game.scenarioPaused = false;
+    setCurrentGameStatusToContext("시뮬레이션 진행 중");
+    setCurrentScenarioTimeToContext(game.currentScenario.currentTime);
+  }
+
+  function handleStartScenario(mode: ScenarioLaunchMode) {
+    if (mode === "3d") {
+      openScenarioFlightSim({ launchSimulation: true });
       return;
     }
 
-    const selectedTarget = game.getTargetById(game.selectedUnitId);
-    const startCenter =
-      selectedTarget &&
-      Number.isFinite(selectedTarget.longitude) &&
-      Number.isFinite(selectedTarget.latitude)
-        ? [selectedTarget.longitude, selectedTarget.latitude]
-        : typeof snapshot.centerLongitude === "number" &&
-            typeof snapshot.centerLatitude === "number"
-          ? [snapshot.centerLongitude, snapshot.centerLatitude]
-          : game.mapView.currentCameraCenter;
-
-    openFlightSimPage(startCenter, "drone", undefined, {
-      ...snapshot,
-      continueSimulation: !game.scenarioPaused,
-    });
+    void handlePlayGameClick();
   }
 
   function getFeaturesAtPixel(pixel: Pixel): Feature[] {
@@ -1967,6 +2332,7 @@ export default function ScenarioMap({
     }
 
     setFeatureEntitiesState(Object.values(visibleFeaturesMap));
+    loadFacilityPlacementGroupsFromScenario();
   }
 
   function handleFeatureEntityStateAction(
@@ -1998,6 +2364,8 @@ export default function ScenarioMap({
 
   function setAddingAircraft(unitClassName: string) {
     clearPendingFacilityPlacement();
+    clearPendingFacilityGroupTeleport();
+    facilityPlacementDefaultsRef.current = null;
     changeCursorType("");
     game.addingAircraft = !game.addingAircraft;
     game.addingFacility = false;
@@ -2015,8 +2383,13 @@ export default function ScenarioMap({
     }
   }
 
-  function setAddingFacility(unitClassName: string) {
+  function setAddingFacility(
+    unitClassName: string,
+    deploymentDefaults?: AssetPlacementDeploymentDefaults
+  ) {
     clearPendingFacilityPlacement();
+    clearPendingFacilityGroupTeleport();
+    facilityPlacementDefaultsRef.current = deploymentDefaults ?? null;
     game.addingFacility = !game.addingFacility;
     game.addingAircraft = false;
     game.addingAirbase = false;
@@ -2025,10 +2398,13 @@ export default function ScenarioMap({
     if (game.addingFacility) {
       changeCursorType("crosshair");
       setCurrentGameStatusToContext(
-        "지도를 클릭해 지상 무기체계 위치를 놓으세요."
+        deploymentDefaults?.formation
+          ? `지도를 클릭해 ${deploymentDefaults.formation.unitCount}개 포대 분산 템플릿의 중심 위치를 놓으세요.`
+          : "지도를 클릭해 지상 무기체계 위치를 놓으세요."
       );
       updateSelectedUnitClassName(unitClassName);
     } else {
+      facilityPlacementDefaultsRef.current = null;
       changeCursorType("");
       setCurrentGameStatusToContext(
         game.scenarioPaused ? "시뮬레이션 일시정지" : "시뮬레이션 진행 중"
@@ -2039,6 +2415,8 @@ export default function ScenarioMap({
 
   function setAddingAirbase(unitClassName: string) {
     clearPendingFacilityPlacement();
+    clearPendingFacilityGroupTeleport();
+    facilityPlacementDefaultsRef.current = null;
     changeCursorType("");
     game.addingAirbase = !game.addingAirbase;
     game.addingAircraft = false;
@@ -2058,6 +2436,8 @@ export default function ScenarioMap({
 
   function setAddingShip(unitClassName: string) {
     clearPendingFacilityPlacement();
+    clearPendingFacilityGroupTeleport();
+    facilityPlacementDefaultsRef.current = null;
     changeCursorType("");
     game.addingShip = !game.addingShip;
     game.addingAircraft = false;
@@ -2077,6 +2457,8 @@ export default function ScenarioMap({
 
   function setAddingReferencePoint() {
     clearPendingFacilityPlacement();
+    clearPendingFacilityGroupTeleport();
+    facilityPlacementDefaultsRef.current = null;
     changeCursorType("");
     game.addingReferencePoint = !game.addingReferencePoint;
     game.addingAircraft = false;
@@ -2315,7 +2697,7 @@ export default function ScenarioMap({
 
   function drawNextFrame(observation: Scenario) {
     aircraftLayer.refresh(observation.aircraft);
-    weaponTrajectoryLayer.refresh(observation.weapons, observation);
+    refreshWeaponTrajectoryLayer(observation);
     weaponLayer.refresh(observation.weapons);
     shipLayer.refresh(observation.ships);
     armyLayer.refresh(observation.armies);
@@ -2433,11 +2815,21 @@ export default function ScenarioMap({
     );
     if (newFacility) {
       facilityLayer.addFacilityFeature(newFacility);
-      handleFeatureEntityStateAction({ id: newFacility.id }, "add");
+      handleFeatureEntityStateAction(
+        {
+          id: newFacility.id,
+          name: newFacility.name,
+          type: "facility",
+          sideId: newFacility.sideId,
+          sideColor: newFacility.sideColor,
+        },
+        "add"
+      );
       if (threatRangeVisible) threatRangeLayer.addRangeFeature(newFacility);
       if (featureLabelVisible)
         featureLabelLayer.addFeatureLabelFeature(newFacility);
     }
+    return newFacility;
   }
 
   function addAirbase(
@@ -2565,12 +2957,15 @@ export default function ScenarioMap({
     }
   }
 
-  function removeFacility(facilityId: string) {
+  function removeFacility(facilityId: string, skipGroupSync: boolean = false) {
     game.removeFacility(facilityId);
     facilityLayer.removeFeatureById(facilityId);
     threatRangeLayer.removeFeatureById(facilityId);
     handleFeatureEntityStateAction({ id: facilityId }, "remove");
     if (featureLabelVisible) featureLabelLayer.removeFeatureById(facilityId);
+    if (!skipGroupSync) {
+      loadFacilityPlacementGroupsFromScenario();
+    }
   }
 
   function removeArmy(armyId: string) {
@@ -3321,6 +3716,7 @@ export default function ScenarioMap({
   }
 
   function queueUnitForTeleport(unitId: string) {
+    clearPendingFacilityGroupTeleport();
     game.selectedUnitId = unitId;
     teleportingUnit = true;
     setCurrentGameStatusToContext("지도를 클릭해 유닛 위치를 이동하세요.");
@@ -3351,10 +3747,8 @@ export default function ScenarioMap({
         ...game.currentScenario.facilities,
         ...game.currentScenario.ships,
       ]);
-    weaponTrajectoryLayer.refresh(
-      game.currentScenario.weapons,
-      game.currentScenario
-    );
+    refreshFacilityPlacementGroupLayer();
+    refreshWeaponTrajectoryLayer(game.currentScenario);
     weaponLayer.refresh(game.currentScenario.weapons);
     shipLayer.refresh(game.currentScenario.ships);
     referencePointLayer.refresh(game.currentScenario.referencePoints);
@@ -3379,6 +3773,49 @@ export default function ScenarioMap({
       ...game.currentScenario.facilities,
       ...game.currentScenario.ships,
     ]);
+  }
+
+  function getEmphasizedFacilityPlacementGroupIds() {
+    const emphasizedGroupIds = new Set<string>();
+    const focusedFacility = openFacilityCard.open
+      ? game.currentScenario.getFacility(openFacilityCard.facilityId)
+      : undefined;
+    const focusedFacilityGroup = focusedFacility
+      ? findFacilityPlacementGroupByFacilityId(
+          facilityPlacementGroups,
+          focusedFacility.id
+        )
+      : null;
+    if (focusedFacilityGroup) {
+      emphasizedGroupIds.add(focusedFacilityGroup.id);
+    }
+    const dragSelectedGroup =
+      dragSelectedFeatures.length > 0 &&
+      dragSelectedFeatures.every(
+        (feature) => feature.get("type") === "facility"
+      )
+        ? resolveMatchingFacilityPlacementGroup(
+            facilityPlacementGroups,
+            dragSelectedFeatures
+              .map((feature) => feature.get("id"))
+              .filter((id): id is string => typeof id === "string")
+          )
+        : null;
+    if (dragSelectedGroup) {
+      emphasizedGroupIds.add(dragSelectedGroup.id);
+    }
+    if (teleportingFacilityGroupIdRef.current) {
+      emphasizedGroupIds.add(teleportingFacilityGroupIdRef.current);
+    }
+    return emphasizedGroupIds;
+  }
+
+  function refreshFacilityPlacementGroupLayer() {
+    facilityPlacementGroupLayer.refresh(
+      facilityPlacementGroups,
+      game.currentScenario.facilities,
+      getEmphasizedFacilityPlacementGroupIds()
+    );
   }
 
   function refreshRouteLayer(observation: Scenario) {
@@ -3538,6 +3975,28 @@ export default function ScenarioMap({
       aircraftRouteLayer.layer.setVisible(false);
       armyRouteLayer.layer.setVisible(false);
       shipRouteLayer.layer.setVisible(false);
+    }
+  }
+
+  function refreshWeaponTrajectoryLayer(observation: Scenario) {
+    if (!weaponTrajectoryVisible) {
+      return;
+    }
+
+    weaponTrajectoryLayer.refresh(observation.weapons, observation);
+  }
+
+  function toggleWeaponTrajectoryVisibility(on: boolean) {
+    setWeaponTrajectoryVisible(on);
+    if (on) {
+      weaponTrajectoryLayer.refresh(
+        game.currentScenario.weapons,
+        game.currentScenario
+      );
+      weaponTrajectoryLayer.layer.setVisible(true);
+    } else {
+      weaponTrajectoryLayer.refresh([], game.currentScenario);
+      weaponTrajectoryLayer.layer.setVisible(false);
     }
   }
 
@@ -3712,6 +4171,106 @@ export default function ScenarioMap({
     setDrawerOpen(true);
   }
 
+  const handleGuideRailSelectionsChange = useCallback(
+    (nextLabels: GuideRailAssetSelectionLabels) => {
+      setGuideRailSelectionLabels((currentLabels) =>
+        areGuideRailSelectionLabelsEqual(currentLabels, nextLabels)
+          ? currentLabels
+          : nextLabels
+      );
+    },
+    []
+  );
+
+  const handleGuideRailActiveAssetTypeChange = useCallback(
+    (assetType: GuideRailAssetMixId) => {
+      setActiveGuideRailAssetType((currentAssetType) =>
+        currentAssetType === assetType ? currentAssetType : assetType
+      );
+    },
+    []
+  );
+
+  function handleStartAssetPlacement() {
+    setActiveGuideRailAssetType(null);
+    setDrawerOpen(true);
+    setAssetPlacementOpenSignal((currentValue) => currentValue + 1);
+    setCurrentGameStatusToContext(
+      "도크에서 자산을 선택한 뒤 지도를 클릭해 배치하세요."
+    );
+  }
+
+  function handleStartHostilePlacement() {
+    setActiveGuideRailAssetType(null);
+    const hostileSideId =
+      game.currentScenario.sides.find(
+        (side) =>
+          side.id !== game.currentSideId &&
+          (!game.currentSideId ||
+            game.currentScenario.isHostile(game.currentSideId, side.id))
+      )?.id ??
+      game.currentScenario.sides.find((side) => side.id !== game.currentSideId)
+        ?.id;
+
+    if (hostileSideId) {
+      switchCurrentSide(hostileSideId);
+    }
+
+    setDrawerOpen(true);
+    setAssetPlacementOpenSignal((currentValue) => currentValue + 1);
+    setCurrentGameStatusToContext(
+      "적 세력 자산을 선택한 뒤 지도를 클릭해 배치하세요."
+    );
+  }
+
+  function handleGuideRailAssetMixAction(assetType: GuideRailAssetMixId) {
+    const statusLabels: Record<GuideRailAssetMixId, string> = {
+      "manned-aircraft": "유인기를 선택한 뒤 지도를 클릭해 배치하세요.",
+      drone: "드론을 선택한 뒤 지도를 클릭해 배치하세요.",
+      airbase: "기지 자산을 선택한 뒤 지도를 클릭해 배치하세요.",
+      facility: "지상 시설을 선택한 뒤 지도를 클릭해 배치하세요.",
+      armor: "기갑 자산을 선택한 뒤 지도를 클릭해 배치하세요.",
+      ship: "해상 자산을 선택한 뒤 지도를 클릭해 배치하세요.",
+    };
+
+    setActiveGuideRailAssetType(assetType);
+    setDrawerOpen(true);
+    setAssetPlacementOpenSignal((currentValue) => currentValue + 1);
+    setAssetPlacementFocusIntent((currentValue) => ({
+      assetType,
+      signal: currentValue.signal + 1,
+    }));
+    setCurrentGameStatusToContext(statusLabels[assetType]);
+  }
+
+  function handleOpenMissionCreatorFromGuideRail() {
+    setActiveGuideRailAssetType(null);
+    setDrawerOpen(true);
+    openMissionCreator();
+    setCurrentGameStatusToContext("임무를 추가하세요.");
+  }
+
+  function handleGuideRailAlertAction(alertId: GuideRailAlertId) {
+    switch (alertId) {
+      case "no-assets":
+      case "no-friendly-assets":
+      case "drawer-open":
+        handleStartAssetPlacement();
+        break;
+      case "no-hostiles":
+        handleStartHostilePlacement();
+        break;
+      case "no-missions":
+        handleOpenMissionCreatorFromGuideRail();
+        break;
+      case "engagement-live":
+        openScenarioFlightSim();
+        break;
+      default:
+        break;
+    }
+  }
+
   function handleDrawerClose() {
     setDrawerOpen(false);
   }
@@ -3808,6 +4367,12 @@ export default function ScenarioMap({
   const selectedFacility = openFacilityCard.open
     ? game.currentScenario.getFacility(openFacilityCard.facilityId)
     : undefined;
+  const selectedFacilityPlacementGroup = selectedFacility
+    ? findFacilityPlacementGroupByFacilityId(
+        facilityPlacementGroups,
+        selectedFacility.id
+      )
+    : null;
   const selectedArmy = openArmyCard.open
     ? game.currentScenario.getArmy(openArmyCard.armyId)
     : undefined;
@@ -3836,14 +4401,89 @@ export default function ScenarioMap({
           .filter((id): id is string => typeof id === "string")
       )
     : [];
+  const dragSelectedFacilityPlacementGroup =
+    dragSelectedFeatures.length > 0 &&
+    dragSelectedFeatures.every((feature) => feature.get("type") === "facility")
+      ? resolveMatchingFacilityPlacementGroup(
+          facilityPlacementGroups,
+          dragSelectedFeatures
+            .map((feature) => feature.get("id"))
+            .filter((id): id is string => typeof id === "string")
+        )
+      : null;
   const selectedCombatant = resolveSelectedCombatantSummary();
   const focusFireSummary = game.getFocusFireSummary();
+  const guideRailVisible = !mobileView;
+  const rightOverlayOffset = mobileView
+    ? 16
+    : drawerOpen
+      ? APP_DRAWER_WIDTH + 20
+      : 16;
+
+  useEffect(() => {
+    const emphasizedGroupIds = new Set<string>();
+    const focusedFacility = openFacilityCard.open
+      ? game.currentScenario.getFacility(openFacilityCard.facilityId)
+      : undefined;
+    const focusedFacilityGroup = focusedFacility
+      ? findFacilityPlacementGroupByFacilityId(
+          facilityPlacementGroups,
+          focusedFacility.id
+        )
+      : null;
+    if (focusedFacilityGroup) {
+      emphasizedGroupIds.add(focusedFacilityGroup.id);
+    }
+
+    const dragSelectedGroup =
+      dragSelectedFeatures.length > 0 &&
+      dragSelectedFeatures.every(
+        (feature) => feature.get("type") === "facility"
+      )
+        ? resolveMatchingFacilityPlacementGroup(
+            facilityPlacementGroups,
+            dragSelectedFeatures
+              .map((feature) => feature.get("id"))
+              .filter((id): id is string => typeof id === "string")
+          )
+        : null;
+    if (dragSelectedGroup) {
+      emphasizedGroupIds.add(dragSelectedGroup.id);
+    }
+
+    facilityPlacementGroupLayer.refresh(
+      facilityPlacementGroups,
+      game.currentScenario.facilities,
+      emphasizedGroupIds
+    );
+  }, [
+    dragSelectedFeatures,
+    facilityPlacementGroupLayer,
+    facilityPlacementGroups,
+    game.currentScenario.facilities,
+    openFacilityCard.facilityId,
+    openFacilityCard.open,
+  ]);
 
   useEffect(() => {
     if (focusFireSummary.enabled || focusFireSummary.objectiveName) {
       setFocusFireDockOpen(true);
     }
   }, [focusFireSummary.enabled, focusFireSummary.objectiveName]);
+
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => {
+      theMap.updateSize();
+    });
+    const timeoutId = window.setTimeout(() => {
+      theMap.updateSize();
+    }, 240);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [theMap, drawerOpen, mobileView]);
 
   // GUI START
   return (
@@ -3858,6 +4498,7 @@ export default function ScenarioMap({
         addShipOnClick={setAddingShip}
         addReferencePointOnClick={setAddingReferencePoint}
         playOnClick={handlePlayGameClick}
+        startScenarioOnClick={handleStartScenario}
         stepOnClick={handleStepGameClick}
         pauseOnClick={handlePauseGameClick}
         toggleScenarioTimeCompressionOnClick={toggleScenarioTimeCompression}
@@ -3907,6 +4548,10 @@ export default function ScenarioMap({
         updateCurrentScenarioSidesToContext={() => {
           setCurrentScenarioSidesToContext([...game.currentScenario.sides]);
         }}
+        assetPlacementOpenSignal={assetPlacementOpenSignal}
+        assetPlacementFocusIntent={assetPlacementFocusIntent}
+        onGuideRailSelectionsChange={handleGuideRailSelectionsChange}
+        onGuideRailActiveAssetTypeChange={handleGuideRailActiveAssetTypeChange}
         featureEntitiesPlotted={featureEntitiesState}
         deleteFeatureEntity={handleDeleteFeatureEntity}
         openMissionEditor={openMissionEditor}
@@ -3929,10 +4574,28 @@ export default function ScenarioMap({
         toggleFocusFireMode={toggleFocusFireMode}
         armFocusFireObjectiveSelection={armFocusFireObjectiveSelection}
         clearFocusFireObjective={clearFocusFireObjective}
-        openBattleSpectator={openBattleSpectator}
+        openScenario3dView={openScenarioFlightSim}
         openFocusFireAirwatch={openFocusFireAirwatch}
         openFocusFireDock={() => setFocusFireDockOpen(true)}
       />
+
+      {guideRailVisible && (
+        <ExperienceGuideRail
+          mobileView={mobileView}
+          game={game}
+          drawerOpen={drawerOpen}
+          startAssetPlacement={handleStartAssetPlacement}
+          onAlertAction={handleGuideRailAlertAction}
+          onAssetMixAction={handleGuideRailAssetMixAction}
+          activeAssetMixId={activeGuideRailAssetType}
+          assetSelectionLabels={guideRailSelectionLabels}
+          playOnClick={handlePlayGameClick}
+          pauseOnClick={handlePauseGameClick}
+          stepOnClick={handleStepGameClick}
+          openScenario3dView={openScenarioFlightSim}
+          openSimulationLogs={openSimulationLogs}
+        />
+      )}
 
       <LayerVisibilityPanelToggle
         baseMapModes={baseMapLayers.getAvailableModes()}
@@ -3943,15 +4606,19 @@ export default function ScenarioMap({
         toggleThreatRangeVisibility={toggleThreatRangeVisibility}
         routeVisibility={routeVisible}
         toggleRouteVisibility={toggleRouteVisibility}
+        weaponTrajectoryVisibility={weaponTrajectoryVisible}
+        toggleWeaponTrajectoryVisibility={toggleWeaponTrajectoryVisibility}
         toggleBaseMapLayer={toggleBaseMapLayer}
         toggleReferencePointVisibility={toggleReferencePointVisibility}
         referencePointVisibility={referencePointVisible}
+        rightOffset={rightOverlayOffset}
       />
 
       <BottomInfoDisplay
         mobileView={mobileView}
         replayMetric={activeReplayMetric}
         selectedCombatant={selectedCombatant}
+        rightOffset={mobileView ? undefined : `${rightOverlayOffset}px`}
         focusFireDock={
           <FocusFireDockPanel
             game={game}
@@ -3972,6 +4639,7 @@ export default function ScenarioMap({
           game={game}
           sideId={game.currentSideId}
           mobileView={mobileView}
+          rightOffset={mobileView ? undefined : `${rightOverlayOffset}px`}
           features={dragSelectedFeatures}
           priorities={dragSelectedTargetPriorities}
           selectedTargetId={selectedDragRecommendationTargetId}
@@ -3985,6 +4653,31 @@ export default function ScenarioMap({
           }}
           onInspectFeature={inspectDragSelectedFeature}
           onClearSelection={clearDragSelection}
+          facilityGroupSummary={
+            dragSelectedFacilityPlacementGroup
+              ? {
+                  label: dragSelectedFacilityPlacementGroup.label,
+                  memberCount:
+                    dragSelectedFacilityPlacementGroup.facilityIds.length,
+                }
+              : null
+          }
+          onMoveFacilityGroup={
+            dragSelectedFacilityPlacementGroup
+              ? () =>
+                  queueFacilityPlacementGroupForTeleport(
+                    dragSelectedFacilityPlacementGroup.id
+                  )
+              : undefined
+          }
+          onDeleteFacilityGroup={
+            dragSelectedFacilityPlacementGroup
+              ? () =>
+                  removeFacilityPlacementGroup(
+                    dragSelectedFacilityPlacementGroup.id
+                  )
+              : undefined
+          }
         />
       )}
 
@@ -4049,10 +4742,11 @@ export default function ScenarioMap({
         <SimulationLogs handleCloseOnMap={closeSimulationLogs} />
       )}
 
-      <LiveCommentaryNotifications
-        notifications={liveCommentaryNotifications}
-        onDismiss={dismissLiveCommentaryNotification}
-      />
+        <LiveCommentaryNotifications
+          notifications={liveCommentaryNotifications}
+          onDismiss={dismissLiveCommentaryNotification}
+          rightOffset={rightOverlayOffset}
+        />
 
       <Main open={drawerOpen}>
         <DrawerHeader />
@@ -4100,6 +4794,39 @@ export default function ScenarioMap({
           sideName={game.currentScenario.getSideName(selectedFacility.sideId)}
           handleTeleportUnit={queueUnitForTeleport}
           handleDeleteFacility={removeFacility}
+          facilityGroupSummary={
+            selectedFacilityPlacementGroup
+              ? {
+                  label: selectedFacilityPlacementGroup.label,
+                  memberCount:
+                    selectedFacilityPlacementGroup.facilityIds.length,
+                }
+              : null
+          }
+          handleSelectFacilityGroup={
+            selectedFacilityPlacementGroup
+              ? () =>
+                  selectFacilityPlacementGroup(
+                    selectedFacilityPlacementGroup.id
+                  )
+              : undefined
+          }
+          handleTeleportFacilityGroup={
+            selectedFacilityPlacementGroup
+              ? () =>
+                  queueFacilityPlacementGroupForTeleport(
+                    selectedFacilityPlacementGroup.id
+                  )
+              : undefined
+          }
+          handleDeleteFacilityGroup={
+            selectedFacilityPlacementGroup
+              ? () =>
+                  removeFacilityPlacementGroup(
+                    selectedFacilityPlacementGroup.id
+                  )
+              : undefined
+          }
           handleEditFacility={updateFacility}
           handleAddWeapon={handleAddWeaponToFacility}
           handleDeleteWeapon={handleDeleteWeaponFromFacility}
@@ -4114,15 +4841,7 @@ export default function ScenarioMap({
           }}
           anchorPositionTop={openFacilityCard.top}
           anchorPositionLeft={openFacilityCard.left}
-          handleCloseOnMap={() => {
-            setOpenFacilityCard({
-              open: false,
-              top: 0,
-              left: 0,
-              facilityId: "",
-            });
-            setKeyboardShortcutsEnabled(true);
-          }}
+          handleCloseOnMap={closeFacilityCard}
         />
       )}
       {selectedArmy && (
@@ -4169,13 +4888,16 @@ export default function ScenarioMap({
           handleAddWeapon={handleAddWeaponToAircraft}
           handleDeleteWeapon={handleDeleteWeaponFromAircraft}
           handleUpdateWeaponQuantity={handleUpdateAircraftWeaponQuantity}
-          openAssetExperience={() => {
-            openAssetExperiencePage(
+          openTacticalExperience={() => {
+            openAirCombatOverlay(
               createAircraftExperienceSummary(
                 selectedAircraft,
                 game.currentScenario.getSideName(selectedAircraft.sideId),
                 selectedAircraftMission?.name
-              )
+              ),
+              {
+                continueSimulation: !game.scenarioPaused,
+              }
             );
           }}
           anchorPositionTop={openAircraftCard.top}

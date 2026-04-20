@@ -23,9 +23,14 @@ interface LayerVisibilityPanelToggleProps {
   toggleThreatRangeVisibility: (threatRangeVisibility: boolean) => void;
   routeVisibility: boolean;
   toggleRouteVisibility: (routeVisibility: boolean) => void;
+  weaponTrajectoryVisibility: boolean;
+  toggleWeaponTrajectoryVisibility: (
+    weaponTrajectoryVisibility: boolean
+  ) => void;
   toggleBaseMapLayer: () => void;
   toggleReferencePointVisibility: (referencePointVisibility: boolean) => void;
   referencePointVisibility: boolean;
+  rightOffset?: number;
 }
 
 export default function LayerVisibilityPanelToggle(
@@ -113,6 +118,19 @@ export default function LayerVisibilityPanelToggle(
               항로 표시 전환
             </Button>
           </Tooltip>
+          <Tooltip title="무기 궤적 표시 전환" placement="right">
+            <Button
+              variant="outlined"
+              sx={toggleStyle}
+              onClick={() => {
+                props.toggleWeaponTrajectoryVisibility(
+                  !props.weaponTrajectoryVisibility
+                );
+              }}
+            >
+              무기 궤적 전환
+            </Button>
+          </Tooltip>
           <Tooltip title="위협 반경 표시 전환. 단축키: 8" placement="right">
             <Button
               variant="outlined"
@@ -159,7 +177,7 @@ export default function LayerVisibilityPanelToggle(
         sx={{
           position: "absolute",
           top: "calc(env(safe-area-inset-top, 0px) + 4.5rem)",
-          right: 16,
+          right: props.rightOffset ?? 16,
           fontSize: "small",
           zIndex: 1000,
         }}
@@ -187,7 +205,12 @@ export default function LayerVisibilityPanelToggle(
           </Tooltip>
           <Box sx={openLayersPanelButtonStyle}>
             <Tooltip title="레이어 제어" placement="left">
-              <IconButton disableRipple onClick={handleClick} size="medium">
+              <IconButton
+                aria-label="레이어 제어"
+                disableRipple
+                onClick={handleClick}
+                size="medium"
+              >
                 <LayersIcon />
               </IconButton>
             </Tooltip>

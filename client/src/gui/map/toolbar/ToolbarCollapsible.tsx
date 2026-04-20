@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Collapse from "@mui/material/Collapse";
 import Box from "@mui/material/Box";
 import {
@@ -22,11 +22,24 @@ import DeselectCheckBoxIcon from "@mui/icons-material/IndeterminateCheckBoxOutli
 import SelectCheckBoxIcon from "@mui/icons-material/CheckBox";
 import { colorPalette } from "@/utils/constants";
 
+type ToolbarCollapsibleBadgeTone =
+  | "default"
+  | "accent"
+  | "warning"
+  | "danger";
+
+interface ToolbarCollapsibleHeaderBadge {
+  label: string;
+  tone?: ToolbarCollapsibleBadgeTone;
+}
+
 interface ToolbarCollapsibleProps {
   title: string;
+  subtitle?: string;
   content: React.JSX.Element;
   width?: number;
   height?: number;
+  headerBadges?: readonly ToolbarCollapsibleHeaderBadge[];
   prependIcon?: React.ComponentType<SvgIconProps>;
   appendIcon?: React.ComponentType<SvgIconProps>;
   appendIconProps?: {
@@ -55,6 +68,7 @@ interface ToolbarCollapsibleProps {
     onApplyFilterOptions: (selectedOptions: string[]) => void;
   };
   open: boolean;
+  openSignal?: number;
 }
 
 export default function ToolbarCollapsible(
@@ -109,43 +123,146 @@ export default function ToolbarCollapsible(
     ]);
   };
 
+  useEffect(() => {
+    if (props.open) {
+      setOpen(true);
+    }
+  }, [props.open]);
+
+  useEffect(() => {
+    if (props.openSignal !== undefined && props.openSignal > 0) {
+      setOpen(true);
+    }
+  }, [props.openSignal]);
+
+  const badgeToneStyles: Record<
+    ToolbarCollapsibleBadgeTone,
+    {
+      border: string;
+      background: string;
+      color: string;
+    }
+  > = {
+    default: {
+      border: "rgba(255,255,255,0.08)",
+      background: "rgba(255,255,255,0.05)",
+      color: "rgba(221, 255, 250, 0.82)",
+    },
+    accent: {
+      border: "rgba(45, 214, 196, 0.18)",
+      background: "rgba(45, 214, 196, 0.12)",
+      color: "var(--fs-accent-soft)",
+    },
+    warning: {
+      border: "rgba(240, 187, 109, 0.24)",
+      background: "rgba(240, 187, 109, 0.12)",
+      color: "var(--fs-sand)",
+    },
+    danger: {
+      border: "rgba(255, 122, 122, 0.22)",
+      background: "rgba(255, 122, 122, 0.1)",
+      color: "#ff9d9d",
+    },
+  };
+
   return (
     <>
       <ListItem
         sx={{
-          px: 1.2,
-          py: 0.8,
+          px: 1.1,
+          py: 0.78,
+          position: "relative",
+          overflow: "hidden",
           background: open
-            ? "linear-gradient(180deg, rgba(14, 39, 47, 0.98) 0%, rgba(9, 24, 30, 0.96) 100%)"
-            : "linear-gradient(180deg, rgba(10, 28, 35, 0.96) 0%, rgba(7, 20, 25, 0.94) 100%)",
-          borderRadius: 2,
+            ? "linear-gradient(180deg, rgba(11, 31, 37, 0.94) 0%, rgba(8, 21, 26, 0.96) 100%)"
+            : "rgba(8, 20, 25, 0.78)",
+          borderRadius: 2.5,
           border: open
-            ? "1px solid rgba(45, 214, 196, 0.26)"
-            : `1px solid ${colorPalette.darkGray}`,
+            ? "1px solid rgba(45, 214, 196, 0.18)"
+            : `1px solid rgba(16, 67, 76, 0.82)`,
           boxShadow: open
-            ? "0 18px 34px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(134, 255, 242, 0.06)"
-            : "0 14px 26px rgba(0, 0, 0, 0.18)",
+            ? "0 14px 30px rgba(0, 0, 0, 0.18)"
+            : "0 8px 20px rgba(0, 0, 0, 0.12)",
+          backdropFilter: "blur(12px)",
           transition:
-            "background 160ms ease, border-color 160ms ease, box-shadow 160ms ease",
+            "transform 160ms ease, background 160ms ease, border-color 160ms ease, box-shadow 160ms ease",
+          "&:hover": {
+            transform: "translateY(-1px)",
+            borderColor: "rgba(45, 214, 196, 0.2)",
+            boxShadow: "0 16px 30px rgba(0, 0, 0, 0.18)",
+          },
         }}
       >
         {/** Prepend Icon */}
         {PrependIcon && (
           <IconButton
             disableRipple
-            sx={{ minWidth: "unset", p: 0, m: 0, mr: 1, cursor: "default" }}
+            sx={{
+              minWidth: "unset",
+              p: 0.6,
+              m: 0,
+              mr: 1,
+              cursor: "default",
+              borderRadius: 1.8,
+              color: open ? "var(--fs-accent-soft)" : "var(--fs-text-soft)",
+              backgroundColor: open
+                ? "rgba(45, 214, 196, 0.1)"
+                : "rgba(255,255,255,0.04)",
+            }}
           >
             <PrependIcon />
           </IconButton>
         )}
         <ListItemText
           primary={props.title}
+          secondary={props.subtitle}
           primaryTypographyProps={{
             fontWeight: 700,
-            letterSpacing: "0.05em",
-            fontSize: 13,
+            letterSpacing: "0.03em",
+            fontSize: 12.5,
+            color: open ? "var(--fs-text)" : "rgba(221, 255, 250, 0.92)",
+          }}
+          secondaryTypographyProps={{
+            sx: {
+              mt: 0.18,
+              color: "var(--fs-text-soft)",
+              fontSize: 10.5,
+              lineHeight: 1.35,
+            },
           }}
         />
+        {props.headerBadges?.length ? (
+          <Stack
+            direction="row"
+            spacing={0.55}
+            sx={{ mr: 1, flexWrap: "wrap", rowGap: 0.55, justifyContent: "flex-end" }}
+          >
+            {props.headerBadges.map((badge) => {
+              const tone = badgeToneStyles[badge.tone ?? "default"];
+
+              return (
+                <Box
+                  key={`${props.title}-${badge.label}`}
+                  sx={{
+                    px: 0.8,
+                    py: 0.3,
+                    borderRadius: 999,
+                    border: `1px solid ${tone.border}`,
+                    backgroundColor: tone.background,
+                    color: tone.color,
+                    fontSize: 10.5,
+                    fontWeight: 800,
+                    letterSpacing: "0.03em",
+                    lineHeight: 1,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {badge.label}
+                </Box>
+              );
+            })}
+          </Stack>
+        ) : null}
         {/** Append Icon */}
         {AppendIcon && (
           <Tooltip
@@ -156,7 +273,14 @@ export default function ToolbarCollapsible(
           >
             <IconButton
               onClick={appendIconProps?.onClick}
-              sx={{ minWidth: "unset", mr: 2, p: 0.5, m: 0 }}
+              sx={{
+                minWidth: "unset",
+                mr: 2,
+                p: 0.65,
+                m: 0,
+                borderRadius: 1.8,
+                backgroundColor: "rgba(255,255,255,0.04)",
+              }}
             >
               <AppendIcon />
             </IconButton>
@@ -172,7 +296,14 @@ export default function ToolbarCollapsible(
                 aria-haspopup="true"
                 aria-expanded={anchorEl ? "true" : undefined}
                 onClick={handleOpenFilterMenu}
-                sx={{ minWidth: "unset", mr: 2, p: 0.5, m: 0 }}
+                sx={{
+                  minWidth: "unset",
+                  mr: 2,
+                  p: 0.65,
+                  m: 0,
+                  borderRadius: 1.8,
+                  backgroundColor: "rgba(255,255,255,0.04)",
+                }}
               >
                 <FilterAltIcon />
               </IconButton>
@@ -260,11 +391,18 @@ export default function ToolbarCollapsible(
         {/** Toggle Show/Hide Dropdown */}
         <IconButton
           sx={{
-            p: 0.5,
+            p: 0.6,
             m: 0,
             minWidth: "unset",
+            borderRadius: 1.8,
+            backgroundColor: open
+              ? "rgba(45, 214, 196, 0.1)"
+              : "rgba(255,255,255,0.04)",
             "&:hover": {
               cursor: "pointer",
+              backgroundColor: open
+                ? "rgba(45, 214, 196, 0.16)"
+                : "rgba(255,255,255,0.08)",
             },
           }}
           onClick={() => {
@@ -279,12 +417,13 @@ export default function ToolbarCollapsible(
         <Box sx={{ px: 0.35, pt: 0.9 }}>
           <Box
             sx={{
-              p: 1.1,
-              borderRadius: 2,
+              p: 1,
+              borderRadius: 2.4,
               background:
-                "linear-gradient(180deg, rgba(8, 22, 28, 0.94) 0%, rgba(5, 15, 19, 0.96) 100%)",
-              border: "1px solid rgba(45, 214, 196, 0.12)",
-              boxShadow: "0 16px 32px rgba(0, 0, 0, 0.16)",
+                "linear-gradient(180deg, rgba(5, 15, 19, 0.88) 0%, rgba(3, 11, 15, 0.9) 100%)",
+              border: "1px solid rgba(45, 214, 196, 0.1)",
+              boxShadow:
+                "inset 0 1px 0 rgba(255,255,255,0.03), 0 14px 28px rgba(0, 0, 0, 0.14)",
             }}
           >
             {props.content}

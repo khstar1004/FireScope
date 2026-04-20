@@ -122,6 +122,52 @@ describe("tacticalExperience", () => {
     ).toBe(true);
   });
 
+  test("creates aircraft-centric air combat scenarios for base profile routes", () => {
+    const aircraftAsset: AssetExperienceSummary = {
+      kind: "aircraft",
+      id: "aircraft-kf21-2",
+      name: "KF-21 Alpha",
+      className: "KF-21 Boramae",
+      sideName: "BLUE",
+      latitude: 37.54,
+      longitude: 127.05,
+      altitude: 3200,
+      heading: 12,
+      speed: 560,
+      range: 26,
+      currentFuel: 9200,
+      maxFuel: 13200,
+      weaponCount: 8,
+    };
+
+    const scrambleScenario = createTacticalExperienceScenario(
+      aircraftAsset,
+      "base",
+      "quick-scramble"
+    );
+    const droneWatchScenario = createTacticalExperienceScenario(
+      aircraftAsset,
+      "base",
+      "drone-watch"
+    );
+
+    expect(scrambleScenario.config.modeTitle).toContain("항공 전투");
+    expect(
+      scrambleScenario.config.hostileContacts.every(
+        (contact) => contact.domain === "air"
+      )
+    ).toBe(true);
+    expect(scrambleScenario.config.supportWeapon.label).toContain("Fox-3");
+    expect(droneWatchScenario.config.turnRateDeg).toBeLessThan(
+      scrambleScenario.config.turnRateDeg
+    );
+    expect(
+      droneWatchScenario.config.hostileContacts.some(
+        (contact) => contact.domain === "ground"
+      )
+    ).toBe(true);
+  });
+
   test("round trips local coordinates through lon/lat conversion", () => {
     const origin = { lon: 127.031, lat: 37.519 };
     const point = { x: 1530, y: -870 };
