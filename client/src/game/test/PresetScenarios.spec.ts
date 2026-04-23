@@ -64,6 +64,28 @@ describe("preset scenarios", () => {
         ?.weapons.find((weapon) => weapon.id === "tactical-charlie-missile")
         ?.speed
     ).toBe(500);
+    expect(
+      game.currentScenario
+        .getFacility("chunmoo-alpha")
+        ?.weapons.find((weapon) => weapon.id === "chunmoo-alpha-guided")
+        ?.speed
+    ).toBe(90);
+    expect(
+      game.currentScenario
+        .getFacility("chunmoo-alpha")
+        ?.weapons.find((weapon) => weapon.id === "chunmoo-alpha-ksrr")?.speed
+    ).toBe(70);
+    expect(
+      game.currentScenario
+        .getFacility("chunmoo-bravo")
+        ?.weapons.find((weapon) => weapon.id === "chunmoo-bravo-guided")
+        ?.speed
+    ).toBe(90);
+    expect(
+      game.currentScenario
+        .getFacility("chunmoo-bravo")
+        ?.weapons.find((weapon) => weapon.id === "chunmoo-bravo-ksrr")?.speed
+    ).toBe(70);
     expect(game.currentScenario.getFacility("chunmoo-alpha")?.heading).toBe(
       350
     );

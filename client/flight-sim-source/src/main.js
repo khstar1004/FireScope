@@ -13,6 +13,7 @@ import { PlanePhysics } from "./plane/planePhysics";
 import { PlaneController } from "./plane/planeController";
 import { DronePhysics } from "./plane/dronePhysics";
 import { getCraftProfile, JET_CRAFT_OPTIONS } from "./plane/craftProfiles";
+import { resolveTerrainAltitudeSafety } from "./plane/terrainSafety";
 import { movePosition, movePositionByVector } from "./utils/math";
 import { calculateDistance, reverseGeocode } from "./world/regions";
 import { HUD } from "./ui/hud";
@@ -828,7 +829,7 @@ function ensureBattleSpectatorSystem() {
 }
 
 function isBattleSpectatorOverlayMode() {
-  return battleSpectatorEnabledFromQuery;
+  return battleSpectatorEnabledFromQuery || Boolean(battleSpectatorRuntimeState);
 }
 
 function applyBattleSpectatorRuntime(payload) {
@@ -854,12 +855,12 @@ window.addEventListener("message", (event) => {
     return;
   }
 
-  if (event.data.type === "firescope-battle-spectator-update") {
+  if (event.data.type === "vista-battle-spectator-update") {
     applyBattleSpectatorRuntime(event.data.payload);
     return;
   }
 
-  if (event.data.type === "firescope-battle-spectator-command") {
+  if (event.data.type === "vista-battle-spectator-command") {
     ensureBattleSpectatorSystem();
     if (battleSpectatorSystem) {
       battleSpectatorSystem.applyCommand(event.data.payload);
@@ -867,13 +868,13 @@ window.addEventListener("message", (event) => {
     return;
   }
 
-  if (event.data.type === "firescope-focus-fire-update") {
+  if (event.data.type === "vista-focus-fire-update") {
     applyFocusFireRuntime(event.data.payload);
     return;
   }
 
   if (
-    event.data.type === "firescope-focus-fire-command" &&
+    event.data.type === "vista-focus-fire-command" &&
     event.data.payload?.command === "start-barrage"
   ) {
     const bursts = Number(event.data.payload.bursts) || null;
@@ -2191,7 +2192,7 @@ function update(dt) {
     });
   }
 
-  checkCrash();
+  checkCrash(physicsResult.verticalSpeed);
   checkGPWS();
 
   if (activeCraft.enableJetAudio && soundManager.isPlaying("jet-engine")) {
@@ -2456,7 +2457,7 @@ function checkGPWS() {
 let lastCrashCheck = 0;
 let flightStartTime = 0;
 
-function checkCrash() {
+function checkCrash(verticalSpeed = 0) {
   if (currentState !== States.FLYING) return;
 
   const now = Date.now();
@@ -2470,11 +2471,19 @@ function checkCrash() {
 
   const cartographic = Cesium.Cartographic.fromDegrees(state.lon, state.lat);
   const terrainHeight = viewer.scene.globe.getHeight(cartographic);
+  const terrainState = resolveTerrainAltitudeSafety({
+    craftProfile: activeCraft,
+    altitude: state.alt,
+    terrainHeight,
+    verticalSpeed,
+  });
 
-  if (
-    terrainHeight !== undefined &&
-    state.alt <= terrainHeight + activeCraft.crashClearance
-  ) {
+  if (terrainState.wasRecovered) {
+    state.alt = terrainState.adjustedAltitude;
+    return;
+  }
+
+  if (terrainState.shouldCrash) {
     currentState = States.CRASHED;
     if (dialogueSystem) dialogueSystem.stop();
     uiContainer.classList.add("hidden");

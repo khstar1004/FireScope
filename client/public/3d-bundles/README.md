@@ -1,6 +1,6 @@
 # 3D Bundle Library
 
-이 폴더는 FireScope에서 쓰는 3D 모델을 종류별로 모아두는 공용 보관함입니다.
+이 폴더는 VISTA에서 쓰는 3D 모델을 종류별로 모아두는 공용 보관함입니다.
 
 - `drone/models`: 드론 GLB, GLTF, FBX 같은 비행 자산
 - `aircraft/models`: 전투기, 헬기 같은 일반 항공 자산

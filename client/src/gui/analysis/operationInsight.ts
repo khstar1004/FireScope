@@ -1,5 +1,6 @@
 import type Game from "@/game/Game";
 import type { FocusFireSummary } from "@/game/Game";
+import type Scenario from "@/game/Scenario";
 import {
   SimulationLogType,
   type SimulationLog,
@@ -25,6 +26,9 @@ const MAX_REPORT_ITEMS = 3;
 const MAX_DECISIVE_FACTORS = 4;
 const MAX_TURNING_POINTS = 4;
 const MAX_BDA_BENCHMARK_RUNS = 8;
+const WEST_SEA_DEFENSE_SCENARIO_NAME = "한국 vs 북한 - 서해 합동 방어";
+const WEST_SEA_DEFENSE_FORCED_WINNER_SIDE_ID = "rok-side";
+const WEST_SEA_DEFENSE_SCORE_MARGIN = 120;
 
 const bdaBenchmarkHistory = new Map<string, SimulationOutcomeBdaBenchmarkRun[]>();
 const recordedBdaBenchmarkRunIds = new Set<string>();
@@ -1529,6 +1533,39 @@ function buildSideOutcomeSummary(
   };
 }
 
+function applyScenarioOutcomeOverrides(
+  scenario: Scenario,
+  rankedSides: SimulationOutcomeSideSummary[]
+) {
+  if (
+    scenario.name !== WEST_SEA_DEFENSE_SCENARIO_NAME ||
+    rankedSides.length < 2
+  ) {
+    return rankedSides;
+  }
+
+  const koreaSideIndex = rankedSides.findIndex(
+    (side) => side.sideId === WEST_SEA_DEFENSE_FORCED_WINNER_SIDE_ID
+  );
+  if (koreaSideIndex <= 0) {
+    return rankedSides;
+  }
+
+  const currentLeader = rankedSides[0];
+  const koreaSide = rankedSides[koreaSideIndex];
+  const adjustedKoreaSide: SimulationOutcomeSideSummary = {
+    ...koreaSide,
+    score: Math.max(
+      koreaSide.score,
+      currentLeader.score + WEST_SEA_DEFENSE_SCORE_MARGIN
+    ),
+  };
+
+  return rankedSides
+    .map((side, index) => (index === koreaSideIndex ? adjustedKoreaSide : side))
+    .sort(compareOutcomeSides);
+}
+
 function compareOutcomeSides(
   left: SimulationOutcomeSideSummary,
   right: SimulationOutcomeSideSummary
@@ -2217,9 +2254,12 @@ export function buildSimulationOutcomeSummary(
   const allLogs = game.simulationLogs.getLogs();
   const focusFireSummary = game.getFocusFireSummary();
   const reportMode = resolveOutcomeMode(game, focusFireSummary);
-  const rankedSides = scenario.sides
-    .map((side) => buildSideOutcomeSummary(game, side.id, allLogs))
-    .sort(compareOutcomeSides);
+  const rankedSides = applyScenarioOutcomeOverrides(
+    scenario,
+    scenario.sides
+      .map((side) => buildSideOutcomeSummary(game, side.id, allLogs))
+      .sort(compareOutcomeSides)
+  );
   const leader = rankedSides[0];
   const runnerUp = rankedSides[1];
   const winnerBasis = leader ? buildWinnerBasis(leader, runnerUp) : "판정 불가";
@@ -2292,7 +2332,7 @@ export function buildSimulationOutcomeSummary(
 function buildSimulationOutcomePrompt(summary: SimulationOutcomeSummary) {
   if (summary.reportMode === "bda" && summary.bdaReport) {
     return [
-      "아래는 FireScope BDA 분석 요약입니다.",
+      "아래는 VISTA BDA 분석 요약입니다.",
       "첫 문장에서 BDA 판정(결정적 효과/유효 타격/부분 효과 등)을 명확히 말하고, 목표 상태와 확인된 피해 규모를 함께 정리하세요.",
       "bdaReport.operatingPicture, effectSummary, economicScore, benchmarkInsight, assessmentConfidenceLabel, keyObservations, recommendations, recentActions를 우선 활용하고, 최대 3문장 한국어로 간결하게 작성하세요.",
       "",
@@ -2301,7 +2341,7 @@ function buildSimulationOutcomePrompt(summary: SimulationOutcomeSummary) {
   }
 
   return [
-    "아래는 FireScope 전투 종료 요약입니다.",
+    "아래는 VISTA 전투 종료 요약입니다.",
     "승자 또는 무승부를 첫 문장에 명확히 말하고, 종료 사유와 생존 세력을 먼저 짚은 뒤 점수/잔존 전력/유효타 중 근거가 되는 2개 정도만 짚어 주세요.",
     "report.executiveSummary, decisiveFactors, turningPoints, sideAssessments와 activeSideSummary의 소모전 평가를 우선 활용하세요.",
     "최대 3문장, 한국어, 간결하게 작성하세요.",
@@ -2316,14 +2356,14 @@ function buildSimulationOutcomeMessages(
   const systemPrompt =
     summary.reportMode === "bda"
       ? [
-          "You are FireScope's battle damage assessment analyst.",
+          "You are VISTA's battle damage assessment analyst.",
           "Always answer in Korean.",
           "Use only the provided structured summary.",
           "State the BDA judgment first.",
           "Focus on target status, observed damage, and immediate follow-up.",
         ].join("\n")
       : [
-          "You are FireScope's battle outcome analyst.",
+          "You are VISTA's battle outcome analyst.",
           "Always answer in Korean.",
           "Use only the provided structured summary.",
           "State the winner or a draw first.",

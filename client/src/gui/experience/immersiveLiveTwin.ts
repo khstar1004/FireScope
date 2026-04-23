@@ -15,17 +15,17 @@ import {
   selectImmersiveExperienceModel,
 } from "@/gui/experience/bundleModels";
 import {
-  buildDigitalTwinSummary,
-  clampDigitalTwinMetric,
-  getDigitalTwinModelRole,
-  getDigitalTwinRangeReference,
-  getDigitalTwinSectionLabels,
-  getDigitalTwinStatusLabel,
-  getDigitalTwinTaskLabel,
-  getDigitalTwinWeaponReference,
-  type DigitalTwinLineupEntry,
-  type DigitalTwinSummary,
-} from "@/gui/experience/digitalTwinState";
+  buildVistaSummary,
+  clampVistaMetric,
+  getVistaModelRole,
+  getVistaRangeReference,
+  getVistaSectionLabels,
+  getVistaStatusLabel,
+  getVistaTaskLabel,
+  getVistaWeaponReference,
+  type VistaLineupEntry,
+  type VistaSummary,
+} from "@/gui/experience/vistaState";
 import type { ImmersiveExperienceProfile } from "@/gui/experience/immersiveExperience";
 import { getDistanceBetweenTwoPoints } from "@/utils/mapFunctions";
 
@@ -55,8 +55,8 @@ export interface ImmersiveLiveTwinRuntime {
   focusUnitId: string;
   focusAsset: AssetExperienceSummary;
   comparisonSelections: ImmersiveLiveTwinComparisonSelection[];
-  lineup: DigitalTwinLineupEntry[];
-  summary: DigitalTwinSummary;
+  lineup: VistaLineupEntry[];
+  summary: VistaSummary;
   feed: ImmersiveLiveTwinFeed;
 }
 
@@ -233,13 +233,13 @@ function scoreFriendlyUnit(
 function buildFuelPct(unit: BattleSpectatorUnitSnapshot) {
   if (typeof unit.fuelFraction === "number" && Number.isFinite(unit.fuelFraction)) {
     return Math.round(
-      clampDigitalTwinMetric(unit.fuelFraction * 100, 12, 100)
+      clampVistaMetric(unit.fuelFraction * 100, 12, 100)
     );
   }
 
   if (unit.entityType === "airbase") {
     return Math.round(
-      clampDigitalTwinMetric(((unit.aircraftCount ?? 0) / 12) * 100, 42, 98)
+      clampVistaMetric(((unit.aircraftCount ?? 0) / 12) * 100, 42, 98)
     );
   }
 
@@ -264,19 +264,19 @@ function buildOrdnancePct(
 
   if (maxQuantity > 0) {
     return Math.round(
-      clampDigitalTwinMetric((quantity / maxQuantity) * 100, 12, 100)
+      clampVistaMetric((quantity / maxQuantity) * 100, 12, 100)
     );
   }
 
   if (unit.entityType === "airbase") {
     return Math.round(
-      clampDigitalTwinMetric(((unit.aircraftCount ?? 0) / 10) * 100, 36, 98)
+      clampVistaMetric(((unit.aircraftCount ?? 0) / 10) * 100, 36, 98)
     );
   }
 
   return Math.round(
-    clampDigitalTwinMetric(
-      (unit.weaponCount / Math.max(1, getDigitalTwinWeaponReference(profile))) *
+    clampVistaMetric(
+      (unit.weaponCount / Math.max(1, getVistaWeaponReference(profile))) *
         100,
       24,
       100
@@ -292,8 +292,8 @@ function buildCoveragePct(
 
   if (rangeReference > 0) {
     return Math.round(
-      clampDigitalTwinMetric(
-        (rangeReference / getDigitalTwinRangeReference(profile)) * 100,
+      clampVistaMetric(
+        (rangeReference / getVistaRangeReference(profile)) * 100,
         24,
         100
       )
@@ -302,7 +302,7 @@ function buildCoveragePct(
 
   if (unit.entityType === "airbase") {
     return Math.round(
-      clampDigitalTwinMetric(((unit.aircraftCount ?? 0) / 8) * 100, 48, 96)
+      clampVistaMetric(((unit.aircraftCount ?? 0) / 8) * 100, 48, 96)
     );
   }
 
@@ -344,7 +344,7 @@ function buildLiveStatusLabel(
     }
   }
 
-  return getDigitalTwinStatusLabel(profile, readinessPct, fuelPct, ordnancePct);
+  return getVistaStatusLabel(profile, readinessPct, fuelPct, ordnancePct);
 }
 
 function buildLiveTaskLabel(
@@ -376,7 +376,7 @@ function buildLiveTaskLabel(
     return "복귀 라인";
   }
 
-  return getDigitalTwinTaskLabel(profile, operationMode, index, primary);
+  return getVistaTaskLabel(profile, operationMode, index, primary);
 }
 
 function buildLineupEntries(
@@ -385,7 +385,7 @@ function buildLineupEntries(
   profile: ImmersiveExperienceProfile,
   operationMode: string
 ) {
-  const sectionLabels = getDigitalTwinSectionLabels(profile);
+  const sectionLabels = getVistaSectionLabels(profile);
   const lineupUnits = [focusUnit, ...supportingUnits].slice(0, MAX_LIVE_LINEUP_UNITS);
 
   return lineupUnits.map((unit, index) => {
@@ -395,7 +395,7 @@ function buildLineupEntries(
     const ordnancePct = buildOrdnancePct(unit, profile);
     const coveragePct = buildCoveragePct(unit, profile);
     const readinessPct = Math.round(
-      clampDigitalTwinMetric(
+      clampVistaMetric(
         unit.hpFraction * 100 * 0.38 +
           fuelPct * 0.24 +
           ordnancePct * 0.19 +
@@ -410,7 +410,7 @@ function buildLineupEntries(
       label: unit.name,
       section: sectionLabels[index] ?? sectionLabels[sectionLabels.length - 1],
       role: resolvedModel
-        ? getDigitalTwinModelRole(profile, resolvedModel)
+        ? getVistaModelRole(profile, resolvedModel)
         : unit.profileHint === "defense"
           ? "방어 지원"
           : unit.profileHint === "fires"
@@ -438,7 +438,7 @@ function buildLineupEntries(
       ordnancePct,
       coveragePct,
       primary,
-    } satisfies DigitalTwinLineupEntry;
+    } satisfies VistaLineupEntry;
   });
 }
 
@@ -500,7 +500,7 @@ function buildFeed(
   snapshot: BattleSpectatorSnapshot,
   focusUnit: BattleSpectatorUnitSnapshot,
   supportingUnits: BattleSpectatorUnitSnapshot[],
-  lineup: DigitalTwinLineupEntry[]
+  lineup: VistaLineupEntry[]
 ): ImmersiveLiveTwinFeed {
   const hostileUnits = snapshot.units.filter((unit) => unit.sideId !== focusUnit.sideId);
   const targetUnit =
@@ -596,7 +596,7 @@ export function buildImmersiveLiveTwinRuntime(
       selectedModels
     ),
     lineup,
-    summary: buildDigitalTwinSummary(focusAsset, profile, lineup),
+    summary: buildVistaSummary(focusAsset, profile, lineup),
     feed: buildFeed(snapshot, focusUnit, supportingUnits, lineup),
   };
 }

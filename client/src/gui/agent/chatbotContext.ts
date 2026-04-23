@@ -275,7 +275,7 @@ export function buildScenarioSnapshot(game: Game): ScenarioSnapshot {
 
 export function buildAssistantSystemPrompt() {
   return [
-    "You are AI지휘결심지원(ArmyGPT), FireScope's operation planning assistant.",
+    "You are VISTA Assistant, VISTA's operation planning assistant.",
     "Always answer in Korean.",
     "Base every claim on the provided scenario snapshot and conversation history.",
     "If the snapshot does not support a conclusion, explicitly say the information is missing.",
@@ -289,7 +289,7 @@ export function buildAssistantSystemPrompt() {
 export function buildScenarioContextMessage(game: Game, userMessage: string) {
   const snapshot = buildScenarioSnapshot(game);
   return [
-    "현재 FireScope 시나리오 스냅샷입니다.",
+    "현재 VISTA 시나리오 스냅샷입니다.",
     JSON.stringify(snapshot, null, 2),
     "",
     "사용자 요청:",

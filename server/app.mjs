@@ -73,7 +73,7 @@ export function createApp(options = {}) {
     if (req.method === "GET" && pathname === "/health") {
       sendJson(res, 200, {
         status: "ok",
-        service: "firescope-server",
+        service: "vista-server",
         timestamp: new Date().toISOString(),
       });
       return;

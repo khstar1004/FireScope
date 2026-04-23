@@ -1,9 +1,9 @@
 import type { AssetExperienceSummary } from "@/gui/experience/assetExperience";
 import type { BundleModelSelection } from "@/gui/experience/bundleModels";
 import {
-  buildDigitalTwinLineup,
-  buildDigitalTwinSummary,
-} from "@/gui/experience/digitalTwinState";
+  buildVistaLineup,
+  buildVistaSummary,
+} from "@/gui/experience/vistaState";
 
 const baseAsset: AssetExperienceSummary = {
   kind: "airbase",
@@ -33,9 +33,9 @@ const supportModel: BundleModelSelection = {
   note: "정찰/감시 드론 계열",
 };
 
-describe("digitalTwinState", () => {
+describe("vistaState", () => {
   test("builds a primary-first lineup with derived readiness metrics", () => {
-    const lineup = buildDigitalTwinLineup(
+    const lineup = buildVistaLineup(
       baseAsset,
       "base",
       activeModel,
@@ -58,14 +58,14 @@ describe("digitalTwinState", () => {
   });
 
   test("summarizes lineup health for the twin board", () => {
-    const lineup = buildDigitalTwinLineup(
+    const lineup = buildVistaLineup(
       baseAsset,
       "base",
       activeModel,
       [activeModel, supportModel],
       "scramble"
     );
-    const summary = buildDigitalTwinSummary(baseAsset, "base", lineup);
+    const summary = buildVistaSummary(baseAsset, "base", lineup);
 
     expect(summary.headline).toBe("Seoul Air Base 운용 셀");
     expect(summary.readinessPct).toBeGreaterThan(0);

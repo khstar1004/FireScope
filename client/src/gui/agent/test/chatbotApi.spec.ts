@@ -1,8 +1,9 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import type { LlmMessage } from "@/gui/agent/chatbot.types";
 import {
   buildAssistantRequest,
   extractAssistantText,
+  requestAssistantCompletionResult,
   resolveAssistantRuntimeConfig,
 } from "@/gui/agent/chatbotApi";
 
@@ -13,6 +14,11 @@ const SAMPLE_MESSAGES: LlmMessage[] = [
   },
 ];
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
+
 describe("resolveAssistantRuntimeConfig", () => {
   test("uses the OpenRouter quality preset by default", () => {
     const config = resolveAssistantRuntimeConfig(
@@ -20,7 +26,7 @@ describe("resolveAssistantRuntimeConfig", () => {
         LLM_API_KEY: "or-key",
       },
       {
-        siteUrl: "https://firescope.local",
+        siteUrl: "https://vista.local",
       }
     );
 
@@ -44,7 +50,7 @@ describe("resolveAssistantRuntimeConfig", () => {
         HF_TOKEN: "hf-key",
       },
       {
-        siteUrl: "https://firescope.local",
+        siteUrl: "https://vista.local",
       }
     );
 
@@ -71,7 +77,7 @@ describe("resolveAssistantRuntimeConfig", () => {
         LLM_API_KEY: "or-key",
       },
       {
-        siteUrl: "https://firescope.local",
+        siteUrl: "https://vista.local",
       }
     );
 
@@ -91,7 +97,7 @@ describe("resolveAssistantRuntimeConfig", () => {
         LLM_API_KEY: "mistral-key",
       },
       {
-        siteUrl: "https://firescope.local",
+        siteUrl: "https://vista.local",
       }
     );
 
@@ -115,7 +121,7 @@ describe("buildAssistantRequest", () => {
         LLM_API_KEY: "or-key",
       },
       {
-        siteUrl: "https://firescope.local",
+        siteUrl: "https://vista.local",
       }
     );
 
@@ -129,8 +135,8 @@ describe("buildAssistantRequest", () => {
     expect(request.headers).toEqual({
       "Content-Type": "application/json",
       Authorization: "Bearer or-key",
-      "HTTP-Referer": "https://firescope.local",
-      "X-Title": "FireScope",
+      "HTTP-Referer": "https://vista.local",
+      "X-Title": "VISTA",
     });
     expect(request.body).toEqual({
       model: "google/gemini-2.5-pro",
@@ -150,7 +156,7 @@ describe("buildAssistantRequest", () => {
         HF_TOKEN: "hf-key",
       },
       {
-        siteUrl: "https://firescope.local",
+        siteUrl: "https://vista.local",
       }
     );
 
@@ -182,7 +188,7 @@ describe("buildAssistantRequest", () => {
         LLM_MODEL: "mistral-small-latest",
       },
       {
-        siteUrl: "https://firescope.local",
+        siteUrl: "https://vista.local",
       }
     );
 
@@ -219,5 +225,33 @@ describe("extractAssistantText", () => {
     ]);
 
     expect(text).toBe("상황 요약\n권고 조치");
+  });
+});
+
+describe("requestAssistantCompletionResult", () => {
+  test("reports Mistral credential failures without trying fallback models", async () => {
+    vi.stubEnv("LLM_PROVIDER", "mistral");
+    vi.stubEnv("LLM_API_KEY", "invalid-mistral-key");
+    vi.stubEnv("LLM_MODEL", "mistral-small-latest");
+    vi.stubEnv("LLM_FALLBACK_MODELS", "ministral-8b-latest");
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({}), {
+        status: 401,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await requestAssistantCompletionResult(SAMPLE_MESSAGES);
+
+    expect(result).toEqual({
+      ok: false,
+      errorMessage:
+        "Mistral API 키 인증에 실패했습니다. `LLM_API_KEY` 또는 `MISTRAL_API_KEY` 설정을 확인해 주세요.",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

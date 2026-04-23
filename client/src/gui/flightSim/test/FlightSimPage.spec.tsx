@@ -329,33 +329,6 @@ function createGameWithBattleSpectatorState(
   } as unknown as Game;
 }
 
-function createGameWithHybridBattleState(
-  battleSpectator: FlightSimBattleSpectatorState = createBattleSpectatorState()
-): Game {
-  return {
-    currentSideId: battleSpectator.currentSideId,
-    currentScenario: {
-      name: battleSpectator.scenarioName,
-      timeCompression: 1,
-      aircraft: [],
-      airbases: [],
-      armies: [],
-      facilities: [],
-      ships: [],
-      missions: [],
-      referencePoints: [],
-      weapons: [],
-    },
-    scenarioPaused: false,
-    getBattleSpectatorSnapshot: vi.fn(() => battleSpectator),
-    getFocusFireSummary: vi.fn(() => createFocusFireSummary()),
-    switchScenarioTimeCompression: vi.fn(),
-    stepForTimeCompression: vi.fn(() => [undefined, 0, false, false]),
-    recordStep: vi.fn(),
-    exportCurrentScenario: vi.fn(() => '{"currentScenario":{}}'),
-  } as unknown as Game;
-}
-
 function cloneBattleSpectatorState(
   state: FlightSimBattleSpectatorState = createBattleSpectatorState()
 ): FlightSimBattleSpectatorState {
@@ -466,78 +439,11 @@ describe("FlightSimPage", () => {
     await waitFor(() => {
       expect(postMessageSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: "firescope-focus-fire-update",
+          type: "vista-focus-fire-update",
           payload: expect.objectContaining({
             objectiveName: "집중포격 목표",
             objectiveLon: 126.978,
             objectiveLat: 37.5665,
-          }),
-        }),
-        window.location.origin
-      );
-    });
-  });
-
-  test("upgrades focus-fire flight sessions with live battle spectator runtime without forcing overlay mode", async () => {
-    const postMessageSpy = vi.fn();
-    const battleSpectator = createBattleSpectatorState();
-    const focusFireAirwatch = {
-      objectiveName: "집중포격 목표",
-      objectiveLon: 126.978,
-      objectiveLat: 37.5665,
-      active: true,
-      captureProgress: 55,
-      aircraftCount: 3,
-      artilleryCount: 4,
-      armorCount: 2,
-      weaponsInFlight: 2,
-      statusLabel: "집중포격 진행 중",
-      launchPlatforms: [],
-      weaponTracks: [],
-    };
-    const { container } = render(
-      <FlightSimPage
-        onBack={vi.fn()}
-        initialCraft="jet"
-        initialLocation={{ lon: 126.978, lat: 37.5665 }}
-        game={createGameWithHybridBattleState(battleSpectator)}
-        continueSimulation
-        focusFireAirwatch={focusFireAirwatch}
-      />
-    );
-    await flushEffects();
-
-    expect(screen.getByText("전투기 시뮬레이터")).toBeInTheDocument();
-    expect(
-      screen.getByText(`${battleSpectator.scenarioName} 관전 패널`)
-    ).toBeInTheDocument();
-    expect(screen.getByText("TACTICAL FUSION")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "속도 1x" }).length).toBeGreaterThan(
-      0
-    );
-
-    const iframeElement = container.querySelector("iframe") as HTMLIFrameElement;
-    const iframeUrl = new URL(iframeElement.src);
-    expect(iframeUrl.searchParams.get("focusFire")).toBe("1");
-    expect(iframeUrl.searchParams.get("battleSpectator")).toBeNull();
-
-    Object.defineProperty(iframeElement, "contentWindow", {
-      configurable: true,
-      value: {
-        postMessage: postMessageSpy,
-      },
-    });
-
-    fireEvent.load(iframeElement);
-    await flushEffects();
-
-    await waitFor(() => {
-      expect(postMessageSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: "firescope-battle-spectator-update",
-          payload: expect.objectContaining({
-            scenarioId: battleSpectator.scenarioId,
-            scenarioName: battleSpectator.scenarioName,
           }),
         }),
         window.location.origin
@@ -581,7 +487,7 @@ describe("FlightSimPage", () => {
     await waitFor(() => {
       expect(postMessageSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: "firescope-battle-spectator-update",
+          type: "vista-battle-spectator-update",
           payload: expect.objectContaining({
             scenarioId: "battle-demo",
             scenarioName: "전장 관전자 데모",
@@ -598,7 +504,7 @@ describe("FlightSimPage", () => {
     await waitFor(() => {
       expect(postMessageSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: "firescope-battle-spectator-command",
+          type: "vista-battle-spectator-command",
           payload: expect.objectContaining({
             command: "jump-to-point",
             longitude: 127.01,
@@ -720,7 +626,7 @@ describe("FlightSimPage", () => {
     await waitFor(() => {
       expect(postMessageSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: "firescope-battle-spectator-update",
+          type: "vista-battle-spectator-update",
           payload: expect.objectContaining({
             view: expect.objectContaining({
               followTargetId: "unit:unit-1",
@@ -879,7 +785,7 @@ describe("FlightSimPage", () => {
     await waitFor(() => {
       expect(postMessageSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: "firescope-battle-spectator-update",
+          type: "vista-battle-spectator-update",
           payload: expect.objectContaining({
             view: expect.objectContaining({
               cameraProfile: "side",
@@ -904,7 +810,7 @@ describe("FlightSimPage", () => {
     await waitFor(() => {
       expect(postMessageSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: "firescope-battle-spectator-command",
+          type: "vista-battle-spectator-command",
           payload: expect.objectContaining({
             command: "jump-to-point",
             cameraProfile: "side",
@@ -931,7 +837,7 @@ describe("FlightSimPage", () => {
     await waitFor(() => {
       expect(postMessageSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: "firescope-battle-spectator-command",
+          type: "vista-battle-spectator-command",
           payload: expect.objectContaining({
             command: "jump-to-point",
             longitude: 127.01,
@@ -975,7 +881,7 @@ describe("FlightSimPage", () => {
     await waitFor(() => {
       expect(postMessageSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: "firescope-battle-spectator-update",
+          type: "vista-battle-spectator-update",
           payload: expect.objectContaining({
             view: expect.objectContaining({
               followTargetId: "weapon:weapon-1",
@@ -989,7 +895,7 @@ describe("FlightSimPage", () => {
     await waitFor(() => {
       expect(postMessageSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: "firescope-battle-spectator-command",
+          type: "vista-battle-spectator-command",
           payload: expect.objectContaining({
             command: "jump-to-point",
             longitude: 127.01,
@@ -1049,7 +955,7 @@ describe("FlightSimPage", () => {
     await waitFor(() => {
       expect(postMessageSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: "firescope-battle-spectator-command",
+          type: "vista-battle-spectator-command",
           payload: expect.objectContaining({
             command: "jump-to-point",
             cameraProfile: "chase",
@@ -1085,7 +991,7 @@ describe("FlightSimPage", () => {
     await waitFor(() => {
       expect(postMessageSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: "firescope-battle-spectator-command",
+          type: "vista-battle-spectator-command",
           payload: expect.objectContaining({
             command: "jump-to-point",
             cameraProfile: "side",
@@ -1131,7 +1037,7 @@ describe("FlightSimPage", () => {
         new MessageEvent("message", {
           origin: window.location.origin,
           data: {
-            type: "firescope-battle-spectator-selection",
+            type: "vista-battle-spectator-selection",
             payload: {
               followTargetId: "unit:unit-2",
             },
@@ -1155,7 +1061,7 @@ describe("FlightSimPage", () => {
     await waitFor(() => {
       expect(postMessageSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: "firescope-battle-spectator-command",
+          type: "vista-battle-spectator-command",
           payload: expect.objectContaining({
             command: "jump-to-point",
             cameraProfile: "side",
@@ -1264,7 +1170,7 @@ describe("FlightSimPage", () => {
     await waitFor(() => {
       expect(postMessageSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: "firescope-battle-spectator-command",
+          type: "vista-battle-spectator-command",
           payload: expect.objectContaining({
             command: "jump-to-point",
             cameraProfile: "side",
@@ -1314,7 +1220,7 @@ describe("FlightSimPage", () => {
     await waitFor(() => {
       expect(postMessageSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: "firescope-battle-spectator-update",
+          type: "vista-battle-spectator-update",
         }),
         window.location.origin
       );

@@ -9,7 +9,7 @@ from blade.envs.fixed_target_strike_types import (
 )
 
 __all__ = [
-    "BLADE",
+    "VISTA",
     "FixedTargetStrike",
     "FixedTargetStrikeConfig",
     "FixedTargetStrikeEnv",
@@ -19,8 +19,8 @@ __all__ = [
 
 
 def __getattr__(name: str):
-    if name == "BLADE":
-        return import_module("blade.envs.blade").BLADE
+    if name == "VISTA":
+        return import_module("blade.envs.blade").VISTA
     if name in {"FixedTargetStrike", "FixedTargetStrikeEnv"}:
         env_class = import_module("blade.envs.fixed_target_strike").FixedTargetStrikeEnv
         if name == "FixedTargetStrike":

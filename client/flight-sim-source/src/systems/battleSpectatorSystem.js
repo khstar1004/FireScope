@@ -1664,7 +1664,7 @@ function postBattleSpectatorSelectionToParent(payload) {
   try {
     window.parent.postMessage(
       {
-        type: "firescope-battle-spectator-selection",
+        type: "vista-battle-spectator-selection",
         payload,
       },
       window.location.origin
@@ -2585,7 +2585,7 @@ function defaultBattleState() {
 export class BattleSpectatorSystem {
   constructor(viewer) {
     this.viewer = viewer;
-    this.dataSource = new Cesium.CustomDataSource("firescope-battle-spectator");
+    this.dataSource = new Cesium.CustomDataSource("vista-battle-spectator");
     this.viewer.dataSources.add(this.dataSource);
     this.selectionHandler = new Cesium.ScreenSpaceEventHandler(
       this.viewer.scene.canvas

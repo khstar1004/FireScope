@@ -158,7 +158,7 @@ describe("chatbotContext", () => {
       "현재 전력 상태를 요약해줘."
     );
 
-    expect(contextMessage).toContain("현재 FireScope 시나리오 스냅샷입니다.");
+    expect(contextMessage).toContain("현재 VISTA 시나리오 스냅샷입니다.");
     expect(contextMessage).toContain('"scenarioName": "간단 시나리오"');
     expect(contextMessage).toContain("현재 전력 상태를 요약해줘.");
   });

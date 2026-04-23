@@ -196,7 +196,7 @@ export default function TacticalSimPage({
     }
 
     return [
-      "firescope",
+      "vista",
       "tactical-sim",
       route.asset.id,
       route.profile,
@@ -321,7 +321,7 @@ export default function TacticalSimPage({
 
     iframeRef.current.contentWindow.postMessage(
       {
-        type: "firescope-tactical-runtime-update",
+        type: "vista-tactical-runtime-update",
         payload: runtimePayload,
       },
       window.location.origin
@@ -341,7 +341,7 @@ export default function TacticalSimPage({
     const timerId = window.setTimeout(() => {
       iframeRef.current?.contentWindow?.postMessage(
         {
-          type: "firescope-tactical-command",
+          type: "vista-tactical-command",
           payload: { command: "showcase-view" },
         },
         window.location.origin
@@ -458,7 +458,7 @@ export default function TacticalSimPage({
   const sendRuntimeCommand = (command: string) => {
     iframeRef.current?.contentWindow?.postMessage(
       {
-        type: "firescope-tactical-command",
+        type: "vista-tactical-command",
         payload: { command },
       },
       window.location.origin

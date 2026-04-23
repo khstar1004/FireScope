@@ -208,7 +208,7 @@ function createSnapshot(): BattleSpectatorSnapshot {
 }
 
 describe("immersive live twin", () => {
-  test("projects a battle snapshot into a live digital twin board", () => {
+  test("projects a battle snapshot into a live VISTA board", () => {
     const runtime = buildImmersiveLiveTwinRuntime(
       createSnapshot(),
       {

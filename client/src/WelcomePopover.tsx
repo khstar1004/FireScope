@@ -12,7 +12,11 @@ import {
   CardContent,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import { APP_DISPLAY_NAME, colorPalette } from "@/utils/constants";
+import {
+  APP_DISPLAY_NAME,
+  APP_FULL_NAME,
+  colorPalette,
+} from "@/utils/constants";
 import LoginButton from "@/gui/map/toolbar/Login";
 
 interface WelcomePopoverProps {
@@ -81,6 +85,9 @@ const WelcomePopover: React.FC<WelcomePopoverProps> = ({ open, onClose }) => {
           >
             <Typography variant="h5" gutterBottom>
               {APP_DISPLAY_NAME} 시작
+            </Typography>
+            <Typography variant="subtitle2" gutterBottom>
+              {APP_FULL_NAME}
             </Typography>
             <Typography gutterBottom>
               바로 시작을 누르거나 이 창을 닫으면 바로 편집할 수 있습니다.

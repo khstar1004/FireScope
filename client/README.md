@@ -1,8 +1,6 @@
-# GUI / BLADE
+# GUI / VISTA
 
-Client/gui for Digital Twin.
-
-> For information reagrding the original Panopticon AI code, please review the [client project structure](https://github.com/Panopticon-AI-team/panopticon/blob/main/CONTRIBUTING.md#client) to get familiar with the folder and file organization and their intended context.
+Client GUI for Visualized Intelligence for Situational Tactical Awareness.
 
 ---
 
@@ -22,10 +20,6 @@ Assuming the reader has not cloned nor started with the Quick Start guide at the
 ### [Clone Repository](#clone-repository)
 
 ```bash
-git clone git@git@github.com:rfoo1250/digital-twin-proto.git
-```
-
-```bash
 cd <project-name>/client
 ```
 
@@ -35,9 +29,9 @@ cd <project-name>/client
 npm install
 ```
 
-### [ArmyGPT Model Setup](#armygpt-model-setup)
+### [VISTA Assistant Model Setup](#vista-assistant-model-setup)
 
-To utilize the in-built ArmyGPT assistant, create `client/.env` and configure a chat-completion provider.
+To utilize the built-in VISTA Assistant, create `client/.env` and configure a chat-completion provider.
 
 Default behavior:
 

@@ -4,16 +4,16 @@
 
 ## 1. 사용 중인 환경
 
-실제 RL 학습은 `blade/FixedTargetStrike-v0`를 기준으로 돌아갑니다. 등록은 [`gym/blade/__init__.py`](../blade/__init__.py)에서 되어 있고, 학습 스크립트도 이 환경을 직접 생성합니다.
+실제 RL 학습은 `vista/FixedTargetStrike-v0`를 기준으로 돌아갑니다. 등록은 [`gym/blade/__init__.py`](../blade/__init__.py)에서 되어 있고, 학습 스크립트도 이 환경을 직접 생성합니다.
 
-- 환경 ID: `blade/FixedTargetStrike-v0`
+- 환경 ID: `vista/FixedTargetStrike-v0`
 - 환경 클래스: [`gym/blade/envs/fixed_target_strike.py`](../blade/envs/fixed_target_strike.py)의 `FixedTargetStrikeEnv`
 - 기본 시나리오: [`gym/scripts/fixed_target_strike/scen.json`](../scripts/fixed_target_strike/scen.json)
 - 기본 컨트롤 아군: `blue-striker-1`, `blue-striker-2`
 - 기본 적 타겟: `red-sam-site`, `red-airbase`
 - 기본 진영: `BLUE` vs `RED`
 
-`blade/BLADE-v0`도 등록되어 있지만, 현재 RL training path는 fixed-target strike 전용 환경을 사용합니다.
+`vista/VISTA-v0`도 등록되어 있지만, 현재 RL training path는 fixed-target strike 전용 환경을 사용합니다.
 
 ## 2. 관측값
 

@@ -23,9 +23,9 @@ import {
 } from "@/gui/experience/bundleModels";
 import { buildBundleViewerSceneProps } from "@/gui/experience/bundleSceneProps";
 import {
-  buildDigitalTwinLineup,
-  buildDigitalTwinSummary,
-} from "@/gui/experience/digitalTwinState";
+  buildVistaLineup,
+  buildVistaSummary,
+} from "@/gui/experience/vistaState";
 import { buildImmersiveLiveTwinRuntime } from "@/gui/experience/immersiveLiveTwin";
 import {
   buildImmersiveModeBrief,
@@ -272,10 +272,10 @@ export default function ImmersiveExperiencePage({
         })),
       [activeComparisonModels]
     );
-  const syntheticDigitalTwinLineup = useMemo(
+  const syntheticVistaLineup = useMemo(
     () =>
       asset && profile
-        ? buildDigitalTwinLineup(
+        ? buildVistaLineup(
             asset,
             profile,
             activeModel,
@@ -285,19 +285,19 @@ export default function ImmersiveExperiencePage({
         : [],
     [activeModel, asset, operationMode, profile, selectedModelsForDeck]
   );
-  const syntheticDigitalTwinSummary = useMemo(
+  const syntheticVistaSummary = useMemo(
     () =>
       asset && profile
-        ? buildDigitalTwinSummary(asset, profile, syntheticDigitalTwinLineup)
+        ? buildVistaSummary(asset, profile, syntheticVistaLineup)
         : {
-            headline: "Digital Twin",
+            headline: "VISTA",
             postureLabel: "AMBER",
             readinessPct: 0,
             logisticsPct: 0,
             coveragePct: 0,
             warning: "",
           },
-    [asset, profile, syntheticDigitalTwinLineup]
+    [asset, profile, syntheticVistaLineup]
   );
   const liveTwinRuntime = useMemo(
     () =>
@@ -321,8 +321,8 @@ export default function ImmersiveExperiencePage({
     ]
   );
   const runtimeAsset = liveTwinRuntime?.focusAsset ?? asset;
-  const digitalTwinSummary =
-    liveTwinRuntime?.summary ?? syntheticDigitalTwinSummary;
+  const vistaSummary =
+    liveTwinRuntime?.summary ?? syntheticVistaSummary;
   const liveFeed = liveTwinRuntime?.feed ?? null;
 
   useEffect(() => {
@@ -435,7 +435,7 @@ export default function ImmersiveExperiencePage({
   const focusList = buildFocusList(resolvedProfile);
   const compareSummary = buildCompareSummary(activeModel, activeComparisonModels);
   const statusChips = buildStatusChips(
-    digitalTwinSummary.postureLabel,
+    vistaSummary.postureLabel,
     selectedOperationOption?.label,
     compareSummary,
     liveFeed?.sourceLabel
@@ -624,9 +624,9 @@ export default function ImmersiveExperiencePage({
             </Typography>
             <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap">
               {[
-                `RDY ${digitalTwinSummary.readinessPct}%`,
-                `LOG ${digitalTwinSummary.logisticsPct}%`,
-                `COV ${digitalTwinSummary.coveragePct}%`,
+                `RDY ${vistaSummary.readinessPct}%`,
+                `LOG ${vistaSummary.logisticsPct}%`,
+                `COV ${vistaSummary.coveragePct}%`,
               ].map((metric) => (
                 <Typography
                   key={metric}
@@ -870,7 +870,7 @@ export default function ImmersiveExperiencePage({
                     color: "rgba(226, 240, 255, 0.68)",
                   }}
                 >
-                  {digitalTwinSummary.warning}
+                  {vistaSummary.warning}
                 </Typography>
               </Box>
 

@@ -300,15 +300,6 @@ export function launchWeapon(
     return;
 
   for (let i = 0; i < launchedWeaponQuantity; i++) {
-    const nextWeaponCoordinates = getNextCoordinates(
-      origin.latitude,
-      origin.longitude,
-      target.latitude,
-      target.longitude,
-      launchedWeapon.speed
-    );
-    const nextWeaponLatitude = nextWeaponCoordinates[0];
-    const nextWeaponLongitude = nextWeaponCoordinates[1];
     const newWeapon = new Weapon({
       id: randomUUID(),
       launcherId: origin.id,
@@ -318,12 +309,12 @@ export function launchWeapon(
       name: `${launchedWeapon.name} #${randomInt(1000)}`,
       sideId: origin.sideId,
       className: launchedWeapon.className,
-      latitude: nextWeaponLatitude,
-      longitude: nextWeaponLongitude,
+      latitude: origin.latitude,
+      longitude: origin.longitude,
       altitude: launchedWeapon.altitude,
       heading: getBearingBetweenTwoPoints(
-        nextWeaponLatitude,
-        nextWeaponLongitude,
+        origin.latitude,
+        origin.longitude,
         target.latitude,
         target.longitude
       ),

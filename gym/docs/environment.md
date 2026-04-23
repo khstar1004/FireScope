@@ -1,8 +1,8 @@
-## See [GitBook](https://docs.panopticon-ai.com/gymnasium-environment) for more detailed docs
+## See [GitBook](https://docs.vista.com/gymnasium-environment) for more detailed docs
 
 ## Environment Table of Contents
 
-- [BLADE](#blade)
+- [VISTA](#vista)
 - [RL Environment](#rl-environment)
 - [FixedTargetStrike-v0](#fixedtargetstrike-v0)
 - [Actions and Observations](#actions-and-observations)
@@ -11,21 +11,21 @@
 
 <!-- /TOC -->
 
-## BLADE
+## VISTA
 
-Battlefield Learning Assessment and Decision-making Environment (BLADE) is a warfare simulation with an OpenAI Gymnasium implementation. BLADE is the engine that powers the [panopticon-ai webapp](https://app.panopticon-ai.com/). BLADE is implimented in both Python and Typescript. The Python implementation is considered the official implementation and is primarily used in conjunction with Gymnasium. The panopticon-ai webapp is powered by the Typescript implementation of the BLADE engine, but this will soon be deprecated and replaced by the Python implementation in a future milestone.
+Visualized Intelligence for Situational Tactical Awareness (VISTA) is a warfare simulation with an OpenAI Gymnasium implementation. VISTA connects the Python simulation package with the TypeScript client experience for scenario editing, replay, briefing, and reinforcement-learning workflows.
 
-The simulation currently runs in intervals of one second, but this can also be sped up (by skipping over several timesteps). Future milestones will probably revise this interval. In terms of features, BLADE currently simulates unit movement (using a simple model with constant fuel consumption for each unit), weapon engagement (using pre-defined lethality values), base operations (aircraft takeoff and landing), and simple NPC behaviors (units equipped with weapons will auto engage hostile units). BLADE also supports the creation of missions to automate NPC behaviors. Users can create patrol missions where units can patrol a pre-defined area, or a strike mission where units can transit to and strike a target. Future milestones will add sensor detection, more mission types, aerial refueling, logistics, more naval units, ground units, cyber operations, electronic warfare, and doctrine.
+The simulation currently runs in intervals of one second, but this can also be sped up (by skipping over several timesteps). Future milestones will probably revise this interval. In terms of features, VISTA currently simulates unit movement (using a simple model with constant fuel consumption for each unit), weapon engagement (using pre-defined lethality values), base operations (aircraft takeoff and landing), and simple NPC behaviors (units equipped with weapons will auto engage hostile units). VISTA also supports the creation of missions to automate NPC behaviors. Users can create patrol missions where units can patrol a pre-defined area, or a strike mission where units can transit to and strike a target. Future milestones will add sensor detection, more mission types, aerial refueling, logistics, more naval units, ground units, cyber operations, electronic warfare, and doctrine.
 
 ## RL Environment
 
 RL 세팅을 한 번에 보고 싶으면 [`rl_settings.md`](./rl_settings.md)를 먼저 보시면 됩니다.
 
-Refer to the [README](https://github.com/Panopticon-AI-team/panopticon/blob/main/gym/README.md) for instructions on how to install the Gymnasium environment. Refer to [demo.py](https://github.com/Panopticon-AI-team/panopticon/blob/main/gym/scripts/simple_demo/demo.py) for example usage. The demo features a scripted agent that uses the Gymnasium environment to control an aircraft to strike a target. To initialize a BLADE environment, the user must provide a scenario JSON file that defines the initial setup of the scenario. The easiest way to obtain this file is to use the [panopticon-ai webapp](https://app.panopticon-ai.com/) to build a scenario and then exporting it to JSON format. Then, the BLADE environment can be run like any other Gymnasium environment. Observations at each timestep can be printed to the console using the environment's `pretty_print` function, and the entire scenario at a timestep can also be exported using `export_scenario`. The exported scenario can then be uploaded to the [panopticon-ai webapp](https://app.panopticon-ai.com/) for visualization.
+Refer to the [README](../README.md) for instructions on how to install the Gymnasium environment. Refer to [demo.py](../scripts/simple_demo/demo.py) for example usage. The demo features a scripted agent that uses the Gymnasium environment to control an aircraft to strike a target. To initialize a VISTA environment, the user must provide a scenario JSON file that defines the initial setup of the scenario. The easiest way to obtain this file is to use the VISTA client to build a scenario and export it to JSON format. Then, the VISTA environment can be run like any other Gymnasium environment. Observations at each timestep can be printed to the console using the environment's `pretty_print` function, and the entire scenario at a timestep can also be exported using `export_scenario`. The exported scenario can then be loaded back into the VISTA client for visualization.
 
 ## FixedTargetStrike-v0
 
-`blade/FixedTargetStrike-v0` is a Dict-observation environment for coordinated fixed-target strike training. The reference fixture lives in `gym/scripts/fixed_target_strike/scen.json` and uses two controllable strike aircraft against one hostile SAM site plus one hostile airbase.
+`vista/FixedTargetStrike-v0` is a Dict-observation environment for coordinated fixed-target strike training. The reference fixture lives in `gym/scripts/fixed_target_strike/scen.json` and uses two controllable strike aircraft against one hostile SAM site plus one hostile airbase.
 
 ### Observation
 
@@ -113,21 +113,21 @@ config = FixedTargetStrikeConfig(
     target_ids=["red-sam-site", "red-airbase"],
 )
 
-env = gym.make("blade/FixedTargetStrike-v0", game=game, config=config)
+env = gym.make("vista/FixedTargetStrike-v0", game=game, config=config)
 observation, info = env.reset()
 ```
 
 ## Actions and Observations
 
-Given the complex nature of any warfare scenario, the base representations of the state and action spaces rely on Gymnasium's [Text space](https://gymnasium.farama.org/api/spaces/fundamental/#gymnasium.spaces.Text). Users interested in modifying these spaces to fit their scenario should refer to the environment definition at [blade.py](https://github.com/Panopticon-AI-team/panopticon/blob/main/gym/blade/envs/blade.py).
+Given the complex nature of any warfare scenario, the base representations of the state and action spaces rely on Gymnasium's [Text space](https://gymnasium.farama.org/api/spaces/fundamental/#gymnasium.spaces.Text). Users interested in modifying these spaces to fit their scenario should refer to the environment definition at [blade.py](../blade/envs/blade.py).
 
 ### Observations
 
-BLADE's state space is defined by the [Scenario](https://github.com/Panopticon-AI-team/panopticon/blob/main/gym/blade/Scenario.py) class. This class contains parameters like the scenario's name, start time, duration, sides, current time, simulation speed (called time compression), aircraft, ships, facilities, airbases, weapons, reference points, and missions. Each of the objects starting from aircraft also have corresponding class definitions that define their attributes (reference [units](https://github.com/Panopticon-AI-team/panopticon/tree/main/gym/blade/units)).
+VISTA's state space is defined by the [Scenario](../blade/Scenario.py) class. This class contains parameters like the scenario's name, start time, duration, sides, current time, simulation speed (called time compression), aircraft, ships, facilities, airbases, weapons, reference points, and missions. Each of the objects starting from aircraft also have corresponding class definitions that define their attributes (reference [units](../blade/units)).
 
 ### Actions
 
-BLADE's action space is defined by the functions provided by the [Game](https://github.com/Panopticon-AI-team/panopticon/blob/main/gym/blade/Game.py) class that modifies the underlying simulation. The list of functions are:
+VISTA's action space is defined by the functions provided by the [Game](../blade/Game.py) class that modifies the underlying simulation. The list of functions are:
 
 ```python
 # adds a reference point

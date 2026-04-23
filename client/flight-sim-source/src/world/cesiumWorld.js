@@ -1,4 +1,5 @@
 import * as Cesium from "cesium";
+import { normalizeVWorldRuntimeUrl } from "./vworldRuntimeUrls";
 
 let viewer;
 let miniViewer;
@@ -16,7 +17,7 @@ const vworldApiKey = (runtimeConfig.vworldApiKey ?? "").trim();
 const configuredVworldDomain = (runtimeConfig.vworldDomain ?? "").trim();
 const mapTilerApiKey = (runtimeConfig.mapTilerApiKey ?? "").trim();
 const mapTilerTerrainUrl = mapTilerApiKey
-  ? `https://api.maptiler.com/tiles/terrain-quantized-mesh-v2/tiles.json?key=${mapTilerApiKey}`
+  ? `https://api.maptiler.com/tiles/terrain-quantized-mesh-v2/?key=${mapTilerApiKey}`
   : null;
 const koreaRectangle = Cesium.Rectangle.fromDegrees(124.5, 33.0, 132.5, 39.5);
 const runtimeState = {
@@ -265,9 +266,12 @@ function queueVWorldDocumentWrite(chunks, baseUrl) {
         const nestedSrc = element.getAttribute("src");
         if (!nestedSrc) return;
 
-        await loadExternalScript(new URL(nestedSrc, baseUrl).toString(), {
-          async: false,
-        });
+        await loadExternalScript(
+          normalizeVWorldRuntimeUrl(nestedSrc, baseUrl),
+          {
+            async: false,
+          }
+        );
         return;
       }
 
@@ -275,7 +279,7 @@ function queueVWorldDocumentWrite(chunks, baseUrl) {
         const href = element.getAttribute("href");
         if (!href) return;
 
-        await loadExternalStylesheet(new URL(href, baseUrl).toString());
+        await loadExternalStylesheet(normalizeVWorldRuntimeUrl(href, baseUrl));
         return;
       }
 

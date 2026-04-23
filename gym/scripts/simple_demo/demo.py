@@ -14,7 +14,7 @@ game = Game(
 with open(f"{demo_folder}/simple_demo.json", "r") as scenario_file:
     game.load_scenario(scenario_file.read())
 
-env = gymnasium.make("blade/BLADE-v0", game=game)
+env = gymnasium.make("vista/VISTA-v0", game=game)
 
 observation, info = env.reset()
 env.unwrapped.pretty_print(observation)

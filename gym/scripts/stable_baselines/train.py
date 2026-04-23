@@ -180,7 +180,7 @@ def evaluate_agent(model, env, num_episodes=1):
 
 
 env = gymnasium.make(
-    "blade/BLADE-v0",
+    "vista/VISTA-v0",
     game=game,
     observation_space=observation_space,
     action_space=action_space,

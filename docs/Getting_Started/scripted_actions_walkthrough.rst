@@ -1,9 +1,9 @@
 Scripted Actions Demo Walkthrough
 =================================
 
-The Simple Demo example is a scenario that demonstrates a scripted agent interacting with the BLADE Gymnasium environment. In the scenario, the scripted agent directs an aircraft to strike an enemy aircraft, infiltrate two enemy SAMs, and finally return to base. The demo is available at demo.py. Below we give a brief explanation of the demo code. Make sure you follow the installation steps before proceeding.
+The Simple Demo example is a scenario that demonstrates a scripted agent interacting with the VISTA Gymnasium environment. In the scenario, the scripted agent directs an aircraft to strike an enemy aircraft, infiltrate two enemy SAMs, and finally return to base. The demo is available at demo.py. Below we give a brief explanation of the demo code. Make sure you follow the installation steps before proceeding.
 
-The code snippet below instantiates a BLADE Gymnasium environment. Note that we must first create a Game object instantiated with a scenario JSON file and pass it into the environment. The scenario is also being recorded and recordings can be played back in the client GUI. Scenario JSON files can be generated using the panopticon-ai web application.::
+The code snippet below instantiates a VISTA Gymnasium environment. Note that we must first create a Game object instantiated with a scenario JSON file and pass it into the environment. The scenario is also being recorded and recordings can be played back in the client GUI. Scenario JSON files can be generated using the vista web application.::
 
     game = Game(
         current_scenario=Scenario(),
@@ -13,7 +13,7 @@ The code snippet below instantiates a BLADE Gymnasium environment. Note that we 
     with open(f"{demo_folder}/simple_demo.json", "r") as scenario_file:
         game.load_scenario(scenario_file.read())
 
-    env = gymnasium.make("blade/BLADE-v0", game=game)
+    env = gymnasium.make("vista/VISTA-v0", game=game)
 
     observation, info = env.reset()
     

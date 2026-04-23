@@ -9,7 +9,7 @@ import type {
   BundleModelSelection,
 } from "@/gui/experience/bundleModels";
 import type { BundleViewerSceneProp } from "@/gui/experience/bundleSceneProps";
-import type { DigitalTwinLineupEntry } from "@/gui/experience/digitalTwinState";
+import type { VistaLineupEntry } from "@/gui/experience/vistaState";
 import type { AssetExperienceKind } from "@/gui/experience/assetExperience";
 import type { ImmersiveExperienceProfile } from "@/gui/experience/immersiveExperience";
 import { preloadBundleViewer } from "@/gui/experience/modelPreload";
@@ -42,7 +42,7 @@ export interface BundleViewerComparisonSelection {
 
 export interface BundleViewerLineupEntry
   extends Pick<
-    DigitalTwinLineupEntry,
+    VistaLineupEntry,
     | "id"
     | "label"
     | "section"

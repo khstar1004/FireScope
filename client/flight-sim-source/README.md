@@ -13,7 +13,7 @@ A high-performance, web-based flight simulator that bridges the gap between **Th
 ## 🚀 Key Features
 
 ### 🌍 Global Real-World Terrain
-- **Digital Twin Earth**: Powered by CesiumJS, fly over high-resolution 3D topography and satellite imagery anywhere on the planet.
+- **VISTA Earth**: Powered by CesiumJS, fly over high-resolution 3D topography and satellite imagery anywhere on the planet.
 - **Dynamic Level-of-Detail**: Seamlessly transition from high-altitude stratospheric flight to low-level canyon runs.
 
 ### 🦅 Advanced Flight Combat & AI

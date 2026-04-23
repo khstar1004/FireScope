@@ -5,12 +5,12 @@ from gymnasium.spaces import Text
 from blade.Game import Game
 from blade.Scenario import Scenario
 from blade.utils.constants import (
-    BLADE_ENV_OBSERVATION_SPACE_MAX_CHARACTERS,
-    BLADE_ENV_ACTION_SPACE_MAX_CHARACTERS,
+    VISTA_ENV_OBSERVATION_SPACE_MAX_CHARACTERS,
+    VISTA_ENV_ACTION_SPACE_MAX_CHARACTERS,
 )
 
 
-class BLADE(gym.Env):
+class VISTA(gym.Env):
 
     def __init__(
         self,
@@ -25,12 +25,12 @@ class BLADE(gym.Env):
     ):
         if observation_space is None:
             self.observation_space = Text(
-                max_length=BLADE_ENV_OBSERVATION_SPACE_MAX_CHARACTERS
+                max_length=VISTA_ENV_OBSERVATION_SPACE_MAX_CHARACTERS
             )
         else:
             self.observation_space = observation_space
         if action_space is None:
-            self.action_space = Text(max_length=BLADE_ENV_ACTION_SPACE_MAX_CHARACTERS)
+            self.action_space = Text(max_length=VISTA_ENV_ACTION_SPACE_MAX_CHARACTERS)
         else:
             self.action_space = action_space
         self.action_transform_fnc = action_transform_fnc

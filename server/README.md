@@ -1,6 +1,6 @@
-# FireScope Server
+# VISTA Server
 
-Minimal backend for local FireScope service workflows.
+Minimal backend for local VISTA service workflows.
 
 ## Endpoints
 

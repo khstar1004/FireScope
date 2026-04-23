@@ -29,7 +29,7 @@
 
 하지만 현재 강화학습 설계가 직접 다루는 환경은 아직 더 좁습니다.
 
-- 환경: ``blade/FixedTargetStrike-v0``
+- 환경: ``vista/FixedTargetStrike-v0``
 - 과제: 아군 항공기가 적 고정 표적을 협조 타격해 임무를 끝내는 문제
 - 위치: ``gym/scripts/fixed_target_strike/train.py``
 
@@ -302,7 +302,7 @@ UI 사용 절차
 
 학습 결과는 작업별 디렉터리에 저장됩니다.::
 
-   .firescope_rl_jobs/<job-id>/
+   .vista_rl_jobs/<job-id>/
 
 대표 파일은 다음과 같습니다.
 

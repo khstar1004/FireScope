@@ -5,5 +5,5 @@ const host = process.env.HOST ?? "127.0.0.1";
 const server = createApp();
 
 server.listen(port, host, () => {
-  console.log(`FireScope server listening on http://${host}:${port}`);
+  console.log(`VISTA server listening on http://${host}:${port}`);
 });

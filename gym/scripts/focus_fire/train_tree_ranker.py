@@ -649,7 +649,7 @@ def parse_args() -> argparse.Namespace:
         "--input",
         required=True,
         type=Path,
-        help="Path to the telemetry JSONL exported from FireScope.",
+        help="Path to the telemetry JSONL exported from VISTA.",
     )
     parser.add_argument(
         "--output",

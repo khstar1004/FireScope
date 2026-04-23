@@ -1,6 +1,7 @@
 import Scenario from "@/game/Scenario";
 import {
   isScenarioAtLaunchBoundary,
+  shouldRunScenarioImmediatelyAfterLaunchModeSelection,
   shouldPromptScenarioLaunchModeSelection,
 } from "@/gui/map/scenarioLaunchMode";
 
@@ -52,5 +53,14 @@ describe("scenario launch mode", () => {
         scenarioPaused: true,
       })
     ).toBe(false);
+  });
+
+  test("keeps 3D launch selection paused until the 3D page play button is pressed", () => {
+    expect(shouldRunScenarioImmediatelyAfterLaunchModeSelection("2d")).toBe(
+      true
+    );
+    expect(shouldRunScenarioImmediatelyAfterLaunchModeSelection("3d")).toBe(
+      false
+    );
   });
 });

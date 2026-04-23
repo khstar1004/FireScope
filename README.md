@@ -1,8 +1,10 @@
-# Digital Twin
+# VISTA
+
+Visualized Intelligence for Situational Tactical Awareness.
 
 ## Quick Start
 
-For a quick start of the Digital Twin project, please follow these instructions
+For a quick start of the VISTA project, please follow these instructions
 
 ### Manual Setup
 
@@ -84,5 +86,5 @@ For specific READMEs in `client` and `gym`, they are located in:
 - [client/README.md](./client/README.md)
 - [gym/README.md](./gym/README.md)
 
-For the official documentation for Panopticon AI, please see the [docs](https://docs.panopticon-ai.com/) for full details.
+For the VISTA documentation, see the local [docs](./docs) folder.
 

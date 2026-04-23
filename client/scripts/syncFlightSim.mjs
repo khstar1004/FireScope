@@ -44,10 +44,14 @@ function assertExists(targetPath, label) {
 function copyDirectory(sourcePath, targetPath) {
   mkdirSync(targetPath, { recursive: true });
   for (const entry of readdirSync(sourcePath, { withFileTypes: true })) {
-    cpSync(path.join(sourcePath, entry.name), path.join(targetPath, entry.name), {
-      recursive: true,
-      force: true,
-    });
+    cpSync(
+      path.join(sourcePath, entry.name),
+      path.join(targetPath, entry.name),
+      {
+        recursive: true,
+        force: true,
+      }
+    );
   }
 }
 
@@ -115,10 +119,7 @@ copyDirectory(
   path.join(flightSimDist, "assets"),
   path.join(flightSimPublicDir, "assets")
 );
-copyDirectory(
-  flightSimCesiumDir,
-  path.join(flightSimPublicDir, "cesium")
-);
+copyDirectory(flightSimCesiumDir, path.join(flightSimPublicDir, "cesium"));
 
 copyDirectory(flightSimFontDir, rootFontDir);
 
@@ -143,13 +144,21 @@ const vworldApiKey =
 const vworldDomain =
   process.env.VWORLD_DOMAIN ?? process.env.VITE_VWORLD_DOMAIN ?? "";
 const mapTilerApiKey =
-  process.env.MAPTILER_API_KEY ??
-  process.env.VITE_MAPTILER_DEFAULT_KEY ??
+  process.env.MAPTILER_API_KEY ?? process.env.VITE_MAPTILER_DEFAULT_KEY ?? "";
+const ollamaBaseUrl =
+  process.env.OLLAMA_BASE_URL ??
+  process.env.VITE_OLLAMA_BASE_URL ??
+  "http://127.0.0.1:11434";
+const ollamaVisionModel =
+  process.env.OLLAMA_VISION_MODEL ??
+  process.env.VITE_OLLAMA_VISION_MODEL ??
   "";
 const configScript = `window.__FLIGHT_SIM_CONFIG__ = Object.freeze({
   vworldApiKey: ${JSON.stringify(vworldApiKey)},
   vworldDomain: ${JSON.stringify(vworldDomain)},
-  mapTilerApiKey: ${JSON.stringify(mapTilerApiKey)}
+  mapTilerApiKey: ${JSON.stringify(mapTilerApiKey)},
+  ollamaBaseUrl: ${JSON.stringify(ollamaBaseUrl)},
+  ollamaVisionModel: ${JSON.stringify(ollamaVisionModel)}
 });
 `;
 

@@ -30,7 +30,10 @@ import List from "@mui/material/List";
 import Stack from "@mui/material/Stack";
 import { styled } from "@mui/material/styles";
 import Game from "@/game/Game";
-import { APP_DISPLAY_NAME, APP_DRAWER_WIDTH } from "@/utils/constants";
+import {
+  APP_DISPLAY_NAME,
+  APP_DRAWER_WIDTH,
+} from "@/utils/constants";
 import ToolbarCollapsible from "@/gui/map/toolbar/ToolbarCollapsible";
 import MenuIcon from "@mui/icons-material/Menu";
 import { Toolbar as MapToolbar } from "@mui/material";
@@ -74,6 +77,7 @@ import blankScenarioJson from "@/scenarios/blank_scenario.json";
 import defaultScenarioJson from "@/scenarios/default_scenario.json";
 import armyDemoScenarioJson from "@/scenarios/army_demo_1.json";
 import focusedTrainingDemoJson from "@/scenarios/focused_training_demo.json";
+import combatDemo1 from "@/scenarios/combatDemo1";
 import focusFireEconomyDemo from "@/scenarios/focusFireEconomyDemo";
 import rlFirstSuccessDemoJson from "@/scenarios/rl_first_success_demo.json";
 import rlBattleOptimizationDemoJson from "@/scenarios/rl_battle_optimization_demo.json";
@@ -130,17 +134,18 @@ import type {
   GuideRailPlacementFocusIntent,
 } from "@/gui/map/guideRailIntents";
 import {
+  shouldRunScenarioImmediatelyAfterLaunchModeSelection,
   shouldPromptScenarioLaunchModeSelection,
   type ScenarioLaunchMode,
 } from "@/gui/map/scenarioLaunchMode";
 
 const GUIDE_RAIL_SELECTION_STORAGE_KEYS = {
-  mannedAircraft: "firescope.guideRail.selection.mannedAircraft",
-  drone: "firescope.guideRail.selection.drone",
-  airbase: "firescope.guideRail.selection.airbase",
-  facility: "firescope.guideRail.selection.facility",
-  armor: "firescope.guideRail.selection.armor",
-  ship: "firescope.guideRail.selection.ship",
+  mannedAircraft: "vista.guideRail.selection.mannedAircraft",
+  drone: "vista.guideRail.selection.drone",
+  airbase: "vista.guideRail.selection.airbase",
+  facility: "vista.guideRail.selection.facility",
+  armor: "vista.guideRail.selection.armor",
+  ship: "vista.guideRail.selection.ship",
 } as const;
 
 function readGuideRailSelection(key: string, fallbackValue: string) {
@@ -850,7 +855,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
       const [localDateString, time] = getLocalDateTime().split("T");
       const timestamp = `${localDateString.replace(/-/g, "_")}_T${time}`;
       const currentScenarioName = !scenarioName
-        ? "firescope_scenario"
+        ? "vista_scenario"
         : scenarioName.trim().replace(/\s+/g, "_").toLowerCase();
       const exportName = currentScenarioName + "_" + timestamp;
       const dataStr =
@@ -906,6 +911,10 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
         scenarioJson = focusedTrainingDemoJson;
         handleLoadScenarioIconClose();
         break;
+      case "combat_demo_1":
+        scenarioJson = combatDemo1;
+        handleLoadScenarioIconClose();
+        break;
       case "focus_fire_economy_demo":
         scenarioJson = focusFireEconomyDemo;
         handleLoadScenarioIconClose();
@@ -941,6 +950,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
           presetScenarioName === "rl_first_success_demo" ||
           presetScenarioName === "rl_battle_optimization_demo" ||
           presetScenarioName === "focused_training_demo" ||
+          presetScenarioName === "combat_demo_1" ||
           presetScenarioName === "focus_fire_economy_demo" ||
           strategicPreset?.regenerateScenarioId
         ) {
@@ -1049,7 +1059,9 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
 
   const startScenarioIn3dMode = () => {
     setScenarioLaunchDialogOpen(false);
-    setScenarioPaused(false);
+    setScenarioPaused(
+      !shouldRunScenarioImmediatelyAfterLaunchModeSelection("3d")
+    );
     props.startScenarioOnClick("3d");
   };
 
@@ -1563,8 +1575,8 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
       items: [
         {
           key: "experience-airwatch-3d",
-          label: "공중 관측 3D",
-          description: "현재 시나리오를 공중 관측형 3D 화면으로 표시",
+          label: "선택 영역 3D",
+          description: "드래그로 고른 구역만 전용 3D 지형 화면으로 표시",
           entityType: "facility" as const,
           onClick: props.openScenario3dView,
         },
@@ -1652,6 +1664,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
   const currentSideId = props.game.currentScenario.getSide(
     props.game.currentSideId
   )?.id;
+  const sideSelectCurrentSideId = currentSideId ?? selectedSideId;
   const currentSideName = props.game.currentScenario.getSideName(
     props.game.currentSideId
   );
@@ -2089,6 +2102,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
       displayName: "RL 전투·배치 최적화 데모",
     },
     { name: "focused_training_demo", displayName: "가용화력자산" },
+    { name: "combat_demo_1", displayName: "전투데모#1" },
     { name: "focus_fire_economy_demo", displayName: "화력 배치 경제성 비교" },
     { name: "army_demo", displayName: "전장 데모" },
     ...strategicScenarioPresets.map((scenario) => ({
@@ -2910,7 +2924,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
             onClick={(_event: React.MouseEvent<HTMLElement>) => {
               const exportedUnitDb = unitDbContext.exportToJson();
               downloadTextFile(
-                `firescope_units_${buildSafeDownloadTimestamp()}.json`,
+                `vista_units_${buildSafeDownloadTimestamp()}.json`,
                 exportedUnitDb,
                 "text/json"
               );
@@ -2924,7 +2938,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
             onClick={(_event: React.MouseEvent<HTMLElement>) => {
               const diagnostics = unitDbContext.buildDiagnosticsReport();
               downloadTextFile(
-                `firescope_unit_db_diagnostics_${buildSafeDownloadTimestamp()}.json`,
+                `vista_unit_db_diagnostics_${buildSafeDownloadTimestamp()}.json`,
                 JSON.stringify(diagnostics, null, 2),
                 "application/json"
               );
@@ -2943,7 +2957,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
             onClick={(_event: React.MouseEvent<HTMLElement>) => {
               const parityReport = unitDbContext.buildPythonParityReport();
               downloadTextFile(
-                `firescope_unit_db_ts_python_parity_${buildSafeDownloadTimestamp()}.json`,
+                `vista_unit_db_ts_python_parity_${buildSafeDownloadTimestamp()}.json`,
                 JSON.stringify(parityReport, null, 2),
                 "application/json"
               );
@@ -2962,7 +2976,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
             onClick={(_event: React.MouseEvent<HTMLElement>) => {
               const syncPlan = unitDbContext.buildPythonSyncPlan();
               downloadTextFile(
-                `firescope_unit_db_ts_python_sync_plan_${buildSafeDownloadTimestamp()}.json`,
+                `vista_unit_db_ts_python_sync_plan_${buildSafeDownloadTimestamp()}.json`,
                 JSON.stringify(syncPlan, null, 2),
                 "application/json"
               );
@@ -3197,7 +3211,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
               borderRadius: 3,
             }}
           >
-            3D모드
+            영역 3D
           </Button>
         </Stack>
       </Dialog>
@@ -3291,17 +3305,6 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                 >
                   {APP_DISPLAY_NAME}
                 </Typography>
-                {!compactToolbar && (
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      color: "var(--fs-text-soft)",
-                      letterSpacing: "0.06em",
-                    }}
-                  >
-                    3D 시뮬레이션 중심 전장 체험
-                  </Typography>
-                )}
               </Box>
             </Box>
             {showEntityShortcutStrip && (
@@ -3379,7 +3382,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
             {showSideSelect && (
               <SideSelect
                 sides={props.game.currentScenario.sides}
-                currentSideId={selectedSideId}
+                currentSideId={sideSelectCurrentSideId}
                 onSideSelect={handleSideChange}
                 openSideEditor={props.handleOpenSideEditor}
               />
@@ -3396,7 +3399,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                   whiteSpace: "nowrap",
                 }}
               >
-                {compactToolbar ? "3D" : "공중 관측 3D"}
+                {compactToolbar ? "3D" : "영역 3D"}
               </Button>
             )}
             {showExperienceShortcut && (
@@ -3407,7 +3410,7 @@ export default function Toolbar(props: Readonly<ToolBarProps>) {
                 endIcon={<KeyboardArrowDownIcon />}
                 sx={{ fontWeight: 700, whiteSpace: "nowrap" }}
               >
-                {compactToolbar ? "3D" : "3D 모드"}
+                {compactToolbar ? "체험" : "3D 체험"}
               </Button>
             )}
             {experienceMenu()}

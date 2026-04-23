@@ -1,7 +1,7 @@
 import type { BattleSpectatorSnapshot } from "@/game/Game";
 
 export const FLIGHT_SIM_BATTLE_SPECTATOR_STORAGE_KEY =
-  "firescope_flight_sim_battle_spectator_state";
+  "vista_flight_sim_battle_spectator_state";
 
 export type FlightSimBattleSpectatorState = BattleSpectatorSnapshot & {
   continueSimulation?: boolean;

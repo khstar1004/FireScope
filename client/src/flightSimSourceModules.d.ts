@@ -86,9 +86,63 @@ declare module "../../../../flight-sim-source/src/systems/battleSpectatorSystem"
 
 declare module "../../../../flight-sim-source/src/world/globeReadiness" {
   export function isVWorldGlobeReady(runtimeState: unknown): boolean;
-  export function isCesiumGlobeReady(viewer: unknown): boolean;
+  export function isCesiumGlobeReady(
+    viewer: unknown,
+    options?: { acceptEmptyTileList?: boolean }
+  ): boolean;
   export function isGlobeSurfaceReady(
     viewer: unknown,
     runtimeState: unknown
   ): boolean;
+}
+
+declare module "../../../../flight-sim-source/src/world/vworldRuntimeUrls" {
+  export function isVWorldHost(hostname?: string): boolean;
+  export function normalizeVWorldRuntimeUrl(
+    resourceUrl: string,
+    baseUrl: string
+  ): string;
+}
+
+declare module "../../../../flight-sim-source/src/plane/terrainSafety" {
+  export function resolveTerrainAltitudeSafety(options: {
+    craftProfile?: Record<string, unknown> | null;
+    altitude: number;
+    terrainHeight: number;
+    verticalSpeed?: number;
+  }): {
+    adjustedAltitude: number;
+    aboveGround: number | null;
+    shouldCrash: boolean;
+    wasRecovered: boolean;
+  };
+}
+
+declare module "../../../../public/terrain-3d/terrainIntel.js" {
+  interface TerrainIntelLocationLike {
+    hostname?: string;
+    host?: string;
+    origin?: string;
+  }
+
+  export function shouldUseVworldProxy(locationLike?: {
+    hostname?: string;
+    origin?: string;
+  } | null): boolean;
+  export function buildVworldServiceUrl(
+    pathname: string,
+    locationLike?: TerrainIntelLocationLike | null
+  ): URL;
+  export function resolveOllamaApiBaseUrl(
+    runtimeConfig: {
+      ollamaBaseUrl?: string;
+    },
+    searchParams: URLSearchParams,
+    locationLike?: TerrainIntelLocationLike | null
+  ): string;
+  export function extractOllamaModelNames(payload: unknown): string[];
+  export function selectOllamaVisionModel(
+    preferredModel: string,
+    availableModels?: string[]
+  ): string;
 }

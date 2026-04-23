@@ -5,7 +5,7 @@ export function isVWorldGlobeReady(runtimeState) {
   );
 }
 
-export function isCesiumGlobeReady(viewer) {
+export function isCesiumGlobeReady(viewer, options = {}) {
   const globe = viewer?.scene?.globe;
   if (!globe || globe.tilesLoaded !== true) {
     return false;
@@ -16,9 +16,15 @@ export function isCesiumGlobeReady(viewer) {
     return true;
   }
 
-  return tilesToRender.length > 0;
+  return options.acceptEmptyTileList === true || tilesToRender.length > 0;
 }
 
 export function isGlobeSurfaceReady(viewer, runtimeState) {
-  return isVWorldGlobeReady(runtimeState) || isCesiumGlobeReady(viewer);
+  if (isVWorldGlobeReady(runtimeState)) {
+    return true;
+  }
+
+  return isCesiumGlobeReady(viewer, {
+    acceptEmptyTileList: runtimeState?.mapProvider === "cesium-fallback",
+  });
 }

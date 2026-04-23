@@ -46,7 +46,7 @@ function createScenarioPayload(name) {
 }
 
 async function withServer(fn) {
-  const tempDir = mkdtempSync(path.join(os.tmpdir(), "firescope-server-test-"));
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "vista-server-test-"));
   const dataFilePath = path.join(tempDir, "scenarios.json");
   const app = createApp({
     store: createScenarioStore({ dataFilePath }),
@@ -72,7 +72,7 @@ test("health endpoint responds with ok status", async () => {
 
     assert.equal(response.status, 200);
     assert.equal(payload.status, "ok");
-    assert.equal(payload.service, "firescope-server");
+    assert.equal(payload.service, "vista-server");
   });
 });
 

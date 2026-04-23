@@ -2,7 +2,7 @@ import type { AssetExperienceSummary } from "@/gui/experience/assetExperience";
 import type { BundleModelSelection } from "@/gui/experience/bundleModels";
 import type { ImmersiveExperienceProfile } from "@/gui/experience/immersiveExperience";
 
-export interface DigitalTwinLineupEntry {
+export interface VistaLineupEntry {
   id: string;
   label: string;
   section: string;
@@ -16,7 +16,7 @@ export interface DigitalTwinLineupEntry {
   primary: boolean;
 }
 
-export interface DigitalTwinSummary {
+export interface VistaSummary {
   headline: string;
   postureLabel: string;
   readinessPct: number;
@@ -25,7 +25,7 @@ export interface DigitalTwinSummary {
   warning: string;
 }
 
-export function clampDigitalTwinMetric(
+export function clampVistaMetric(
   value: number,
   min: number,
   max: number
@@ -50,7 +50,7 @@ function humanizeOperationMode(operationMode: string) {
     .join(" ");
 }
 
-export function getDigitalTwinRangeReference(
+export function getVistaRangeReference(
   profile: ImmersiveExperienceProfile
 ) {
   switch (profile) {
@@ -67,7 +67,7 @@ export function getDigitalTwinRangeReference(
   }
 }
 
-export function getDigitalTwinWeaponReference(
+export function getVistaWeaponReference(
   profile: ImmersiveExperienceProfile
 ) {
   switch (profile) {
@@ -90,7 +90,7 @@ function buildBaseFuelScore(asset: AssetExperienceSummary) {
     asset.maxFuel !== undefined &&
     asset.maxFuel > 0
   ) {
-    return clampDigitalTwinMetric(
+    return clampVistaMetric(
       (asset.currentFuel / asset.maxFuel) * 100,
       20,
       100
@@ -98,7 +98,7 @@ function buildBaseFuelScore(asset: AssetExperienceSummary) {
   }
 
   if (asset.kind === "airbase") {
-    return clampDigitalTwinMetric(((asset.aircraftCount ?? 0) / 12) * 100, 36, 98);
+    return clampVistaMetric(((asset.aircraftCount ?? 0) / 12) * 100, 36, 98);
   }
 
   return asset.kind === "ship" ? 74 : asset.kind === "facility" ? 81 : 78;
@@ -113,7 +113,7 @@ function buildBaseOrdnanceScore(
     asset.maxQuantity !== undefined &&
     asset.maxQuantity > 0
   ) {
-    return clampDigitalTwinMetric(
+    return clampVistaMetric(
       (asset.currentQuantity / asset.maxQuantity) * 100,
       18,
       100
@@ -121,11 +121,11 @@ function buildBaseOrdnanceScore(
   }
 
   if (asset.kind === "airbase") {
-    return clampDigitalTwinMetric(((asset.aircraftCount ?? 0) / 10) * 100, 34, 96);
+    return clampVistaMetric(((asset.aircraftCount ?? 0) / 10) * 100, 34, 96);
   }
 
-  return clampDigitalTwinMetric(
-    ((asset.weaponCount ?? 0) / getDigitalTwinWeaponReference(profile)) * 100,
+  return clampVistaMetric(
+    ((asset.weaponCount ?? 0) / getVistaWeaponReference(profile)) * 100,
     28,
     100
   );
@@ -136,21 +136,21 @@ function buildBaseCoverageScore(
   profile: ImmersiveExperienceProfile
 ) {
   if (asset.range !== undefined) {
-    return clampDigitalTwinMetric(
-      (asset.range / getDigitalTwinRangeReference(profile)) * 100,
+    return clampVistaMetric(
+      (asset.range / getVistaRangeReference(profile)) * 100,
       24,
       100
     );
   }
 
   if (asset.kind === "airbase") {
-    return clampDigitalTwinMetric(((asset.aircraftCount ?? 0) / 8) * 100, 46, 96);
+    return clampVistaMetric(((asset.aircraftCount ?? 0) / 8) * 100, 46, 96);
   }
 
   return profile === "ground" ? 62 : 70;
 }
 
-export function getDigitalTwinSectionLabels(
+export function getVistaSectionLabels(
   profile: ImmersiveExperienceProfile
 ) {
   switch (profile) {
@@ -167,7 +167,7 @@ export function getDigitalTwinSectionLabels(
   }
 }
 
-export function getDigitalTwinModelRole(
+export function getVistaModelRole(
   profile: ImmersiveExperienceProfile,
   model: BundleModelSelection
 ) {
@@ -206,7 +206,7 @@ export function getDigitalTwinModelRole(
   }
 }
 
-export function getDigitalTwinTaskLabel(
+export function getVistaTaskLabel(
   profile: ImmersiveExperienceProfile,
   operationMode: string,
   index: number,
@@ -248,7 +248,7 @@ export function getDigitalTwinTaskLabel(
   }
 }
 
-export function getDigitalTwinStatusLabel(
+export function getVistaStatusLabel(
   profile: ImmersiveExperienceProfile,
   readinessPct: number,
   fuelPct: number,
@@ -273,7 +273,7 @@ export function getDigitalTwinStatusLabel(
   return profile === "ground" ? "축선 정렬" : "전개 유지";
 }
 
-export function buildDigitalTwinLineup(
+export function buildVistaLineup(
   asset: AssetExperienceSummary,
   profile: ImmersiveExperienceProfile,
   activeModel: BundleModelSelection | null,
@@ -281,37 +281,37 @@ export function buildDigitalTwinLineup(
   operationMode: string
 ) {
   if (!activeModel) {
-    return [] as DigitalTwinLineupEntry[];
+    return [] as VistaLineupEntry[];
   }
 
   const lineupModels = [
     activeModel,
     ...selectedModels.filter((model) => model.id !== activeModel.id),
   ].slice(0, 5);
-  const sectionLabels = getDigitalTwinSectionLabels(profile);
+  const sectionLabels = getVistaSectionLabels(profile);
   const baseFuelPct = buildBaseFuelScore(asset);
   const baseOrdnancePct = buildBaseOrdnanceScore(asset, profile);
   const baseCoveragePct = buildBaseCoverageScore(asset, profile);
 
   return lineupModels.map((model, index) => {
     const primary = index === 0;
-    const fuelPct = clampDigitalTwinMetric(
+    const fuelPct = clampVistaMetric(
       baseFuelPct - index * 6 + (primary ? 5 : 0),
       28,
       100
     );
-    const ordnancePct = clampDigitalTwinMetric(
+    const ordnancePct = clampVistaMetric(
       baseOrdnancePct - index * 7 + (primary ? 6 : 0),
       24,
       100
     );
-    const coveragePct = clampDigitalTwinMetric(
+    const coveragePct = clampVistaMetric(
       baseCoveragePct - index * 4 + (primary ? 4 : 0),
       24,
       100
     );
     const readinessPct = Math.round(
-      clampDigitalTwinMetric(
+      clampVistaMetric(
         fuelPct * 0.34 + ordnancePct * 0.33 + coveragePct * 0.33,
         0,
         100
@@ -322,9 +322,9 @@ export function buildDigitalTwinLineup(
       id: model.id,
       label: model.label,
       section: sectionLabels[index] ?? sectionLabels[sectionLabels.length - 1],
-      role: getDigitalTwinModelRole(profile, model),
-      task: getDigitalTwinTaskLabel(profile, operationMode, index, primary),
-      status: getDigitalTwinStatusLabel(
+      role: getVistaModelRole(profile, model),
+      task: getVistaTaskLabel(profile, operationMode, index, primary),
+      status: getVistaStatusLabel(
         profile,
         readinessPct,
         fuelPct,
@@ -339,11 +339,11 @@ export function buildDigitalTwinLineup(
   });
 }
 
-export function buildDigitalTwinSummary(
+export function buildVistaSummary(
   asset: AssetExperienceSummary,
   profile: ImmersiveExperienceProfile,
-  lineup: DigitalTwinLineupEntry[]
-): DigitalTwinSummary {
+  lineup: VistaLineupEntry[]
+): VistaSummary {
   const readinessPct = Math.round(
     average(lineup.map((entry) => entry.readinessPct))
   );
@@ -356,7 +356,7 @@ export function buildDigitalTwinSummary(
   const postureLabel =
     readinessPct >= 85 ? "GREEN" : readinessPct >= 68 ? "AMBER" : "RED";
 
-  let headline = "Digital Twin";
+  let headline = "VISTA";
   switch (profile) {
     case "ground":
       headline = `${asset.name} 기동대`;

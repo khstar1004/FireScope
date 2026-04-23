@@ -10,6 +10,9 @@ import { createRlDevServerPlugin } from "./scripts/createRlDevServerPlugin";
 export default defineConfig({
   envPrefix: ["VITE_", "MAPTILER_", "LLM_", "OPENROUTER_", "HF_", "MISTRAL_"],
   plugins: [react(), svgr(), tsconfigPaths(), createRlDevServerPlugin()],
+  server: {
+    allowedHosts: ["desktop-gvn1fkt.tail58a6fa.ts.net"],
+  },
   test: {
     globals: true,
     environment: "jsdom",

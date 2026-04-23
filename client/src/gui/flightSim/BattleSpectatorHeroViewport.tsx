@@ -10,7 +10,7 @@ import BundleModelViewport, {
 } from "@/gui/experience/BundleModelViewport";
 import type { AssetExperienceSummary } from "@/gui/experience/assetExperience";
 import type { BundleModelSelection } from "@/gui/experience/bundleModels";
-import type { DigitalTwinSummary } from "@/gui/experience/digitalTwinState";
+import type { VistaSummary } from "@/gui/experience/vistaState";
 import type { ImmersiveExperienceProfile } from "@/gui/experience/immersiveExperience";
 import type { ImmersiveLiveTwinFeed } from "@/gui/experience/immersiveLiveTwin";
 
@@ -34,7 +34,7 @@ export interface BattleSpectatorHeroViewportState {
   metrics: BattleSpectatorHeroViewportMetric[];
   comparisonSelections: BundleViewerComparisonSelection[];
   lineup: BundleViewerLineupEntry[];
-  summary: DigitalTwinSummary | null;
+  summary: VistaSummary | null;
   feed: ImmersiveLiveTwinFeed;
 }
 

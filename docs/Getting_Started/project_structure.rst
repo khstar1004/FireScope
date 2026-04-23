@@ -1,4 +1,4 @@
-BLADE Project Structure
+VISTA Project Structure
 =======================
 
 The project is divided into two directories: ``client`` and ``gym``.

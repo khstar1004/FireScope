@@ -225,7 +225,7 @@ export default function ExperienceGuideRail({
     }
 
     return {
-      label: "공중 관측 3D",
+      label: "영역 3D",
       onClick: openScenario3dView,
       icon: <VisibilityOutlinedIcon />,
     };
@@ -259,7 +259,7 @@ export default function ExperienceGuideRail({
     }
 
     return {
-      label: "공중 관측 3D",
+      label: "영역 3D",
       onClick: openScenario3dView,
     };
   }, [

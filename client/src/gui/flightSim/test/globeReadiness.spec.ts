@@ -58,4 +58,27 @@ describe("flight sim globe readiness", () => {
     expect(isCesiumGlobeReady(viewer)).toBe(false);
     expect(isGlobeSurfaceReady(viewer, null)).toBe(false);
   });
+
+  test("accepts an empty private tile list for the Cesium fallback runtime", () => {
+    const viewer = {
+      scene: {
+        globe: {
+          tilesLoaded: true,
+          _surface: {
+            _tilesToRender: [],
+          },
+        },
+      },
+    };
+    const runtimeState = {
+      mapProvider: "cesium-fallback",
+      vworld: {
+        viewerReady: false,
+        initializationStage: "script-load-failed",
+      },
+    };
+
+    expect(isCesiumGlobeReady(viewer)).toBe(false);
+    expect(isGlobeSurfaceReady(viewer, runtimeState)).toBe(true);
+  });
 });

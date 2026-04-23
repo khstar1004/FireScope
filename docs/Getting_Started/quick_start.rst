@@ -15,7 +15,7 @@ Prerequisites
 - pip
 
 
-Get BLADE
+Get VISTA
 ------------------
 
 
@@ -37,7 +37,7 @@ Get BLADE
 
   to install the package in editable mode. After doing this you can change the code without needing to continue to install it.
 
-- ``gymnasium`` is a dependency for users who want to use BLADE as a Gym environment. In this case, use::
+- ``gymnasium`` is a dependency for users who want to use VISTA as a Gym environment. In this case, use::
 
     pip install .[gym]
 

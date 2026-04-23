@@ -238,6 +238,7 @@ export interface BattleSpectatorWeaponSnapshot {
   targetId: string | null;
   targetLatitude?: number;
   targetLongitude?: number;
+  targetAltitudeMeters?: number;
 }
 
 export interface BattleSpectatorEvent {
@@ -1677,6 +1678,10 @@ export default class Game {
         targetId: weapon.targetId,
         targetLatitude: target?.latitude,
         targetLongitude: target?.longitude,
+        targetAltitudeMeters:
+          target && "altitude" in target
+            ? getFocusFireAltitudeMeters(target.altitude)
+            : undefined,
       };
     });
 

@@ -211,10 +211,17 @@ const commanderScriptPath = path.join(
   "fixed_target_strike",
   "commander_optimize.py"
 );
-const jobsRoot = path.join(repoRoot, ".firescope_rl_jobs");
-const commanderJobsRoot = path.join(repoRoot, ".firescope_rl_commander_jobs");
+const jobsRoot = path.join(repoRoot, ".vista_rl_jobs");
+const commanderJobsRoot = path.join(repoRoot, ".vista_rl_commander_jobs");
 const runtimeRoot = path.join(gymRoot, ".runtime");
 const matplotlibConfigRoot = path.join(runtimeRoot, "mplconfig");
+const VWORLD_PROXY_PREFIX = "/api/vworld";
+const VWORLD_PROXY_BASE_URL = "https://api.vworld.kr";
+const OLLAMA_PROXY_PREFIX = "/api/ollama";
+const OLLAMA_PROXY_BASE_URL =
+  process.env.OLLAMA_BASE_URL ??
+  process.env.VITE_OLLAMA_BASE_URL ??
+  "http://127.0.0.1:11434";
 
 function clampPositiveInt(value: unknown, fallback: number) {
   const parsed = Number(value);
@@ -349,6 +356,131 @@ function sendJson(res: ServerResponse, statusCode: number, payload: unknown) {
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.end(JSON.stringify(payload));
+}
+
+function buildProxyHeaders(req: IncomingMessage) {
+  const headers: Record<string, string> = {};
+  const acceptedHeaderNames = [
+    "accept",
+    "accept-language",
+    "content-type",
+    "origin",
+    "referer",
+    "user-agent",
+  ] as const;
+
+  for (const headerName of acceptedHeaderNames) {
+    const headerValue = req.headers[headerName];
+    if (typeof headerValue === "string" && headerValue.trim().length > 0) {
+      headers[headerName] = headerValue;
+    }
+  }
+
+  return headers;
+}
+
+function buildOllamaProxyHeaders(req: IncomingMessage) {
+  const headers: Record<string, string> = {};
+  const acceptedHeaderNames = ["accept", "content-type", "user-agent"] as const;
+
+  for (const headerName of acceptedHeaderNames) {
+    const headerValue = req.headers[headerName];
+    if (typeof headerValue === "string" && headerValue.trim().length > 0) {
+      headers[headerName] = headerValue;
+    }
+  }
+
+  return headers;
+}
+
+async function proxyVworldRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL
+) {
+  const upstreamPath = url.pathname.slice(VWORLD_PROXY_PREFIX.length);
+  if (!upstreamPath.startsWith("/req/")) {
+    sendJson(res, 404, { error: "Unsupported VWorld proxy path." });
+    return;
+  }
+
+  const upstreamUrl = new URL(`${upstreamPath}${url.search}`, VWORLD_PROXY_BASE_URL);
+  const method = req.method ?? "GET";
+
+  try {
+    const upstreamResponse = await fetch(upstreamUrl, {
+      method,
+      headers: buildProxyHeaders(req),
+      body:
+        method === "GET" || method === "HEAD" ? undefined : await readBody(req),
+    });
+
+    res.statusCode = upstreamResponse.status;
+
+    const contentType = upstreamResponse.headers.get("content-type");
+    if (contentType) {
+      res.setHeader("Content-Type", contentType);
+    }
+
+    const cacheControl = upstreamResponse.headers.get("cache-control");
+    if (cacheControl) {
+      res.setHeader("Cache-Control", cacheControl);
+    }
+
+    const responseBuffer = Buffer.from(await upstreamResponse.arrayBuffer());
+    res.end(responseBuffer);
+  } catch (error) {
+    sendJson(res, 502, {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to proxy VWorld request.",
+    });
+  }
+}
+
+async function proxyOllamaRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL
+) {
+  const upstreamPath = url.pathname.slice(OLLAMA_PROXY_PREFIX.length);
+  if (upstreamPath !== "/api/tags" && upstreamPath !== "/api/chat") {
+    sendJson(res, 404, { error: "Unsupported Ollama proxy path." });
+    return;
+  }
+
+  const upstreamUrl = new URL(
+    `${upstreamPath}${url.search}`,
+    OLLAMA_PROXY_BASE_URL
+  );
+  const method = req.method ?? "GET";
+
+  try {
+    const upstreamResponse = await fetch(upstreamUrl, {
+      method,
+      headers: buildOllamaProxyHeaders(req),
+      body:
+        method === "GET" || method === "HEAD" ? undefined : await readBody(req),
+    });
+
+    res.statusCode = upstreamResponse.status;
+
+    const contentType = upstreamResponse.headers.get("content-type");
+    if (contentType) {
+      res.setHeader("Content-Type", contentType);
+    }
+
+    const responseBuffer = Buffer.from(await upstreamResponse.arrayBuffer());
+    res.end(responseBuffer);
+  } catch (error) {
+    sendJson(res, 502, {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to proxy Ollama request.",
+    });
+  }
 }
 
 async function readBody(req: IncomingMessage) {
@@ -1314,6 +1446,16 @@ function createMiddleware(): Connect.NextHandleFunction {
     const url = new URL(req.url, "http://localhost");
     const pathname = url.pathname;
 
+    if (pathname.startsWith(`${VWORLD_PROXY_PREFIX}/`)) {
+      await proxyVworldRequest(req, res, url);
+      return;
+    }
+
+    if (pathname.startsWith(`${OLLAMA_PROXY_PREFIX}/`)) {
+      await proxyOllamaRequest(req, res, url);
+      return;
+    }
+
     if (
       req.method === "GET" &&
       pathname === "/api/rl/fixed-target-strike/capabilities"
@@ -1649,7 +1791,7 @@ function createMiddleware(): Connect.NextHandleFunction {
 export function createRlDevServerPlugin(): Plugin {
   const middleware = createMiddleware();
   return {
-    name: "firescope-rl-dev-server",
+    name: "vista-rl-dev-server",
     configureServer(server) {
       server.middlewares.use(middleware);
     },

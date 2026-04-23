@@ -3167,13 +3167,13 @@ if (!CesiumRef || !payload) {
         return;
       }
 
-      if (event.data.type === "firescope-focus-fire-update") {
+      if (event.data.type === "vista-focus-fire-update") {
         applyExternalFocusFireUpdate(state, event.data.payload);
         updateHud(state);
         return;
       }
 
-      if (event.data.type === "firescope-tactical-runtime-update") {
+      if (event.data.type === "vista-tactical-runtime-update") {
         applyExternalTacticalRuntimeUpdate(state, event.data.payload);
         updateEntities(state);
         updateCamera(state);
@@ -3181,7 +3181,7 @@ if (!CesiumRef || !payload) {
         return;
       }
 
-      if (event.data.type === "firescope-tactical-command") {
+      if (event.data.type === "vista-tactical-command") {
         handleTacticalCommand(state, event.data.payload?.command);
         updateCamera(state);
         updateHud(state);
@@ -3189,7 +3189,7 @@ if (!CesiumRef || !payload) {
       }
 
       if (
-        event.data.type === "firescope-focus-fire-command" &&
+        event.data.type === "vista-focus-fire-command" &&
         event.data.payload?.command === "start-barrage"
       ) {
         const bursts = clamp(

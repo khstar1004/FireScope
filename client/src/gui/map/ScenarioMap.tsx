@@ -161,8 +161,11 @@ import type {
   GuideRailAssetMixId,
   GuideRailPlacementFocusIntent,
 } from "@/gui/map/guideRailIntents";
-import type { ScenarioLaunchMode } from "@/gui/map/scenarioLaunchMode";
-import { openScenarioLaunch3dFlightSim } from "@/gui/map/scenarioLaunch3d";
+import {
+  shouldRunScenarioImmediatelyAfterLaunchModeSelection,
+  type ScenarioLaunchMode,
+} from "@/gui/map/scenarioLaunchMode";
+import type { Terrain3dBounds } from "@/gui/map/terrain3dRoute";
 
 interface ScenarioMapProps {
   zoom: number;
@@ -201,6 +204,12 @@ interface ScenarioMapProps {
   ) => void;
   openAssetExperiencePage: (asset: AssetExperienceSummary) => void;
   openImmersiveExperiencePage: (asset: AssetExperienceSummary) => void;
+  openTerrain3dPage: (
+    bounds: Terrain3dBounds,
+    options?: {
+      continueSimulation?: boolean;
+    }
+  ) => void;
 }
 
 interface IOpenMultipleFeatureSelector {
@@ -292,6 +301,7 @@ export default function ScenarioMap({
   openAirCombatOverlay,
   openAssetExperiencePage,
   openImmersiveExperiencePage,
+  openTerrain3dPage,
 }: Readonly<ScenarioMapProps>) {
   // checking env key
   const MAPTILER_DEFAULT_KEY =
@@ -475,6 +485,8 @@ export default function ScenarioMap({
   const [dragSelectedFeatures, setDragSelectedFeatures] = useState<
     Feature<Geometry>[]
   >([]);
+  const [terrain3dSelectionActive, setTerrain3dSelectionActive] =
+    useState(false);
   const [facilityPlacementGroups, setFacilityPlacementGroups] = useState<
     FacilityPlacementGroup[]
   >(() =>
@@ -1474,6 +1486,9 @@ export default function ScenarioMap({
     const dragBox = new DragBox({
       condition: (event) => {
         const originalEvent = event.originalEvent;
+        if (terrain3dSelectionActive) {
+          return mouseOnly(event);
+        }
         return (
           mouseOnly(event) &&
           "ctrlKey" in originalEvent &&
@@ -1485,6 +1500,19 @@ export default function ScenarioMap({
     theMap.addInteraction(dragBox);
 
     const handleBoxEnd = () => {
+      if (terrain3dSelectionActive) {
+        const bounds = resolveTerrain3dBounds(
+          dragBox.getGeometry().getExtent()
+        );
+        setTerrain3dSelectionActive(false);
+        clearDragSelection();
+        suppressNextMapClickRef.current = true;
+        openTerrain3dPage(bounds, {
+          continueSimulation: !game.scenarioPaused,
+        });
+        return;
+      }
+
       const selectedFeatures = getFeaturesInExtent(
         dragBox.getGeometry().getExtent()
       );
@@ -1519,7 +1547,7 @@ export default function ScenarioMap({
     return () => {
       theMap.removeInteraction(dragBox);
     };
-  }, [theMap]);
+  }, [openTerrain3dPage, terrain3dSelectionActive, theMap]);
 
   useEffect(() => {
     if (dragSelectedFeatures.length === 0 || !game.currentSideId) {
@@ -1541,6 +1569,91 @@ export default function ScenarioMap({
     if (theMap) {
       theMap.getViewport().style.cursor = cursorType;
     }
+  }
+
+  useEffect(() => {
+    changeCursorType(terrain3dSelectionActive ? "crosshair" : "");
+
+    return () => {
+      changeCursorType("");
+    };
+  }, [terrain3dSelectionActive, theMap]);
+
+  useEffect(() => {
+    if (!terrain3dSelectionActive) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setTerrain3dSelectionActive(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [terrain3dSelectionActive]);
+
+  function resolveTerrain3dBounds(extent: number[]): Terrain3dBounds {
+    const sourceProjection = projection ?? defaultProjection ?? undefined;
+    const southwest = toLonLat([extent[0], extent[1]], sourceProjection);
+    const southeast = toLonLat([extent[2], extent[1]], sourceProjection);
+    const northwest = toLonLat([extent[0], extent[3]], sourceProjection);
+    const northeast = toLonLat([extent[2], extent[3]], sourceProjection);
+    const longitudes = [
+      southwest[0],
+      southeast[0],
+      northwest[0],
+      northeast[0],
+    ];
+    const latitudes = [
+      southwest[1],
+      southeast[1],
+      northwest[1],
+      northeast[1],
+    ];
+
+    return {
+      west: Math.min(...longitudes),
+      south: Math.min(...latitudes),
+      east: Math.max(...longitudes),
+      north: Math.max(...latitudes),
+    };
+  }
+
+  function armTerrain3dSelection() {
+    if (terrain3dSelectionActive) {
+      setTerrain3dSelectionActive(false);
+      return;
+    }
+
+    clearDragSelection();
+    setSelectingFocusFireObjective(false);
+    setTerrain3dSelectionActive(true);
+    setOpenMapContextMenu({
+      open: false,
+      top: 0,
+      left: 0,
+      coordinates: [0, 0],
+    });
+    setOpenTargetFireRecommendation({
+      open: false,
+      top: 0,
+      left: 0,
+      targetId: "",
+    });
+    setOpenMultipleFeatureSelector({
+      open: false,
+      top: 0,
+      left: 0,
+      features: [],
+    });
+    toastContext?.addToast(
+      "지형 3D로 볼 영역을 드래그해서 선택하세요.",
+      "info"
+    );
   }
 
   function getSelectedFeatureType(featureId: string): string {
@@ -2228,29 +2341,14 @@ export default function ScenarioMap({
     );
   }
 
-  function openScenarioFlightSim(options?: { launchSimulation?: boolean }) {
-    if (options?.launchSimulation) {
-      resumeScenarioSimulation();
-    }
-
-    openScenarioLaunch3dFlightSim({
-      openFlightSimPage,
-      defaultCenter: game.mapView.currentCameraCenter,
-      focusFireSummary: game.getFocusFireSummary(),
-      continueSimulation: options?.launchSimulation ? true : !game.scenarioPaused,
-    });
-  }
-
-  function resumeScenarioSimulation() {
-    game.recordStep(true);
-    game.scenarioPaused = false;
-    setCurrentGameStatusToContext("시뮬레이션 진행 중");
-    setCurrentScenarioTimeToContext(game.currentScenario.currentTime);
-  }
-
   function handleStartScenario(mode: ScenarioLaunchMode) {
-    if (mode === "3d") {
-      openScenarioFlightSim({ launchSimulation: true });
+    if (!shouldRunScenarioImmediatelyAfterLaunchModeSelection(mode)) {
+      game.scenarioPaused = true;
+      setCurrentGameStatusToContext(
+        "3D 영역을 선택한 뒤 3D 창에서 실행을 눌러 시뮬레이션을 시작하세요."
+      );
+      setCurrentScenarioTimeToContext(game.currentScenario.currentTime);
+      armTerrain3dSelection();
       return;
     }
 
@@ -4264,7 +4362,7 @@ export default function ScenarioMap({
         handleOpenMissionCreatorFromGuideRail();
         break;
       case "engagement-live":
-        openScenarioFlightSim();
+        armTerrain3dSelection();
         break;
       default:
         break;
@@ -4574,12 +4672,12 @@ export default function ScenarioMap({
         toggleFocusFireMode={toggleFocusFireMode}
         armFocusFireObjectiveSelection={armFocusFireObjectiveSelection}
         clearFocusFireObjective={clearFocusFireObjective}
-        openScenario3dView={openScenarioFlightSim}
+        openScenario3dView={armTerrain3dSelection}
         openFocusFireAirwatch={openFocusFireAirwatch}
         openFocusFireDock={() => setFocusFireDockOpen(true)}
       />
 
-      {guideRailVisible && (
+      {guideRailVisible && !terrain3dSelectionActive && (
         <ExperienceGuideRail
           mobileView={mobileView}
           game={game}
@@ -4592,9 +4690,74 @@ export default function ScenarioMap({
           playOnClick={handlePlayGameClick}
           pauseOnClick={handlePauseGameClick}
           stepOnClick={handleStepGameClick}
-          openScenario3dView={openScenarioFlightSim}
+          openScenario3dView={armTerrain3dSelection}
           openSimulationLogs={openSimulationLogs}
         />
+      )}
+
+      {terrain3dSelectionActive && (
+        <div
+          style={{
+            position: "absolute",
+            top: mobileView ? "1rem" : "1.25rem",
+            left: mobileView ? "1rem" : "1.25rem",
+            zIndex: 1002,
+            maxWidth: mobileView ? "calc(100vw - 2rem)" : 360,
+            padding: "14px 16px",
+            borderRadius: "16px",
+            border: "1px solid rgba(127, 231, 255, 0.18)",
+            background: "rgba(4, 16, 22, 0.88)",
+            boxShadow: "0 18px 40px rgba(0, 0, 0, 0.32)",
+            backdropFilter: "blur(16px)",
+            color: "#ecfffb",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "12px",
+              letterSpacing: "0.08em",
+              color: "rgba(236, 255, 251, 0.72)",
+            }}
+          >
+            TERRAIN 3D
+          </div>
+          <div
+            style={{
+              marginTop: "6px",
+              fontSize: "17px",
+              fontWeight: 800,
+            }}
+          >
+            드래그해서 3D 지형 영역 선택
+          </div>
+          <div
+            style={{
+              marginTop: "6px",
+              fontSize: "12.5px",
+              lineHeight: 1.5,
+              color: "rgba(236, 255, 251, 0.76)",
+            }}
+          >
+            마우스로 사각형을 그리면 선택한 구역만 전용 3D 화면으로
+            엽니다. Esc로도 취소할 수 있습니다.
+          </div>
+          <button
+            type="button"
+            onClick={() => setTerrain3dSelectionActive(false)}
+            style={{
+              marginTop: "12px",
+              border: "1px solid rgba(127, 231, 255, 0.28)",
+              borderRadius: "999px",
+              background: "rgba(255, 255, 255, 0.04)",
+              color: "#ecfffb",
+              padding: "7px 12px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            취소
+          </button>
+        </div>
       )}
 
       <LayerVisibilityPanelToggle

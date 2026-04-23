@@ -71,7 +71,7 @@ def load_game(record_every_seconds: int | None = None) -> Game:
 def create_env(max_episode_steps: int = 240):
     config = build_config(max_episode_steps=max_episode_steps)
     game = load_game()
-    return gym.make("blade/FixedTargetStrike-v0", game=game, config=config)
+    return gym.make("vista/FixedTargetStrike-v0", game=game, config=config)
 
 
 def build_fire_action(config: FixedTargetStrikeConfig) -> np.ndarray:

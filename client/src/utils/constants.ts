@@ -15,7 +15,9 @@ export const RECORDING_INTERVALS_SECONDS: number[] = [
 ];
 export const APP_DRAWER_WIDTH = 352;
 export const APP_GUIDE_RAIL_WIDTH = 264;
-export const APP_DISPLAY_NAME = "전장상황가시화 플랫폼";
+export const APP_DISPLAY_NAME = "VISTA";
+export const APP_FULL_NAME =
+  "Visualized Intelligence for Situational Tactical Awareness";
 export const colorPalette = {
   lightGray: "#07171D",
   darkGray: "#10434C",

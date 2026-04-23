@@ -3786,14 +3786,7 @@ export default function FlightSimPage({
   const [flightSimFrameReady, setFlightSimFrameReady] = useState(false);
   const battleSpectatorEnabled = battleSpectator !== undefined;
   const focusFireAirwatchEnabled = hasFocusFireObjective(focusFireAirwatch);
-  const battleSpectatorHybridEnabled =
-    !battleSpectatorEnabled &&
-    Boolean(game) &&
-    continueSimulation &&
-    focusFireAirwatchEnabled;
-  const battleSpectatorRuntimeEnabled =
-    battleSpectatorEnabled || battleSpectatorHybridEnabled;
-  const initialBattleSpectatorState = battleSpectatorRuntimeEnabled
+  const initialBattleSpectatorState = battleSpectatorEnabled
     ? buildBattleSpectatorState(game, continueSimulation, battleSpectator)
     : undefined;
   const [battleSpectatorPanelOpen, setBattleSpectatorPanelOpen] = useState(
@@ -4405,38 +4398,6 @@ export default function FlightSimPage({
       )?.label ?? "추적 대상 확인 중"
     );
   }, [battleSpectatorFollowTargetId, followTargetOptions, showBattleSpectator]);
-  const battleSpectatorRuntimeModeLabel = battleSpectatorEnabled
-    ? "SPECTATOR"
-    : battleSpectatorHybridEnabled
-      ? "BATTLE LINK"
-      : null;
-  const battleSpectatorRuntimeModeSummary =
-    battleSpectatorEnabled || battleSpectatorHybridEnabled
-      ? battleSpectatorEnabled
-        ? `${battleSpectatorCameraProfileOption.label} · ${battleSpectatorFollowTargetLabel}`
-        : selectedBattleSpectatorUnit
-          ? `${selectedBattleSpectatorUnit.name} · ${selectedBattleSpectatorUnit.sideName}`
-          : battleSpectatorBriefing?.headline ?? "전장 링크 활성화"
-      : "";
-  const hybridBattleSpectatorSelectedUnitTone = useMemo(() => {
-    if (!selectedBattleSpectatorUnit) {
-      return "#7fe7ff";
-    }
-
-    return getBattleSpectatorSideCssColor(selectedBattleSpectatorUnit.sideColor);
-  }, [selectedBattleSpectatorUnit]);
-  const hybridBattleSpectatorPrimaryAction = battleSpectatorHybridEnabled
-    ? battleSpectatorBriefing?.actions[0] ?? null
-    : null;
-  const hybridBattleSpectatorTopAlert = battleSpectatorHybridEnabled
-    ? battleSpectatorAlertRows[0] ?? null
-    : null;
-  const hybridBattleSpectatorTopImpact = battleSpectatorHybridEnabled
-    ? battleSpectatorImpactTimelineRows[0] ?? null
-    : null;
-  const hybridBattleSpectatorTopHotspot = battleSpectatorHybridEnabled
-    ? battleSpectatorHotspotRows[0] ?? null
-    : null;
 
   iframeParams.set("lon", normalizedInitialLocation.lon.toFixed(6));
   iframeParams.set("lat", normalizedInitialLocation.lat.toFixed(6));
@@ -4487,10 +4448,10 @@ export default function FlightSimPage({
 
   const postRuntimeToFlightSim = (
     type:
-      | "firescope-focus-fire-update"
-      | "firescope-focus-fire-command"
-      | "firescope-battle-spectator-update"
-      | "firescope-battle-spectator-command",
+      | "vista-focus-fire-update"
+      | "vista-focus-fire-command"
+      | "vista-battle-spectator-update"
+      | "vista-battle-spectator-command",
     payload: Record<string, unknown>
   ) => {
     if (!iframeRef.current?.contentWindow) {
@@ -4521,7 +4482,7 @@ export default function FlightSimPage({
       return;
     }
 
-    postRuntimeToFlightSim("firescope-battle-spectator-command", {
+    postRuntimeToFlightSim("vista-battle-spectator-command", {
       command: "jump-to-point",
       longitude: point.longitude,
       latitude: point.latitude,
@@ -4579,7 +4540,7 @@ export default function FlightSimPage({
     }
 
     battleSpectatorRuntimeSignatureRef.current = nextRuntimeSignature;
-    postRuntimeToFlightSim("firescope-battle-spectator-update", runtimePayload);
+    postRuntimeToFlightSim("vista-battle-spectator-update", runtimePayload);
   };
 
   const focusBattleSpectatorView = (options: {
@@ -4718,7 +4679,7 @@ export default function FlightSimPage({
     captureScenarioSnapshot?: boolean;
     openPanel?: boolean;
   }) => {
-    if (!game || !battleSpectatorRuntimeEnabled) {
+    if (!game || !battleSpectatorEnabled) {
       return;
     }
 
@@ -5007,7 +4968,7 @@ export default function FlightSimPage({
     battleSpectatorScenarioRestartedRef.current = false;
     if (
       !game ||
-      !battleSpectatorRuntimeEnabled ||
+      !battleSpectatorEnabled ||
       !continueSimulation ||
       typeof game.exportCurrentScenario !== "function"
     ) {
@@ -5021,10 +4982,10 @@ export default function FlightSimPage({
     } catch (_error) {
       battleSpectatorInitialScenarioSnapshotRef.current = null;
     }
-  }, [battleSpectatorRuntimeEnabled, continueSimulation, game]);
+  }, [battleSpectatorEnabled, continueSimulation, game]);
 
   useEffect(() => {
-    const nextBattleSpectatorState = battleSpectatorRuntimeEnabled
+    const nextBattleSpectatorState = battleSpectatorEnabled
       ? buildBattleSpectatorState(game, continueSimulation, battleSpectator)
       : undefined;
     const nextSignature = buildBattleSpectatorStateSignature(
@@ -5039,7 +5000,7 @@ export default function FlightSimPage({
     setCurrentBattleSpectator(nextBattleSpectatorState);
   }, [
     battleSpectator,
-    battleSpectatorRuntimeEnabled,
+    battleSpectatorEnabled,
     continueSimulation,
     game,
   ]);
@@ -5116,7 +5077,7 @@ export default function FlightSimPage({
       if (
         (event.origin.length > 0 &&
           event.origin !== window.location.origin) ||
-        event.data?.type !== "firescope-battle-spectator-selection"
+        event.data?.type !== "vista-battle-spectator-selection"
       ) {
         return;
       }
@@ -5639,7 +5600,7 @@ export default function FlightSimPage({
       return;
     }
 
-    postRuntimeToFlightSim("firescope-focus-fire-update", {
+    postRuntimeToFlightSim("vista-focus-fire-update", {
       objectiveName: currentFocusFireAirwatch.objectiveName,
       objectiveLon: currentFocusFireAirwatch.objectiveLon,
       objectiveLat: currentFocusFireAirwatch.objectiveLat,
@@ -5656,7 +5617,7 @@ export default function FlightSimPage({
   }, [currentFocusFireAirwatch, flightSimFrameReady, showFocusFireAirwatch]);
 
   useEffect(() => {
-    if (!game || !battleSpectatorRuntimeEnabled || !showBattleSpectator) {
+    if (!game || !battleSpectatorEnabled || !showBattleSpectator) {
       return;
     }
 
@@ -5691,7 +5652,7 @@ export default function FlightSimPage({
       window.clearInterval(syncIntervalId);
     };
   }, [
-    battleSpectatorRuntimeEnabled,
+    battleSpectatorEnabled,
     continueSimulation,
     game,
     showBattleSpectator,
@@ -6434,546 +6395,6 @@ export default function FlightSimPage({
             }
           />
         </Box>
-      )}
-
-      {battleSpectatorHybridEnabled && displayedBattleSpectator && (
-        <Stack
-          spacing={1}
-          sx={{
-            position: "absolute",
-            top: 16,
-            left: { xs: 16, sm: 396 },
-            right: { xs: 16, lg: 356 },
-            zIndex: 4,
-            pointerEvents: "none",
-          }}
-        >
-          <Box
-            sx={{
-              pointerEvents: "auto",
-              px: { xs: 1.15, sm: 1.3 },
-              py: { xs: 1.05, sm: 1.2 },
-              borderRadius: 3,
-              backdropFilter: "blur(18px)",
-              background:
-                "radial-gradient(circle at top left, rgba(98, 230, 208, 0.16) 0%, transparent 34%), radial-gradient(circle at top right, rgba(255, 183, 77, 0.14) 0%, transparent 42%), linear-gradient(180deg, rgba(5, 16, 20, 0.94) 0%, rgba(3, 10, 14, 0.82) 100%)",
-              border: "1px solid rgba(98, 230, 208, 0.16)",
-              boxShadow: "0 22px 46px rgba(0, 0, 0, 0.34)",
-            }}
-          >
-            <Stack
-              direction={{ xs: "column", lg: "row" }}
-              spacing={1.2}
-              alignItems={{ xs: "stretch", lg: "flex-start" }}
-              justifyContent="space-between"
-            >
-              <Box sx={{ minWidth: 0, flex: 1 }}>
-                <Stack
-                  direction="row"
-                  spacing={0.65}
-                  sx={{ alignItems: "center", flexWrap: "wrap" }}
-                >
-                  <Typography
-                    sx={{
-                      fontSize: 10.4,
-                      letterSpacing: "0.18em",
-                      color: "#62e6d0",
-                    }}
-                  >
-                    TACTICAL FUSION
-                  </Typography>
-                  <Typography
-                    sx={{
-                      px: 0.78,
-                      py: 0.28,
-                      borderRadius: 99,
-                      fontSize: 10.2,
-                      fontWeight: 800,
-                      color: battleSpectatorBriefing?.stageTone ?? "#84d8ff",
-                      backgroundColor: `${
-                        battleSpectatorBriefing?.stageTone ?? "#84d8ff"
-                      }18`,
-                      border: `1px solid ${
-                        battleSpectatorBriefing?.stageTone ?? "#84d8ff"
-                      }24`,
-                    }}
-                  >
-                    {battleSpectatorBriefing?.stageLabel ?? "전장 링크"}
-                  </Typography>
-                  <Typography
-                    sx={{
-                      px: 0.78,
-                      py: 0.28,
-                      borderRadius: 99,
-                      fontSize: 10.2,
-                      fontWeight: 800,
-                      color: battleSpectatorScenarioPaused ? "#ffd166" : "#62e6d0",
-                      backgroundColor: battleSpectatorScenarioPaused
-                        ? "rgba(255, 209, 102, 0.12)"
-                        : "rgba(98, 230, 208, 0.12)",
-                      border: battleSpectatorScenarioPaused
-                        ? "1px solid rgba(255, 209, 102, 0.2)"
-                        : "1px solid rgba(98, 230, 208, 0.2)",
-                    }}
-                  >
-                    {battleSpectatorScenarioPaused ? "PAUSED" : "LIVE"}
-                  </Typography>
-                  <Typography
-                    sx={{
-                      px: 0.78,
-                      py: 0.28,
-                      borderRadius: 99,
-                      fontSize: 10.2,
-                      fontWeight: 800,
-                      color: "rgba(236, 255, 251, 0.84)",
-                      backgroundColor: "rgba(255, 255, 255, 0.06)",
-                      border: "1px solid rgba(255, 255, 255, 0.08)",
-                    }}
-                  >
-                    속도 {battleSpectatorScenarioTimeCompression}x
-                  </Typography>
-                </Stack>
-                <Typography
-                  sx={{
-                    mt: 0.45,
-                    fontSize: { xs: 18, sm: 20 },
-                    fontWeight: 800,
-                    color: "#ecfffb",
-                    lineHeight: 1.12,
-                  }}
-                >
-                  {battleSpectatorScenarioName}
-                </Typography>
-                <Typography
-                  sx={{
-                    mt: 0.55,
-                    fontSize: 12.6,
-                    color: "rgba(236, 255, 251, 0.74)",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {currentFocusFireAirwatch?.objectiveName
-                    ? `${currentFocusFireAirwatch.objectiveName} 축을 기준으로 기체 시점과 전장 관전 데이터를 동시에 동기화합니다.`
-                    : "전투기 비행 시점 위에 전장 3D 관전 데이터를 겹쳐 지휘형 관전 화면으로 운용합니다."}
-                </Typography>
-              </Box>
-              <Stack
-                direction="row"
-                spacing={0.75}
-                sx={{ flexWrap: "wrap", justifyContent: "flex-end" }}
-              >
-                {hybridBattleSpectatorPrimaryAction && (
-                  <Button
-                    size="small"
-                    variant="contained"
-                    onClick={() =>
-                      focusBattleSpectatorView({
-                        point: hybridBattleSpectatorPrimaryAction.point,
-                        followTargetId:
-                          hybridBattleSpectatorPrimaryAction.followTargetId,
-                        cameraProfile:
-                          hybridBattleSpectatorPrimaryAction.cameraProfile,
-                      })
-                    }
-                    sx={{
-                      minWidth: 0,
-                      color: "#041215",
-                      backgroundColor:
-                        battleSpectatorBriefing?.stageTone ?? "#62e6d0",
-                      boxShadow: "0 10px 24px rgba(0, 0, 0, 0.22)",
-                      "&:hover": {
-                        backgroundColor:
-                          battleSpectatorBriefing?.stageTone ?? "#62e6d0",
-                        filter: "brightness(1.06)",
-                      },
-                    }}
-                  >
-                    {hybridBattleSpectatorPrimaryAction.label}
-                  </Button>
-                )}
-                {showFocusFireAirwatch && currentFocusFireAirwatch && (
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={handleBattleSpectatorFocusObjective}
-                    sx={{
-                      minWidth: 0,
-                      borderColor: "rgba(255, 183, 77, 0.28)",
-                      color: "#fff1df",
-                      backgroundColor: "rgba(255, 183, 77, 0.08)",
-                    }}
-                  >
-                    목표 지점
-                  </Button>
-                )}
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={handleBattleSpectatorToggleTimeCompression}
-                  sx={{
-                    minWidth: 0,
-                    borderColor: "rgba(98, 230, 208, 0.24)",
-                    color: "#ecfffb",
-                  }}
-                >
-                  속도 {battleSpectatorScenarioTimeCompression}x
-                </Button>
-              </Stack>
-            </Stack>
-            <Box
-              sx={{
-                mt: 1.05,
-                display: "grid",
-                gridTemplateColumns: {
-                  xs: "repeat(2, minmax(0, 1fr))",
-                  md: "repeat(4, minmax(0, 1fr))",
-                },
-                gap: 0.72,
-              }}
-            >
-              {(battleSpectatorBriefing?.metrics ?? [
-                { label: "탄체", value: `${displayedBattleSpectator.stats.weaponsInFlight}` },
-                { label: "경보", value: `${battleSpectatorAlertRows.length}` },
-                { label: "핫스팟", value: `${battleSpectatorHotspotRows.length}` },
-                { label: "시점", value: battleSpectatorCameraProfileOption.label },
-              ]).map((metric) => (
-                <Box
-                  key={metric.label}
-                  sx={{
-                    px: 0.9,
-                    py: 0.82,
-                    borderRadius: 1.6,
-                    backgroundColor: "rgba(255, 255, 255, 0.045)",
-                    border: "1px solid rgba(255, 255, 255, 0.08)",
-                  }}
-                >
-                  <Typography
-                    sx={{
-                      fontSize: 10.2,
-                      letterSpacing: "0.09em",
-                      color: "rgba(98, 230, 208, 0.78)",
-                    }}
-                  >
-                    {metric.label}
-                  </Typography>
-                  <Typography
-                    sx={{
-                      mt: 0.22,
-                      fontSize: 12.7,
-                      fontWeight: 700,
-                      color: "#ecfffb",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {metric.value}
-                  </Typography>
-                </Box>
-              ))}
-            </Box>
-            <Stack
-              direction={{ xs: "column", md: "row" }}
-              spacing={0.9}
-              sx={{ mt: 0.95 }}
-            >
-              <Box
-                sx={{
-                  flex: 1,
-                  p: 1.05,
-                  borderRadius: 2,
-                  background:
-                    "linear-gradient(180deg, rgba(7, 22, 29, 0.92) 0%, rgba(5, 14, 18, 0.86) 100%)",
-                  border: `1px solid ${hybridBattleSpectatorSelectedUnitTone}20`,
-                }}
-              >
-                <Typography
-                  sx={{
-                    fontSize: 10.4,
-                    letterSpacing: "0.12em",
-                    color: hybridBattleSpectatorSelectedUnitTone,
-                  }}
-                >
-                  CURRENT TRACK
-                </Typography>
-                {selectedBattleSpectatorUnit && selectedBattleSpectatorInsight ? (
-                  <>
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      alignItems="center"
-                      justifyContent="space-between"
-                      sx={{ mt: 0.45 }}
-                    >
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography
-                          sx={{
-                            fontSize: 15.8,
-                            fontWeight: 800,
-                            color: "#ecfffb",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
-                          {selectedBattleSpectatorUnit.name}
-                        </Typography>
-                        <Typography
-                          sx={{
-                            mt: 0.18,
-                            fontSize: 11.8,
-                            color: "rgba(236, 255, 251, 0.7)",
-                          }}
-                        >
-                          {selectedBattleSpectatorUnit.sideName} ·{" "}
-                          {formatBattleSpectatorEntityType(
-                            selectedBattleSpectatorUnit.entityType
-                          )}
-                        </Typography>
-                      </Box>
-                      <Typography
-                        sx={{
-                          flexShrink: 0,
-                          px: 0.8,
-                          py: 0.28,
-                          borderRadius: 99,
-                          fontSize: 10.6,
-                          fontWeight: 800,
-                          color: getBattleSpectatorHpTone(
-                            selectedBattleSpectatorUnit.hpFraction
-                          ),
-                          backgroundColor: "rgba(255, 255, 255, 0.05)",
-                        }}
-                      >
-                        체력{" "}
-                        {formatBattleSpectatorHp(
-                          selectedBattleSpectatorUnit.hpFraction
-                        )}
-                      </Typography>
-                    </Stack>
-                    <Typography
-                      sx={{
-                        mt: 0.72,
-                        fontSize: 12.2,
-                        color: "rgba(236, 255, 251, 0.78)",
-                        lineHeight: 1.5,
-                      }}
-                    >
-                      표적{" "}
-                      {selectedBattleSpectatorInsight.targetName ?? "미지정"} ·
-                      접근 탄체 {selectedBattleSpectatorInsight.incomingWeapons}
-                      발 · 발사 중 {selectedBattleSpectatorInsight.outgoingWeapons}발
-                    </Typography>
-                    <Typography
-                      sx={{
-                        mt: 0.48,
-                        fontSize: 11.8,
-                        color: "rgba(236, 255, 251, 0.66)",
-                      }}
-                    >
-                      속도 {Math.round(selectedBattleSpectatorUnit.speedKts)} kt ·
-                      방위{" "}
-                      {formatBattleSpectatorHeading(
-                        selectedBattleSpectatorUnit.headingDeg
-                      )}{" "}
-                      · 연료{" "}
-                      {formatBattleSpectatorFuelFraction(
-                        selectedBattleSpectatorUnit.fuelFraction
-                      )}
-                    </Typography>
-                    <Stack
-                      direction="row"
-                      spacing={0.7}
-                      sx={{ mt: 0.85, flexWrap: "wrap" }}
-                    >
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => {
-                          openBattleSpectatorHeroView(
-                            `unit:${selectedBattleSpectatorUnit.id}`
-                          );
-                          focusBattleSpectatorView({
-                            point: resolveBattleSpectatorUnitJumpPoint(
-                              selectedBattleSpectatorUnit
-                            ),
-                            followTargetId: `unit:${selectedBattleSpectatorUnit.id}`,
-                            sideFilterId: selectedBattleSpectatorUnit.sideId,
-                            cameraProfile: resolveBattleSpectatorUnitCameraProfile(
-                              selectedBattleSpectatorUnit
-                            ),
-                          });
-                        }}
-                        sx={{
-                          minWidth: 0,
-                          borderColor: `${hybridBattleSpectatorSelectedUnitTone}44`,
-                          color: "#ecfffb",
-                        }}
-                      >
-                        선택 유닛 추적
-                      </Button>
-                    </Stack>
-                  </>
-                ) : (
-                  <>
-                    <Typography
-                      sx={{
-                        mt: 0.48,
-                        fontSize: 15.4,
-                        fontWeight: 800,
-                        color: "#ecfffb",
-                      }}
-                    >
-                      전력 선택 대기
-                    </Typography>
-                    <Typography
-                      sx={{
-                        mt: 0.6,
-                        fontSize: 12.2,
-                        color: "rgba(236, 255, 251, 0.72)",
-                        lineHeight: 1.5,
-                      }}
-                    >
-                      지형 위 전력이나 탄체를 클릭하면 이 카드가 즉시 대상
-                      추적 상태로 바뀌고, 우측 관전 패널과 함께 세부 상태를
-                      띄웁니다.
-                    </Typography>
-                  </>
-                )}
-              </Box>
-              <Box
-                sx={{
-                  flex: 1,
-                  p: 1.05,
-                  borderRadius: 2,
-                  background:
-                    "linear-gradient(180deg, rgba(29, 17, 10, 0.92) 0%, rgba(13, 8, 5, 0.86) 100%)",
-                  border: "1px solid rgba(255, 183, 77, 0.18)",
-                }}
-              >
-                <Typography
-                  sx={{
-                    fontSize: 10.4,
-                    letterSpacing: "0.12em",
-                    color: "#ffb74d",
-                  }}
-                >
-                  STRIKE / THREAT
-                </Typography>
-                <Typography
-                  sx={{
-                    mt: 0.45,
-                    fontSize: 15.8,
-                    fontWeight: 800,
-                    color: "#fff6ec",
-                  }}
-                >
-                  {showFocusFireAirwatch && focusFireInsight
-                    ? `충격량 지수 ${focusFireInsight.shockIndex}`
-                    : battleSpectatorBriefing?.headline ??
-                      battleSpectatorActivitySummary?.statusLabel ??
-                      "실시간 위협 감시"}
-                </Typography>
-                <Typography
-                  sx={{
-                    mt: 0.72,
-                    fontSize: 12.2,
-                    color: "rgba(255, 246, 236, 0.78)",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {showFocusFireAirwatch && focusFireInsight
-                    ? focusFireInsight.summary
-                    : battleSpectatorBriefing?.detail ??
-                      battleSpectatorActivitySummary?.statusDetail ??
-                      "전장 이벤트와 탄체 흐름을 기준으로 핵심 위협 축선을 감시합니다."}
-                </Typography>
-                <Stack
-                  direction="row"
-                  spacing={0.6}
-                  sx={{ mt: 0.85, flexWrap: "wrap" }}
-                >
-                  {showFocusFireAirwatch && focusFireInsight && (
-                    <Typography
-                      sx={{
-                        px: 0.72,
-                        py: 0.25,
-                        borderRadius: 99,
-                        fontSize: 10.4,
-                        color: "#fff1df",
-                        backgroundColor: "rgba(255, 183, 77, 0.12)",
-                        border: "1px solid rgba(255, 183, 77, 0.16)",
-                      }}
-                    >
-                      {focusFireInsight.intensityLabel}
-                    </Typography>
-                  )}
-                  {hybridBattleSpectatorTopImpact && (
-                    <Typography
-                      sx={{
-                        px: 0.72,
-                        py: 0.25,
-                        borderRadius: 99,
-                        fontSize: 10.4,
-                        color: "#fff1df",
-                        backgroundColor: "rgba(255, 255, 255, 0.06)",
-                      }}
-                    >
-                      ETA{" "}
-                      {formatBattleSpectatorEta(hybridBattleSpectatorTopImpact.etaSec)}
-                    </Typography>
-                  )}
-                  {hybridBattleSpectatorTopAlert && (
-                    <Typography
-                      sx={{
-                        px: 0.72,
-                        py: 0.25,
-                        borderRadius: 99,
-                        fontSize: 10.4,
-                        color: hybridBattleSpectatorTopAlert.severityTone,
-                        backgroundColor: `${hybridBattleSpectatorTopAlert.severityTone}18`,
-                      }}
-                    >
-                      {hybridBattleSpectatorTopAlert.severityLabel}
-                    </Typography>
-                  )}
-                  {hybridBattleSpectatorTopHotspot && (
-                    <Typography
-                      sx={{
-                        px: 0.72,
-                        py: 0.25,
-                        borderRadius: 99,
-                        fontSize: 10.4,
-                        color: "rgba(255, 246, 236, 0.76)",
-                        backgroundColor: "rgba(255, 255, 255, 0.06)",
-                      }}
-                    >
-                      핫스팟 {hybridBattleSpectatorTopHotspot.eventCount}건
-                    </Typography>
-                  )}
-                </Stack>
-                <Typography
-                  sx={{
-                    mt: 0.7,
-                    fontSize: 11.8,
-                    color: "rgba(255, 246, 236, 0.68)",
-                  }}
-                >
-                  {hybridBattleSpectatorTopImpact
-                    ? `${hybridBattleSpectatorTopImpact.targetName} 기준 위험 반경 ${formatBattleSpectatorThreatRadius(
-                        hybridBattleSpectatorTopImpact.threatRadiusMeters
-                      )}`
-                    : hybridBattleSpectatorTopAlert
-                      ? hybridBattleSpectatorTopAlert.detail
-                      : hybridBattleSpectatorTopHotspot
-                        ? `${hybridBattleSpectatorTopHotspot.label} · 이벤트 ${hybridBattleSpectatorTopHotspot.eventCount}건 · 활성 탄체 ${hybridBattleSpectatorTopHotspot.activeWeapons}발`
-                        : battleSpectatorActivitySummary?.latestMessage ??
-                          "최신 경보가 들어오면 이 영역이 즉시 갱신됩니다."}
-                </Typography>
-              </Box>
-            </Stack>
-          </Box>
-        </Stack>
       )}
 
       <Box
@@ -10755,7 +10176,7 @@ export default function FlightSimPage({
               {runtimeProviderLabel}
             </Typography>
           </Box>
-          {showBattleSpectator && battleSpectatorRuntimeModeLabel && (
+          {battleSpectatorEnabled && (
             <Box
               sx={{
                 maxWidth: 360,
@@ -10775,7 +10196,7 @@ export default function FlightSimPage({
                   color: "rgba(98, 230, 208, 0.86)",
                 }}
               >
-                {battleSpectatorRuntimeModeLabel}
+                SPECTATOR
               </Typography>
               <Typography
                 sx={{
@@ -10785,11 +10206,12 @@ export default function FlightSimPage({
                   color: "#ecfffb",
                 }}
               >
-                {battleSpectatorRuntimeModeSummary}
+                {battleSpectatorCameraProfileOption.label} ·{" "}
+                {battleSpectatorFollowTargetLabel}
               </Typography>
             </Box>
           )}
-          {showBattleSpectator && (
+          {battleSpectatorEnabled && (
             <Box
               sx={{
                 width: { xs: "min(calc(100vw - 32px), 368px)", sm: 360 },
@@ -11525,7 +10947,7 @@ export default function FlightSimPage({
               )}
             </Box>
           )}
-          {showBattleSpectator && game && (
+          {battleSpectatorEnabled && game && (
             <BattleSpectatorScenarioSidebar
               game={game}
               battleSpectator={displayedBattleSpectator}
@@ -11559,13 +10981,9 @@ export default function FlightSimPage({
                   preset as FlightSimScenarioPresetDefinition
                 )
               }
-              onFocusObjective={
-                battleSpectatorEnabled
-                  ? handleBattleSpectatorFocusObjective
-                  : undefined
-              }
+              onFocusObjective={handleBattleSpectatorFocusObjective}
               onFocusSelectedUnit={
-                battleSpectatorEnabled && selectedBattleSpectatorUnit
+                selectedBattleSpectatorUnit
                   ? () => {
                       closeBattleSpectatorHeroView();
                       focusBattleSpectatorView({
@@ -11579,7 +10997,7 @@ export default function FlightSimPage({
                   : undefined
               }
               onTrackSelectedUnit={
-                battleSpectatorEnabled && selectedBattleSpectatorUnit
+                selectedBattleSpectatorUnit
                   ? () => {
                       openBattleSpectatorHeroView(
                         `unit:${selectedBattleSpectatorUnit.id}`

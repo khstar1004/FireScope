@@ -123,7 +123,7 @@ export default function AirCombatOverlay({
     }
 
     return [
-      "firescope",
+      "vista",
       "air-combat",
       route.asset.id,
       route.profile,
@@ -229,7 +229,7 @@ export default function AirCombatOverlay({
   const sendRuntimeCommand = (command: string) => {
     iframeRef.current?.contentWindow?.postMessage(
       {
-        type: "firescope-tactical-command",
+        type: "vista-tactical-command",
         payload: { command },
       },
       window.location.origin
@@ -255,7 +255,7 @@ export default function AirCombatOverlay({
 
     iframeRef.current.contentWindow.postMessage(
       {
-        type: "firescope-tactical-runtime-update",
+        type: "vista-tactical-runtime-update",
         payload: runtimePayload,
       },
       window.location.origin

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>선택 지형 3D</title>
+    <link rel="icon" type="image/x-icon" href="/flight-sim/favicon.ico" />
+    <link rel="stylesheet" href="/flight-sim/cesium/Widgets/widgets.css" />
+    <link rel="stylesheet" href="/terrain-3d/viewer.css" />
+    <script src="/flight-sim/config.js"></script>
+    <script src="/flight-sim/cesium/Cesium.js"></script>
+    <script type="module" src="/terrain-3d/viewer.js"></script>
+  </head>
+  <body>
+    <div id="cesiumContainer" aria-label="선택 지형 3D 화면"></div>
+
+    <div id="terrainInfoPanel" class="terrain-shell">
+      <div class="terrain-panel-header">
+        <button
+          id="toggleTerrainPanelButton"
+          class="terrain-panel-toggle"
+          type="button"
+          aria-expanded="true"
+          aria-controls="terrainPanelBody"
+        >
+          접기
+        </button>
+      </div>
+      <div
+        class="terrain-panel-tabs"
+        role="tablist"
+        aria-label="상황 패널 보기"
+      >
+        <button
+          id="terrainTabOverview"
+          class="is-active"
+          type="button"
+          role="tab"
+          aria-selected="true"
+          aria-controls="terrainPanelOverview"
+          data-terrain-panel-tab="overview"
+        >
+          상황
+        </button>
+        <button
+          id="terrainTabLayers"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="terrainPanelLayers"
+          data-terrain-panel-tab="layers"
+        >
+          레이어
+        </button>
+        <button
+          id="terrainTabAnalysis"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="terrainPanelAnalysis"
+          data-terrain-panel-tab="analysis"
+        >
+          분석
+        </button>
+      </div>
+      <div id="terrainPanelBody" class="terrain-panel-body">
+        <div
+          id="terrainPanelOverview"
+          class="terrain-panel-group is-active"
+          role="tabpanel"
+          aria-labelledby="terrainTabOverview"
+          data-terrain-panel-group="overview"
+        >
+          <section class="terrain-card terrain-tools">
+            <div class="terrain-actions terrain-actions-fit">
+              <button id="obliqueViewButton" type="button">원근</button>
+              <button id="topViewButton" type="button">정투영</button>
+              <button id="resetViewButton" type="button">초기화</button>
+            </div>
+          </section>
+
+        </div>
+
+        <div
+          id="terrainPanelLayers"
+          class="terrain-panel-group"
+          role="tabpanel"
+          aria-labelledby="terrainTabLayers"
+          data-terrain-panel-group="layers"
+          hidden
+        >
+          <section class="terrain-card terrain-layers">
+            <div class="terrain-section-head">
+              <div
+                class="terrain-actions terrain-actions-compact terrain-section-actions"
+              >
+                <button id="reloadIntelLayersButton" type="button">
+                  새로고침
+                </button>
+                <button
+                  id="toggleIntelLayersButton"
+                  type="button"
+                  aria-expanded="true"
+                  aria-controls="intelLayerPanelBody"
+                >
+                  접기
+                </button>
+              </div>
+            </div>
+            <div id="intelLayerPanelBody">
+              <p id="layerStatusText" class="terrain-copy" hidden></p>
+              <div id="intelLayerList" class="terrain-layer-list"></div>
+            </div>
+          </section>
+        </div>
+
+        <div
+          id="terrainPanelAnalysis"
+          class="terrain-panel-group"
+          role="tabpanel"
+          aria-labelledby="terrainTabAnalysis"
+          data-terrain-panel-group="analysis"
+          hidden
+        >
+          <section class="terrain-card terrain-analysis">
+            <div class="terrain-section-head terrain-analysis-head">
+              <div>
+                <p id="analysisStatusText" class="terrain-copy" hidden></p>
+              </div>
+              <div class="terrain-actions terrain-actions-compact">
+                <button id="runEngineAnalysisButton" type="button">
+                  지형 분석
+                </button>
+                <button id="runVlmAnalysisButton" type="button">
+                  VLM 브리핑
+                </button>
+              </div>
+            </div>
+            <div id="analysisSummary" class="terrain-summary"></div>
+          </section>
+
+          <section class="terrain-card terrain-report">
+            <span
+              id="vlmRuntimeBadge"
+              class="terrain-badge terrain-badge-subtle"
+              hidden
+            ></span>
+            <p id="captureStatusText" class="terrain-copy" hidden></p>
+            <div id="vlmReport" class="terrain-report-body"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div id="analysisHud" class="terrain-analysis-hud" aria-live="polite">
+      <svg
+        id="analysisHudLines"
+        class="terrain-analysis-lines"
+        aria-hidden="true"
+      ></svg>
+      <div id="analysisHudCards" class="terrain-analysis-cards"></div>
+    </div>
+
+    <div
+      id="loadingOverlay"
+      class="terrain-loading"
+      role="status"
+      aria-live="polite"
+    >
+      <div class="terrain-spinner" aria-hidden="true"></div>
+      <div class="terrain-loading-copy">
+        <strong id="loadingTitle">로딩</strong>
+        <span id="loadingDetail"></span>
+      </div>
+    </div>
+  </body>
+</html>

@@ -550,7 +550,7 @@ Attributes
 Actions Data Types
 ==================
 
-BLADE's action space is defined by the functions provided by the Game class that modifies the underlying simulation. 
+VISTA's action space is defined by the functions provided by the Game class that modifies the underlying simulation. 
 These actions can be invoked by an agent as strings. For example, to direct an aircraft with an ID of 1 to transit to the coordinates 
 (10, 10), pass the string move_aircraft(1, 10, 10) as an action into the Gymnasium environment.
 

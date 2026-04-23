@@ -1,9 +1,9 @@
 from setuptools import setup
 
-description = """BLADE"""
+description = """VISTA"""
 
 setup(
-    name="BLADE",
+    name="VISTA",
     version="1.0.0",
     description="Revolutionizing the art of war.",
     long_description=description,
@@ -11,7 +11,7 @@ setup(
     author_email="mhua2@jh.edu",
     license="Apache 2.0 License",
     keywords="Warfare Simulation AI Reinforcement Learning",
-    url="https://github.com/orgulous/panopticon",
+    url="https://github.com/orgulous/vista",
     packages=[
         "blade",
         "blade.db",

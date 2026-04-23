@@ -36,7 +36,7 @@ describe("BundleModelViewport", () => {
       "detail",
       simulation
     );
-    const url = new URL(src, "https://firescope.local");
+    const url = new URL(src, "https://vista.local");
 
     expect(url.searchParams.get("mode")).toBe("detail");
     expect(url.searchParams.get("modelId")).toBe(selection.id);
@@ -68,7 +68,7 @@ describe("BundleModelViewport", () => {
       "immersive",
       simulation
     );
-    const url = new URL(src, "https://firescope.local");
+    const url = new URL(src, "https://vista.local");
 
     expect(url.pathname).toBe("/3d-bundles/viewer/index.html");
     expect(url.searchParams.get("profile")).toBe("defense");
@@ -91,7 +91,7 @@ describe("BundleModelViewport", () => {
       null,
       "minimal"
     );
-    const url = new URL(src, "https://firescope.local");
+    const url = new URL(src, "https://vista.local");
 
     expect(url.searchParams.get("chrome")).toBe("minimal");
     expect(url.searchParams.get("profile")).toBeNull();
@@ -116,7 +116,7 @@ describe("BundleModelViewport", () => {
       "minimal",
       sceneProps
     );
-    const url = new URL(src, "https://firescope.local");
+    const url = new URL(src, "https://vista.local");
 
     expect(JSON.parse(url.searchParams.get("sceneProps") ?? "[]")).toEqual(
       sceneProps
@@ -149,14 +149,14 @@ describe("BundleModelViewport", () => {
       [],
       comparisonSelections
     );
-    const url = new URL(src, "https://firescope.local");
+    const url = new URL(src, "https://vista.local");
 
     expect(JSON.parse(url.searchParams.get("compareModels") ?? "[]")).toEqual(
       comparisonSelections
     );
   });
 
-  test("serializes digital twin lineup entries for viewer overlays", () => {
+  test("serializes VISTA lineup entries for viewer overlays", () => {
     const lineup: BundleViewerLineupEntry[] = [
       {
         id: "aircraft-f15-strike",
@@ -184,7 +184,7 @@ describe("BundleModelViewport", () => {
       [],
       lineup
     );
-    const url = new URL(src, "https://firescope.local");
+    const url = new URL(src, "https://vista.local");
 
     expect(JSON.parse(url.searchParams.get("lineup") ?? "[]")).toEqual(lineup);
   });

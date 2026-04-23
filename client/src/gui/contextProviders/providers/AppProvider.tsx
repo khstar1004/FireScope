@@ -8,7 +8,7 @@ import { UnitDbProvider } from "@/gui/contextProviders/providers/UnitDbProvider"
 import { SimulationLogsProvider } from "@/gui/contextProviders/providers/SimulationLogsProvider";
 import { ScenarioSidesProvider } from "@/gui/contextProviders/providers/ScenarioSidesProvider";
 import { CssBaseline, ThemeProvider } from "@mui/material";
-import fireScopeTheme from "@/styles/fireScopeTheme";
+import vistaTheme from "@/styles/vistaTheme";
 
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const domain = import.meta.env.VITE_AUTH0_DOMAIN;
@@ -44,14 +44,14 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     env_mode === "standalone"
   ) {
     return (
-      <ThemeProvider theme={fireScopeTheme}>
+      <ThemeProvider theme={vistaTheme}>
         <CssBaseline />
         {BaseProviders({ children })}
       </ThemeProvider>
     );
   } else {
     return (
-      <ThemeProvider theme={fireScopeTheme}>
+      <ThemeProvider theme={vistaTheme}>
         <CssBaseline />
         <Auth0Provider
           domain={domain}

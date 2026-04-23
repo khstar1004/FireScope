@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import Side from "@/game/Side";
 import {
   MenuItem,
@@ -23,20 +22,8 @@ interface SideSelectProps {
 }
 
 export default function SideSelect(props: Readonly<SideSelectProps>) {
-  const [selectedSide, setSelectedSide] = useState<Side | undefined>(
+  const selectedSide =
     props.sides.find((side) => side.id === props.currentSideId)
-  );
-
-  useEffect(() => {
-    const selectedSide = props.sides.find(
-      (side) => side.id === props.currentSideId
-    );
-    if (selectedSide) {
-      setSelectedSide(selectedSide);
-    } else {
-      setSelectedSide(undefined);
-    }
-  }, [props.sides, props.currentSideId]);
 
   const ellipsifySideName = (name: string, maxLength: number = 16) => {
     if (name.length > maxLength) {

@@ -22,6 +22,7 @@ import TacticalSimPage from "@/gui/experience/TacticalSimPage";
 import RlLabPage from "@/gui/rl/RlLabPage";
 import AirCombatOverlay from "@/gui/experience/AirCombatOverlay";
 import FlightSimPage from "@/gui/flightSim/FlightSimPage";
+import Terrain3dPage from "@/gui/map/Terrain3dPage";
 import {
   buildAirCombatTacticalRoute,
   type FocusFireAirwatchLaunchState,
@@ -54,6 +55,14 @@ import {
   getRlLabQueryParams,
   isRlLabRoute,
 } from "@/gui/rl/rlLabRoute";
+import {
+  buildTerrain3dHash,
+  getTerrain3dQueryParams,
+  isTerrain3dRoute,
+  parseTerrain3dContinueSimulation,
+  parseTerrain3dQueryParams,
+  type Terrain3dBounds,
+} from "@/gui/map/terrain3dRoute";
 
 const FLIGHT_SIM_HASH = "#/flight-sim";
 
@@ -109,12 +118,14 @@ export default function App() {
   const isImmersiveExperiencePage = isImmersiveExperienceRoute(currentHash);
   const isTacticalSimExperiencePage = isTacticalSimRoute(currentHash);
   const isRlLabPage = isRlLabRoute(currentHash);
+  const isTerrain3dPage = isTerrain3dRoute(currentHash);
   const flightSimQueryParams = getFlightSimQueryParams(currentHash);
   const assetExperienceQueryParams = getAssetExperienceQueryParams(currentHash);
   const immersiveExperienceQueryParams =
     getImmersiveExperienceQueryParams(currentHash);
   const tacticalSimQueryParams = getTacticalSimQueryParams(currentHash);
   const rlLabQueryParams = getRlLabQueryParams(currentHash);
+  const terrain3dQueryParams = getTerrain3dQueryParams(currentHash);
   const theGame = useMemo(() => {
     // TODO: make this dynamic
     // startTime <-- takes real time
@@ -239,6 +250,16 @@ export default function App() {
     window.location.hash = buildRlLabHash();
   };
 
+  const openTerrain3dPage = (
+    bounds: Terrain3dBounds,
+    options?: {
+      continueSimulation?: boolean;
+    }
+  ) => {
+    setActiveAirCombatLaunch(null);
+    window.location.hash = buildTerrain3dHash(bounds, options);
+  };
+
   const updateRlLabJobId = (jobId: string | null) => {
     window.location.hash = buildRlLabHash(jobId);
   };
@@ -320,6 +341,37 @@ export default function App() {
         game={theGame}
         continueSimulation={flightSimQueryParams.get("continueSimulation") === "1"}
         focusFireAirwatch={focusFireAirwatch}
+      />
+    );
+  }
+
+  if (isTerrain3dPage) {
+    const terrainBounds = parseTerrain3dQueryParams(terrain3dQueryParams);
+
+    if (!terrainBounds) {
+      return renderWithOverlay(
+        <Box
+          sx={{
+            position: "fixed",
+            inset: 0,
+            display: "grid",
+            placeItems: "center",
+            backgroundColor: "#02060c",
+            color: "#ecfffb",
+            p: 3,
+          }}
+        >
+          선택한 3D 영역 정보를 읽지 못했습니다.
+        </Box>
+      );
+    }
+
+    return (
+      <Terrain3dPage
+        bounds={terrainBounds}
+        game={theGame}
+        continueSimulation={parseTerrain3dContinueSimulation(terrain3dQueryParams)}
+        onBack={returnToScenarioMap}
       />
     );
   }
@@ -407,6 +459,7 @@ export default function App() {
         openAssetExperiencePage={openAssetExperiencePage}
         openImmersiveExperiencePage={openImmersiveExperiencePage}
         openRlLabPage={openRlLabPage}
+        openTerrain3dPage={openTerrain3dPage}
       />
     </Box>
   );

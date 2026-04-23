@@ -123,7 +123,7 @@ def normalize_algorithm_list(values: Sequence[str] | None) -> list[str]:
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Train Stable-Baselines3 policies on blade/FixedTargetStrike-v0"
+        description="Train Stable-Baselines3 policies on vista/FixedTargetStrike-v0"
     )
     parser.add_argument(
         "--algorithms",
@@ -714,7 +714,7 @@ def create_env(
 ):
     config = build_config(args, curriculum_stage)
     game = load_game(args.scenario_path, args=args, curriculum_stage=curriculum_stage)
-    return gym.make("blade/FixedTargetStrike-v0", game=game, config=config)
+    return gym.make("vista/FixedTargetStrike-v0", game=game, config=config)
 
 
 def build_smoke_action(config: FixedTargetStrikeConfig) -> np.ndarray:

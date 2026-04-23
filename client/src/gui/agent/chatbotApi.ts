@@ -339,7 +339,7 @@ export function resolveAssistantRuntimeConfig(
     fallbackModels,
     appName:
       getTrimmedEnvValue(env, "LLM_APP_NAME", "VITE_LLM_APP_NAME") ??
-      "FireScope",
+      "VISTA",
     siteUrl: getDefaultSiteUrl(
       getTrimmedEnvValue(env, "LLM_SITE_URL", "VITE_LLM_SITE_URL") ??
         options?.siteUrl
@@ -385,8 +385,21 @@ function extractErrorMessage(payload: ChatCompletionResponse) {
 function buildProviderErrorMessage(
   provider: AssistantProvider,
   errorMessage: string,
-  attemptedModel: string
+  attemptedModel: string,
+  status?: number
 ) {
+  if (status === 401 || status === 403) {
+    if (provider === "huggingface") {
+      return "Hugging Face 토큰 인증에 실패했습니다. `LLM_API_KEY` 또는 `HF_TOKEN` 설정을 확인해 주세요.";
+    }
+    if (provider === "mistral") {
+      return "Mistral API 키 인증에 실패했습니다. `LLM_API_KEY` 또는 `MISTRAL_API_KEY` 설정을 확인해 주세요.";
+    }
+    if (provider === "openrouter") {
+      return "OpenRouter API 키 인증에 실패했습니다. `LLM_API_KEY` 또는 `OPENROUTER_API_KEY` 설정을 확인해 주세요.";
+    }
+  }
+
   if (
     provider === "openrouter" &&
     errorMessage.includes("No endpoints found")
@@ -497,8 +510,9 @@ async function requestSingleModelCompletion(
         errorMessage: buildProviderErrorMessage(
           config.provider,
           extractErrorMessage(payload) ??
-            "AI지휘결심지원(ArmyGPT) 호출에 실패했습니다. 모델 이름과 API 설정을 확인해 주세요.",
-          model
+            "VISTA Assistant 호출에 실패했습니다. 모델 이름과 API 설정을 확인해 주세요.",
+          model,
+          response.status
         ),
       };
     }
@@ -532,8 +546,8 @@ async function requestSingleModelCompletion(
       ok: false,
       errorMessage:
         error instanceof Error
-          ? `AI지휘결심지원(ArmyGPT) 응답 생성에 실패했습니다: ${error.message}`
-          : "AI지휘결심지원(ArmyGPT) 응답 생성에 실패했습니다.",
+          ? `VISTA Assistant 응답 생성에 실패했습니다: ${error.message}`
+          : "VISTA Assistant 응답 생성에 실패했습니다.",
     };
   } finally {
     globalThis.clearTimeout(timeoutId);
@@ -570,12 +584,12 @@ export function extractAssistantText(content: unknown): string {
 
 function buildMissingApiKeyMessage(provider: AssistantProvider) {
   if (provider === "huggingface") {
-    return "AI지휘결심지원(ArmyGPT) Hugging Face 토큰을 찾지 못했습니다. `client/.env`에 `LLM_API_KEY` 또는 `HF_TOKEN`을 설정하고 개발 서버를 다시 시작해 주세요.";
+    return "VISTA Assistant Hugging Face 토큰을 찾지 못했습니다. `client/.env`에 `LLM_API_KEY` 또는 `HF_TOKEN`을 설정하고 개발 서버를 다시 시작해 주세요.";
   }
   if (provider === "mistral") {
-    return "AI지휘결심지원(ArmyGPT) Mistral API 키를 찾지 못했습니다. `client/.env`에 `LLM_API_KEY` 또는 `MISTRAL_API_KEY`를 설정하고 개발 서버를 다시 시작해 주세요.";
+    return "VISTA Assistant Mistral API 키를 찾지 못했습니다. `client/.env`에 `LLM_API_KEY` 또는 `MISTRAL_API_KEY`를 설정하고 개발 서버를 다시 시작해 주세요.";
   }
-  return "AI지휘결심지원(ArmyGPT) OpenRouter API 키를 찾지 못했습니다. `client/.env`에 `LLM_API_KEY` 또는 `OPENROUTER_API_KEY`를 설정하고 개발 서버를 다시 시작해 주세요.";
+  return "VISTA Assistant OpenRouter API 키를 찾지 못했습니다. `client/.env`에 `LLM_API_KEY` 또는 `OPENROUTER_API_KEY`를 설정하고 개발 서버를 다시 시작해 주세요.";
 }
 
 export async function requestAssistantCompletionResult(
@@ -625,14 +639,14 @@ export async function requestAssistantCompletionResult(
         ok: false,
         errorMessage:
           result.errorMessage ??
-          "AI지휘결심지원(ArmyGPT) 응답 생성에 실패했습니다.",
+          "VISTA Assistant 응답 생성에 실패했습니다.",
       };
     }
   }
 
   return {
     ok: false,
-    errorMessage: `AI지휘결심지원(ArmyGPT) 응답 생성에 실패했습니다.\n${failureMessages.join("\n")}`,
+    errorMessage: `VISTA Assistant 응답 생성에 실패했습니다.\n${failureMessages.join("\n")}`,
   };
 }
 
@@ -644,6 +658,6 @@ export async function requestAssistantCompletion(
     return result.text;
   }
   return (
-    result.errorMessage ?? "AI지휘결심지원(ArmyGPT) 응답 생성에 실패했습니다."
+    result.errorMessage ?? "VISTA Assistant 응답 생성에 실패했습니다."
   );
 }

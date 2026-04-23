@@ -16,7 +16,7 @@ const palette = {
   accentContrast: "#031114",
 };
 
-const fireScopeTheme = createTheme({
+const vistaTheme = createTheme({
   palette: {
     mode: "dark",
     primary: {
@@ -370,4 +370,4 @@ const fireScopeTheme = createTheme({
   },
 });
 
-export default fireScopeTheme;
+export default vistaTheme;

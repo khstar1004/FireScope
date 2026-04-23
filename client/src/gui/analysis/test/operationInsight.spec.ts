@@ -9,6 +9,7 @@ import {
   buildFocusFireInsight,
   buildSimulationOutcomeSummary,
 } from "@/gui/analysis/operationInsight";
+import { findKoreaVsNorthKoreaScenarioPreset } from "@/scenarios/iranVsUsScenarios";
 
 function createOutcomeTestGame() {
   const blue = new Side({
@@ -210,6 +211,37 @@ function createFocusFireBdaGame() {
   return game;
 }
 
+function createWestSeaDefenseOutcomeOverrideGame() {
+  const preset = findKoreaVsNorthKoreaScenarioPreset(
+    "korea_vs_north_korea_west_sea_defense"
+  );
+  if (!preset) {
+    throw new Error("Korea west sea defense preset not found");
+  }
+
+  const game = new Game(
+    new Scenario({
+      id: "seed-scenario",
+      name: "seed",
+      startTime: 0,
+      duration: 1,
+    })
+  );
+
+  game.loadScenario(JSON.stringify(preset.scenario));
+
+  const rokSide = game.currentScenario.getSide("rok-side");
+  const dprkSide = game.currentScenario.getSide("dprk-side");
+  if (!rokSide || !dprkSide) {
+    throw new Error("Expected ROK and DPRK sides to load");
+  }
+
+  rokSide.totalScore = -640;
+  dprkSide.totalScore = -520;
+
+  return game;
+}
+
 describe("operationInsight", () => {
   test("calculates a deterministic focus-fire shock index", () => {
     const insight = buildFocusFireInsight({
@@ -329,5 +361,27 @@ describe("operationInsight", () => {
     expect(summary.bdaReport?.confirmedHitCount).toBe(1);
     expect(summary.bdaReport?.recentActions[0]).toContain("집중포격 목표를 확보");
     expect(summary.fallbackSummary).toContain("집중포격 목표 BDA");
+  });
+
+  test("forces Korea to win the west sea defense outcome report", () => {
+    const summary = buildSimulationOutcomeSummary(
+      createWestSeaDefenseOutcomeOverrideGame()
+    );
+
+    expect(summary.winnerName).toBe("한국");
+    expect(summary.winnerBasis).toBe("점수 120점 우세");
+    expect(summary.scoreGap).toBe(120);
+    expect(summary.sides[0]).toMatchObject({
+      sideId: "rok-side",
+      name: "한국",
+      score: -400,
+    });
+    expect(summary.sides[1]).toMatchObject({
+      sideId: "dprk-side",
+      name: "북한",
+      score: -520,
+    });
+    expect(summary.report.headline).toContain("한국 우세");
+    expect(summary.fallbackSummary).toContain("한국 우세");
   });
 });

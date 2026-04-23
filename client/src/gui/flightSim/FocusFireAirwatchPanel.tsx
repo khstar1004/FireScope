@@ -54,7 +54,7 @@ export default function FocusFireAirwatchPanel({
   const salvoIntensity = Math.min(1, weaponsInFlight / 12);
 
   const postFocusFireMessage = (
-    type: "firescope-focus-fire-update" | "firescope-focus-fire-command",
+    type: "vista-focus-fire-update" | "vista-focus-fire-command",
     payload: Record<string, unknown>
   ) => {
     if (!iframeRef.current?.contentWindow) {
@@ -68,7 +68,7 @@ export default function FocusFireAirwatchPanel({
   };
 
   const triggerVisibleBarrage = (notifyMain = false) => {
-    postFocusFireMessage("firescope-focus-fire-command", {
+    postFocusFireMessage("vista-focus-fire-command", {
       command: "start-barrage",
       objectiveName,
       bursts: Math.max(
@@ -153,7 +153,7 @@ export default function FocusFireAirwatchPanel({
   const runtimeKey = useMemo(
     () =>
       [
-        "firescope",
+        "vista",
         "focus-fire-airwatch",
         objectiveLon.toFixed(4),
         objectiveLat.toFixed(4),
@@ -175,7 +175,7 @@ export default function FocusFireAirwatchPanel({
       return;
     }
 
-    postFocusFireMessage("firescope-focus-fire-update", {
+    postFocusFireMessage("vista-focus-fire-update", {
       objectiveName,
       active,
       captureProgress,
