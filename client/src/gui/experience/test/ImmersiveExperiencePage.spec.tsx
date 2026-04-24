@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import type Game from "@/game/Game";
 import type { BattleSpectatorSnapshot } from "@/game/Game";
+import { SimulationLogType } from "@/game/log/SimulationLogs";
 import ImmersiveExperiencePage from "@/gui/experience/ImmersiveExperiencePage";
 import {
   createImmersiveExperienceDemoAsset,
@@ -243,7 +244,7 @@ function createLiveSnapshot(): BattleSpectatorSnapshot {
         sideId: "blue-side",
         sideName: "청군",
         sideColor: "blue",
-        type: "STRIKE_MISSION_SUCCESS",
+        type: SimulationLogType.STRIKE_MISSION_SUCCESS,
         message: "Scramble detected.",
         actorId: "focus-air-1",
         actorName: "KF-21 #201",

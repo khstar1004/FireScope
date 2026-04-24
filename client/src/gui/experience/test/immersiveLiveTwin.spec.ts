@@ -1,4 +1,5 @@
 import type { BattleSpectatorSnapshot } from "@/game/Game";
+import { SimulationLogType } from "@/game/log/SimulationLogs";
 import { getBundleModelById } from "@/gui/experience/bundleModels";
 import { buildImmersiveLiveTwinRuntime } from "@/gui/experience/immersiveLiveTwin";
 
@@ -187,7 +188,7 @@ function createSnapshot(): BattleSpectatorSnapshot {
         sideId: "blue-side",
         sideName: "청군",
         sideColor: "blue",
-        type: "STRIKE_MISSION_SUCCESS",
+        type: SimulationLogType.STRIKE_MISSION_SUCCESS,
         message: "Forward armor column is engaging.",
         actorId: "ground-focus-1",
         actorName: "K2 Spearhead",

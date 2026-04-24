@@ -143,7 +143,7 @@ describe("airCombatRoute", () => {
           name: "MQ-9 #1",
           className: "MQ-9 Reaper",
           entityType: "aircraft",
-          modelId: "aircraft-mq9",
+          modelId: "drone-animated",
           profileHint: "base",
           groundUnit: false,
           sideId: "blue",
@@ -195,6 +195,6 @@ describe("airCombatRoute", () => {
     expect(route.asset.id).toBe("uav-1");
     expect(route.asset.name).toContain("MQ-9");
     expect(route.operationMode).toBe("drone-watch");
-    expect(route.modelId).toBe("aircraft-mq9");
+    expect(route.modelId).toBe("drone-animated");
   });
 });

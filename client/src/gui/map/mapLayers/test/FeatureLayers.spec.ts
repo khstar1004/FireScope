@@ -5,6 +5,7 @@ import Side from "@/game/Side";
 import Facility from "@/game/units/Facility";
 import Weapon from "@/game/units/Weapon";
 import { WeaponTrajectoryLayer } from "@/gui/map/mapLayers/FeatureLayers";
+import LineString from "ol/geom/LineString";
 
 function measureMaxLateralDeviation(coordinates: number[][]) {
   if (coordinates.length < 3) {
@@ -239,9 +240,11 @@ describe("WeaponTrajectoryLayer", () => {
     const projectedFeature = layer.layerSource
       .getFeatures()
       .find((feature) => feature.get("trajectoryKind") === "projected");
-    const projectedCoordinates = projectedFeature
-      ?.getGeometry()
-      ?.getCoordinates();
+    const projectedGeometry = projectedFeature?.getGeometry();
+    const projectedCoordinates =
+      projectedGeometry instanceof LineString
+        ? projectedGeometry.getCoordinates()
+        : undefined;
 
     expect(projectedCoordinates).toBeDefined();
     expect(measureMaxLateralDeviation(projectedCoordinates ?? [])).toBeLessThan(

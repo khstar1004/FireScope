@@ -1057,9 +1057,11 @@ function buildSimulationOutcomeBdaReport(
     (platform) => platform.launched
   ).length;
   const recentActions = buildBdaRecentActions(logs);
+  const focusFireActorSide = game.focusFireOperation.sideId
+    ? summary.sides.find((side) => side.sideId === game.focusFireOperation.sideId)
+    : undefined;
   const actorSide =
-    (game.focusFireOperation.sideId &&
-      summary.sides.find((side) => side.sideId === game.focusFireOperation.sideId)) ??
+    focusFireActorSide ??
     summary.sides.find((side) => side.launches > 0 || side.confirmedHits > 0) ??
     summary.sides[0];
   const effectScore = buildBdaEffectScore({

@@ -12,11 +12,15 @@ import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SkipNextIcon from "@mui/icons-material/SkipNext";
-import Game, { type BattleSpectatorSnapshot } from "@/game/Game";
+import Game, {
+  type BattleSpectatorSnapshot,
+  type FocusFireSummary,
+} from "@/game/Game";
 import { GAME_SPEED_DELAY_MS } from "@/utils/constants";
 import { type Terrain3dBounds } from "@/gui/map/terrain3dRoute";
 
 const TERRAIN_3D_ENTRY = "/terrain-3d/index.html";
+const TERRAIN_3D_VIEWER_VERSION = "terrain-hud-20260423";
 const TERRAIN_SPEED_STEPS = Object.keys(GAME_SPEED_DELAY_MS)
   .map((speed) => Number(speed))
   .filter((speed) => Number.isFinite(speed))
@@ -57,6 +61,7 @@ function buildTerrain3dRuntimeSignature(snapshot: {
   units?: unknown[];
   weapons?: unknown[];
   recentEvents?: Array<{ id?: string }>;
+  focusFireSummary?: FocusFireSummary;
   stats?: {
     aircraft?: number;
     facilities?: number;
@@ -76,6 +81,21 @@ function buildTerrain3dRuntimeSignature(snapshot: {
     recentEventIds: Array.isArray(snapshot?.recentEvents)
       ? snapshot.recentEvents.map((event) => event?.id ?? "").join("|")
       : "",
+    focusFire: snapshot?.focusFireSummary
+      ? {
+          enabled: snapshot.focusFireSummary.enabled,
+          active: snapshot.focusFireSummary.active,
+          objectiveLatitude: snapshot.focusFireSummary.objectiveLatitude,
+          objectiveLongitude: snapshot.focusFireSummary.objectiveLongitude,
+          captureProgress: Math.round(
+            Number(snapshot.focusFireSummary.captureProgress) || 0
+          ),
+          weaponsInFlight: snapshot.focusFireSummary.weaponsInFlight,
+          expectedStrikeEffect:
+            snapshot.focusFireSummary.recommendation?.expectedStrikeEffect ??
+            null,
+        }
+      : null,
     stats: {
       aircraft: Math.max(0, Number(snapshot?.stats?.aircraft) || 0),
       facilities: Math.max(0, Number(snapshot?.stats?.facilities) || 0),
@@ -125,6 +145,7 @@ export default function Terrain3dPage({
     params.set("south", bounds.south.toFixed(6));
     params.set("east", bounds.east.toFixed(6));
     params.set("north", bounds.north.toFixed(6));
+    params.set("viewerVersion", TERRAIN_3D_VIEWER_VERSION);
     if (continueSimulation) {
       params.set("continueSimulation", "1");
     }
@@ -155,7 +176,12 @@ export default function Terrain3dPage({
   const syncRuntimeSnapshot = useCallback(
     (force = false) => {
       const snapshot = game.getBattleSpectatorSnapshot();
-      const signature = buildTerrain3dRuntimeSignature(snapshot);
+      const focusFireSummary = game.getFocusFireSummary();
+      const runtimePayload = {
+        ...snapshot,
+        focusFireSummary,
+      };
+      const signature = buildTerrain3dRuntimeSignature(runtimePayload);
 
       setRuntimeSnapshot(snapshot);
       setScenarioPaused(Boolean(game.scenarioPaused));
@@ -177,7 +203,7 @@ export default function Terrain3dPage({
         iframeWindow.postMessage(
           {
             type: "terrain3d:runtime-snapshot",
-            payload: snapshot,
+            payload: runtimePayload,
           },
           window.location.origin
         );

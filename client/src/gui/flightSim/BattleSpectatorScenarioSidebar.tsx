@@ -146,8 +146,10 @@ function countAssetsBySideId(
   };
 }
 
-function getMissionTypeLabel(mission: { constructor?: { name?: string } }) {
-  const typeName = mission.constructor?.name ?? "Mission";
+function getMissionTypeLabel(mission: unknown) {
+  const typeName =
+    (mission as { constructor?: { name?: string } }).constructor?.name ??
+    "Mission";
   return typeName.replace(/Mission$/, "") || "Mission";
 }
 

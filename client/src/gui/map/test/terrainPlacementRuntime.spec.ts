@@ -2,7 +2,9 @@ import { describe, expect, test } from "vitest";
 import {
   ensureCesiumColorMaterialProperty,
   resolveEffectTimelineValue,
+  resolveFocusFireImpactBoxState,
   resolveFocusCameraPreset,
+  resolveWeaponModelProfile,
   sortPlacementUnitsForPanel,
 } from "../../../../public/terrain-3d/placementRuntime.js";
 
@@ -111,6 +113,51 @@ describe("terrainPlacementRuntime", () => {
     expect(resolveEffectTimelineValue(2, stops)).toBe(0);
     expect(resolveEffectTimelineValue(0.25, stops)).toBeGreaterThan(0);
     expect(resolveEffectTimelineValue(0.25, stops)).toBeLessThan(10);
+  });
+
+  test("resolves visible 3D weapon models for shells and missiles", () => {
+    const shellProfile = resolveWeaponModelProfile({
+      modelId: "weapon-artillery-shell",
+      className: "155mm Shell",
+      name: "K9 포탄",
+    });
+    const missileProfile = resolveWeaponModelProfile({
+      modelId: "weapon-air-to-air-missile",
+      className: "AIM-120 AMRAAM",
+      name: "AIM-120 AMRAAM",
+    });
+
+    expect(shellProfile.uri).toBe(
+      "/3d-bundles/artillery/models/artillery_shell.glb"
+    );
+    expect(shellProfile.minimumPixelSize).toBeGreaterThanOrEqual(34);
+    expect(missileProfile.uri).toBe("/3d-bundles/missile/aim-120c_amraam.glb");
+    expect(missileProfile.minimumPixelSize).toBeGreaterThan(
+      shellProfile.minimumPixelSize
+    );
+  });
+
+  test("builds a focus-fire impact accumulation label", () => {
+    const state = resolveFocusFireImpactBoxState(
+      {
+        focusFireSummary: {
+          enabled: true,
+          active: true,
+          objectiveLatitude: 37.4,
+          objectiveLongitude: 127.2,
+          weaponsInFlight: 5,
+          recommendation: {
+            expectedStrikeEffect: 7.4,
+          },
+        },
+      },
+      3
+    );
+
+    expect(state).not.toBeNull();
+    expect(state?.text).toContain("충격량 3.0");
+    expect(state?.text).toContain("탄착 3 · 비행 5");
+    expect(state?.text).toContain("예상 7.4");
   });
 
   test("wraps callback colors as Cesium material properties", () => {

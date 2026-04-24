@@ -1,0 +1,337 @@
+:root {
+  --accent: #9ccf7a;
+  --glow: #dcedb4;
+}
+
+html,
+body,
+#viewer {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: Bahnschrift, "Segoe UI", sans-serif;
+  color: #eef7ff;
+  background:
+    radial-gradient(circle at top, rgba(156, 207, 122, 0.16), transparent 28%),
+    linear-gradient(180deg, #081018 0%, #05080c 100%);
+}
+
+#viewer {
+  position: fixed;
+  inset: 0;
+}
+
+.cesium-widget-credits {
+  display: none !important;
+}
+
+#boot-status,
+#hud,
+#starter-panel,
+#map-tools {
+  position: fixed;
+  z-index: 10;
+  backdrop-filter: blur(16px);
+  background: rgba(6, 12, 20, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.28);
+}
+
+#boot-status {
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+#hud {
+  top: 14px;
+  right: 14px;
+  width: min(286px, calc(100vw - 28px));
+  max-height: min(46vh, 420px);
+  overflow-y: auto;
+  padding: 12px;
+  border-radius: 20px;
+}
+
+#starter-panel {
+  left: 18px;
+  bottom: 18px;
+  width: min(340px, calc(100vw - 36px));
+  padding: 14px;
+  border-radius: 18px;
+}
+
+#map-tools {
+  right: 18px;
+  bottom: 18px;
+  width: min(188px, calc(100vw - 36px));
+  padding: 12px;
+  border-radius: 18px;
+}
+
+#starter-panel,
+#map-tools,
+#hud-controls {
+  display: none !important;
+}
+
+#starter-title,
+#map-tools-title {
+  color: color-mix(in srgb, var(--glow) 72%, white 28%);
+  letter-spacing: 0.16em;
+  font-size: 11px;
+}
+
+#starter-copy {
+  margin-top: 8px;
+  font-size: 12px;
+  color: rgba(238, 247, 255, 0.76);
+  line-height: 1.45;
+}
+
+#starter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+#map-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.runtime-button {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 9px 10px;
+  font:
+    700 12px/1.2 Bahnschrift,
+    "Segoe UI",
+    sans-serif;
+  color: #eef7ff;
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    transform 120ms ease;
+}
+
+.runtime-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+.runtime-button:active {
+  transform: translateY(0);
+}
+
+.runtime-button--strong {
+  background: color-mix(in srgb, var(--accent) 80%, white 20%);
+  color: #04121b;
+  border-color: transparent;
+}
+
+.runtime-button--wide {
+  grid-column: 1 / -1;
+}
+
+#hud-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+#hud-eyebrow,
+.hud-label {
+  color: color-mix(in srgb, var(--glow) 72%, white 28%);
+  letter-spacing: 0.16em;
+  font-size: 11px;
+}
+
+#hud-title {
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+#hud-subtitle,
+#hud-provider,
+#hud-controls {
+  margin-top: 6px;
+  color: rgba(238, 247, 255, 0.76);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+#hud-provider {
+  max-width: 128px;
+  text-align: right;
+}
+
+#hud-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+#hud-grid .hud-card:nth-child(2),
+#hud-grid .hud-card:nth-child(3) {
+  display: none;
+}
+
+.hud-card {
+  padding: 10px 11px;
+  border-radius: 12px;
+  background: rgba(8, 14, 22, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hud-value {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+#hud-panels {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+#hud-panels .hud-panel:first-child {
+  display: none;
+}
+
+.hud-panel {
+  padding: 10px 11px;
+  border-radius: 12px;
+  background: rgba(8, 14, 22, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.hud-stack {
+  display: grid;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.hud-chip {
+  padding: 7px 9px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.hud-chip strong {
+  display: block;
+  font-size: 11px;
+  margin-bottom: 3px;
+}
+
+.hud-chip span {
+  font-size: 11px;
+  color: rgba(238, 247, 255, 0.76);
+  line-height: 1.35;
+}
+
+#reticle {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  border: 1px solid color-mix(in srgb, var(--accent) 54%, white 46%);
+  border-radius: 999px;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+  z-index: 6;
+}
+
+body[data-profile="base"] #reticle,
+body[data-profile="fires"] #reticle[data-mode="topdown"],
+body[data-profile="defense"] #reticle[data-mode="radar"] {
+  opacity: 0.35;
+}
+
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 11;
+  min-width: 240px;
+  max-width: min(520px, calc(100vw - 28px));
+  padding: 12px 16px;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: #eef7ff;
+  background: rgba(7, 12, 18, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(14px);
+}
+
+#reticle::before,
+#reticle::after {
+  content: "";
+  position: absolute;
+  background: color-mix(in srgb, var(--glow) 72%, white 28%);
+}
+
+#reticle::before {
+  left: 50%;
+  top: -8px;
+  width: 1px;
+  height: 30px;
+  transform: translateX(-50%);
+}
+
+#reticle::after {
+  top: 50%;
+  left: -8px;
+  width: 30px;
+  height: 1px;
+  transform: translateY(-50%);
+}
+
+@media (max-width: 720px) {
+  #hud {
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    width: min(280px, calc(100vw - 24px));
+  }
+
+  #hud-grid,
+  #hud-panels {
+    grid-template-columns: 1fr;
+  }
+
+  #boot-status {
+    width: calc(100vw - 24px);
+    text-align: center;
+  }
+}
