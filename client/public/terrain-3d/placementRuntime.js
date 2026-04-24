@@ -19,7 +19,49 @@ const WEAPON_IMPACT_EFFECT_MS = 5200;
 const EVENT_TRACE_SAMPLE_COUNT = 24;
 const MIN_WEAPON_DIRECTION_MAGNITUDE_SQUARED = 0.0001;
 const FOCUS_FIRE_IMPACT_EVENT_DISTANCE_METERS = 900;
-const EFFECT_TEXTURES = {
+function resolveTerrainRuntimePublicPath(path) {
+  const normalizedPath = String(path ?? "").trim();
+  if (!normalizedPath.startsWith("/")) {
+    return normalizedPath;
+  }
+
+  const metaUrl = new URL(import.meta.url);
+  if (metaUrl.protocol === "http:" || metaUrl.protocol === "https:") {
+    return new URL(`../${normalizedPath.replace(/^\/+/, "")}`, metaUrl)
+      .pathname;
+  }
+
+  return normalizedPath;
+}
+
+function resolveTerrainRuntimeAssetValue(value) {
+  if (typeof value === "string") {
+    return value.startsWith("/3d-bundles/")
+      ? resolveTerrainRuntimePublicPath(value)
+      : value;
+  }
+
+  if (value instanceof RegExp || value === null || value === undefined) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => resolveTerrainRuntimeAssetValue(entry));
+  }
+
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        resolveTerrainRuntimeAssetValue(entry),
+      ])
+    );
+  }
+
+  return value;
+}
+
+const EFFECT_TEXTURES = resolveTerrainRuntimeAssetValue({
   headGlow: "/3d-bundles/effects/textures/focus-fire/head_glow.png",
   launchMuzzle: "/3d-bundles/effects/textures/focus-fire/launch_muzzle.png",
   trailTrace: "/3d-bundles/effects/textures/focus-fire/trail_trace.png",
@@ -37,11 +79,15 @@ const EFFECT_TEXTURES = {
     (_item, index) =>
       `/3d-bundles/effects/libraries/kenney_smoke_particles/PNG/Flash/flash0${index}.png`
   ),
-};
+});
 
 const DEFAULT_WEAPON_MODEL_URI =
-  "/3d-bundles/artillery/models/artillery_shell.glb";
-const MISSILE_WEAPON_MODEL_URI = "/3d-bundles/missile/aim-120c_amraam.glb";
+  resolveTerrainRuntimePublicPath(
+    "/3d-bundles/artillery/models/artillery_shell.glb"
+  );
+const MISSILE_WEAPON_MODEL_URI = resolveTerrainRuntimePublicPath(
+  "/3d-bundles/missile/aim-120c_amraam.glb"
+);
 const WEAPON_MODEL_URI_BY_ID = {
   "weapon-air-to-air-missile": MISSILE_WEAPON_MODEL_URI,
   "weapon-surface-missile": MISSILE_WEAPON_MODEL_URI,
@@ -58,11 +104,11 @@ const WEAPON_MODEL_MAP = [
   ],
 ];
 
-const DEFAULT_UNIT_MODEL = {
+const DEFAULT_UNIT_MODEL = resolveTerrainRuntimeAssetValue({
   aircraft: "/3d-bundles/aircraft/models/f-15.glb",
   ship: "/3d-bundles/ships/type-45_destroyer_class.glb",
   facility: "/3d-bundles/tank/models/t-50_war_thunder.glb",
-};
+});
 
 const UNIT_MODEL_SCALE_PRESET = {
   ship: {
@@ -85,7 +131,7 @@ const UNIT_MODEL_SCALE_PRESET = {
   },
 };
 
-const UNIT_MODEL_URI_BY_ID = {
+const UNIT_MODEL_URI_BY_ID = resolveTerrainRuntimeAssetValue({
   "aircraft-apache":
     "/3d-bundles/aircraft/models/boeing_ah-64d_apache_combat_helicopter.glb",
   "aircraft-blackhawk":
@@ -128,9 +174,9 @@ const UNIT_MODEL_URI_BY_ID = {
   "tank-m577": "/3d-bundles/tank/models/m577_command_vehicle.glb",
   "tank-stryker": "/3d-bundles/tank/models/m1126_stryker_50_cal.glb",
   "tank-tracked-armor": "/3d-bundles/tank/models/t-50_war_thunder.glb",
-};
+});
 
-const AIRCRAFT_MODEL_MAP = [
+const AIRCRAFT_MODEL_MAP = resolveTerrainRuntimeAssetValue([
   [
     /\b(kf-21|boramae)\b/i,
     "/3d-bundles/aircraft/models/kf-21a_boramae_fighter_jet.glb",
@@ -159,9 +205,9 @@ const AIRCRAFT_MODEL_MAP = [
     /\b(drone|uav|mq-|rq-|reaper|predator|global hawk)\b/i,
     "/3d-bundles/drone/models/animated_drone.glb",
   ],
-];
+]);
 
-const SHIP_MODEL_MAP = [
+const SHIP_MODEL_MAP = resolveTerrainRuntimeAssetValue([
   [
     /\b(submarine|ssn|sss|sub)\b/i,
     "/3d-bundles/ships/uss_texas_ssn-775_submarine.glb",
@@ -170,9 +216,9 @@ const SHIP_MODEL_MAP = [
     /\b(carrier|dokdo|amphibious|lhd)\b/i,
     "/3d-bundles/ships/hms_queen_elizabeth_r08_aircraft_carrier.glb",
   ],
-];
+]);
 
-const FACILITY_MODEL_MAP = [
+const FACILITY_MODEL_MAP = resolveTerrainRuntimeAssetValue([
   [
     /\b(patriot|mim-104)\b/i,
     "/3d-bundles/artillery/models/mim-104_patriot_surface-to-air_missile_sam.glb",
@@ -207,9 +253,9 @@ const FACILITY_MODEL_MAP = [
     /\b(k2|tank|armor|tracked)\b/i,
     "/3d-bundles/tank/models/t-50_war_thunder.glb",
   ],
-];
+]);
 
-const MEASURED_UNIT_SCALE_ENTRIES = [
+const MEASURED_UNIT_SCALE_ENTRIES = resolveTerrainRuntimeAssetValue([
   {
     keys: ["artillery-d30", "/3d-bundles/artillery/models/d-30_howitzer.glb"],
     sourceLongestAxisMeters: 27.466859817504883,
@@ -366,7 +412,7 @@ const MEASURED_UNIT_SCALE_ENTRIES = [
     minimumPixelSize: 2,
     maximumScale: 6,
   },
-];
+]);
 
 function normalizeBounds(bounds, minimumSpanDegrees = 0.002) {
   const west = Math.min(bounds.west, bounds.east);

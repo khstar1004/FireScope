@@ -14,8 +14,9 @@ import {
 } from "@/gui/experience/experienceRuntime";
 import { createTacticalExperienceScenario } from "@/gui/experience/tacticalExperience";
 import type { AssetExperienceSummary } from "@/gui/experience/assetExperience";
+import { resolvePublicAssetPath } from "@/utils/publicAssetUrl";
 
-const TACTICAL_SIM_ENTRY = "/tactical-sim/index.html";
+const TACTICAL_SIM_ENTRY = resolvePublicAssetPath("/tactical-sim/index.html");
 const TACTICAL_SIM_REVISION = "20260405-cesium-tactical-1";
 
 interface FocusFireAirwatchPanelProps {

@@ -1,26 +1,27 @@
 import type { BundleModelSelection } from "@/gui/experience/bundleModels";
 import type { BundleViewerSceneProp } from "@/gui/experience/bundleSceneProps";
 import type { BundleViewerComparisonSelection } from "@/gui/experience/BundleModelViewport";
+import { resolvePublicAssetPath } from "@/utils/publicAssetUrl";
 
 const bundleViewerShellAssets = [
-  "/3d-bundles/viewer/index.html",
-  "/3d-bundles/viewer/style.css",
-  "/3d-bundles/viewer/viewer.js",
-  "/3d-bundles/viewer/battleRuntime.js",
-  "/3d-bundles/viewer/lib/three.module.js",
-  "/3d-bundles/viewer/lib/three.core.js",
-  "/3d-bundles/viewer/controls/OrbitControls.js",
-  "/3d-bundles/viewer/loaders/GLTFLoader.js",
-  "/3d-bundles/viewer/utils/BufferGeometryUtils.js",
+  resolvePublicAssetPath("/3d-bundles/viewer/index.html"),
+  resolvePublicAssetPath("/3d-bundles/viewer/style.css"),
+  resolvePublicAssetPath("/3d-bundles/viewer/viewer.js"),
+  resolvePublicAssetPath("/3d-bundles/viewer/battleRuntime.js"),
+  resolvePublicAssetPath("/3d-bundles/viewer/lib/three.module.js"),
+  resolvePublicAssetPath("/3d-bundles/viewer/lib/three.core.js"),
+  resolvePublicAssetPath("/3d-bundles/viewer/controls/OrbitControls.js"),
+  resolvePublicAssetPath("/3d-bundles/viewer/loaders/GLTFLoader.js"),
+  resolvePublicAssetPath("/3d-bundles/viewer/utils/BufferGeometryUtils.js"),
 ];
 
 const tacticalSimShellAssets = [
-  "/tactical-sim/index.html",
-  "/tactical-sim/style.css",
-  "/tactical-sim/app.js",
-  "/flight-sim/config.js",
-  "/flight-sim/cesium/Cesium.js",
-  "/flight-sim/cesium/Widgets/widgets.css",
+  resolvePublicAssetPath("/tactical-sim/index.html"),
+  resolvePublicAssetPath("/tactical-sim/style.css"),
+  resolvePublicAssetPath("/tactical-sim/app.js"),
+  resolvePublicAssetPath("/flight-sim/config.js"),
+  resolvePublicAssetPath("/flight-sim/cesium/Cesium.js"),
+  resolvePublicAssetPath("/flight-sim/cesium/Widgets/widgets.css"),
 ];
 
 const inflightPreloads = new Map<string, Promise<Response | null>>();
@@ -36,14 +37,19 @@ export function buildBundleViewerPreloadUrls(
 ) {
   return uniqueUrls([
     ...bundleViewerShellAssets,
-    modelPath,
-    ...sceneProps.map((prop) => prop.path),
-    ...comparisonSelections.map((selection) => selection.path),
+    modelPath ? resolvePublicAssetPath(modelPath) : modelPath,
+    ...sceneProps.map((prop) => resolvePublicAssetPath(prop.path)),
+    ...comparisonSelections.map((selection) =>
+      resolvePublicAssetPath(selection.path)
+    ),
   ]);
 }
 
 export function buildTacticalSimPreloadUrls(modelPath?: string | null) {
-  return uniqueUrls([...tacticalSimShellAssets, modelPath]);
+  return uniqueUrls([
+    ...tacticalSimShellAssets,
+    modelPath ? resolvePublicAssetPath(modelPath) : modelPath,
+  ]);
 }
 
 export async function preloadStaticAsset(url: string) {

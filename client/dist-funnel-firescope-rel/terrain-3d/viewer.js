@@ -9,8 +9,24 @@ import {
   resolveTerrainIntelRuntimeConfig,
   extractOllamaModelNames,
   selectOllamaVisionModel,
-} from "/terrain-3d/terrainIntel.js";
-import { createTerrainPlacementRuntime } from "/terrain-3d/placementRuntime.js";
+} from "./terrainIntel.js";
+import { createTerrainPlacementRuntime } from "./placementRuntime.js";
+
+function resolveTerrainViewerPublicPath(path) {
+  const normalizedPath = String(path ?? "").trim().replace(/^\/+/, "");
+  if (!normalizedPath) {
+    return "";
+  }
+
+  const metaUrl = new URL(import.meta.url);
+  if (metaUrl.protocol === "http:" || metaUrl.protocol === "https:") {
+    return new URL(`../${normalizedPath}`, metaUrl).pathname;
+  }
+
+  return `/${normalizedPath}`;
+}
+
+const CESIUM_BASE_URL = resolveTerrainViewerPublicPath("flight-sim/cesium/");
 
 const Cesium = window.Cesium;
 const runtimeConfig = window.__FLIGHT_SIM_CONFIG__ ?? {};
@@ -2701,9 +2717,9 @@ async function initialize() {
     throw new Error("Cesium runtime not found.");
   }
 
-  window.CESIUM_BASE_URL = "/flight-sim/cesium/";
+  window.CESIUM_BASE_URL = CESIUM_BASE_URL;
   if (typeof Cesium.buildModuleUrl?.setBaseUrl === "function") {
-    Cesium.buildModuleUrl.setBaseUrl("/flight-sim/cesium/");
+    Cesium.buildModuleUrl.setBaseUrl(CESIUM_BASE_URL);
   }
 
   const bounds = parseBoundsFromLocation();

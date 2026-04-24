@@ -6,6 +6,7 @@ import {
   isDefenseAssetSignature,
   resolveDefenseVisualizationPolicy,
 } from "@/utils/airDefenseModeling";
+import { resolvePublicAssetPath } from "@/utils/publicAssetUrl";
 
 export type BundleModelBundle =
   | "aircraft"
@@ -29,7 +30,13 @@ function createModel(
   label: string,
   note: string
 ): BundleModelSelection {
-  return { id, bundle, path, label, note };
+  return {
+    id,
+    bundle,
+    path: resolvePublicAssetPath(path),
+    label,
+    note,
+  };
 }
 
 const DRONE_MODELS = {

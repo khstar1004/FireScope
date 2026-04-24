@@ -71,8 +71,9 @@ import rlFirstSuccessDemoJson from "@/scenarios/rl_first_success_demo.json";
 import rlBattleOptimizationDemoJson from "@/scenarios/rl_battle_optimization_demo.json";
 import { strategicScenarioPresets } from "@/scenarios/iranVsUsScenarios";
 import { randomUUID } from "@/utils/generateUUID";
+import { resolvePublicAssetPath } from "@/utils/publicAssetUrl";
 
-const FLIGHT_SIM_ENTRY = "/flight-sim/index.html";
+const FLIGHT_SIM_ENTRY = resolvePublicAssetPath("/flight-sim/index.html");
 const FLIGHT_SIM_REVISION = "20260419-battle-spectator-cinematic-v1";
 const FLIGHT_SIM_SCENARIO_NAME_REGEX = /^[a-zA-Z0-9가-힣 :-]{1,25}$/;
 

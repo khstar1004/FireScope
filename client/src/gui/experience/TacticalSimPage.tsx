@@ -38,9 +38,10 @@ import { createTacticalExperienceScenario } from "@/gui/experience/tacticalExper
 import { buildTacticalScenarioFromBattleSnapshot } from "@/gui/experience/liveTacticalRuntime";
 import type { TacticalSimRoute } from "@/gui/experience/tacticalSimRoute";
 import { getDisplayName } from "@/utils/koreanCatalog";
+import { resolvePublicAssetPath } from "@/utils/publicAssetUrl";
 
-const TACTICAL_SIM_ENTRY = "/tactical-sim/index.html";
-const TACTICAL_SIM_APP = "/tactical-sim/app.js";
+const TACTICAL_SIM_ENTRY = resolvePublicAssetPath("/tactical-sim/index.html");
+const TACTICAL_SIM_APP = resolvePublicAssetPath("/tactical-sim/app.js");
 const TACTICAL_SIM_REVISION = "20260417-model-focus-brief-layout";
 
 type AssetState = "checking" | "ready" | "missing";

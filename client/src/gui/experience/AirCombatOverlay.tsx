@@ -18,9 +18,10 @@ import {
 import type { TacticalSimRoute } from "@/gui/experience/tacticalSimRoute";
 import { getImmersiveOperationOptions } from "@/gui/experience/immersiveOperations";
 import { getDisplayName } from "@/utils/koreanCatalog";
+import { resolvePublicAssetPath } from "@/utils/publicAssetUrl";
 
-const TACTICAL_SIM_ENTRY = "/tactical-sim/index.html";
-const TACTICAL_SIM_APP = "/tactical-sim/app.js";
+const TACTICAL_SIM_ENTRY = resolvePublicAssetPath("/tactical-sim/index.html");
+const TACTICAL_SIM_APP = resolvePublicAssetPath("/tactical-sim/app.js");
 const TACTICAL_SIM_REVISION = "20260420-air-combat-overlay-v1";
 
 type AssetState = "checking" | "ready" | "missing";

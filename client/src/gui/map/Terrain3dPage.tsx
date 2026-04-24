@@ -18,8 +18,9 @@ import Game, {
 } from "@/game/Game";
 import { GAME_SPEED_DELAY_MS } from "@/utils/constants";
 import { type Terrain3dBounds } from "@/gui/map/terrain3dRoute";
+import { resolvePublicAssetPath } from "@/utils/publicAssetUrl";
 
-const TERRAIN_3D_ENTRY = "/terrain-3d/index.html";
+const TERRAIN_3D_ENTRY = resolvePublicAssetPath("/terrain-3d/index.html");
 const TERRAIN_3D_VIEWER_VERSION = "terrain-hud-20260423";
 const TERRAIN_SPEED_STEPS = Object.keys(GAME_SPEED_DELAY_MS)
   .map((speed) => Number(speed))

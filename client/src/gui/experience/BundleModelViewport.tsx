@@ -13,8 +13,13 @@ import type { VistaLineupEntry } from "@/gui/experience/vistaState";
 import type { AssetExperienceKind } from "@/gui/experience/assetExperience";
 import type { ImmersiveExperienceProfile } from "@/gui/experience/immersiveExperience";
 import { preloadBundleViewer } from "@/gui/experience/modelPreload";
+import {
+  buildPublicAssetPath,
+  resolvePublicAssetPath,
+} from "@/utils/publicAssetUrl";
 
 const BUNDLE_VIEWER_REVISION = "20260418-detail-grid-airbase-pass";
+const BUNDLE_VIEWER_ENTRY = "/3d-bundles/viewer/index.html";
 
 export type BundleViewerChrome = "default" | "minimal";
 export type BundleViewerContextMode = "default" | "focus";
@@ -100,8 +105,18 @@ export function buildViewerSrc(
   contextMode: BundleViewerContextMode = "default",
   showLineupMarkers = true
 ) {
+  const normalizedSceneProps = sceneProps.map((sceneProp) => ({
+    ...sceneProp,
+    path: resolvePublicAssetPath(sceneProp.path),
+  }));
+  const normalizedComparisonSelections = comparisonSelections.map(
+    (comparisonSelection) => ({
+      ...comparisonSelection,
+      path: resolvePublicAssetPath(comparisonSelection.path),
+    })
+  );
   const params = new URLSearchParams();
-  params.set("model", selection.path);
+  params.set("model", resolvePublicAssetPath(selection.path));
   params.set("bundle", selection.bundle);
   params.set("label", selection.label);
   params.set("asset", assetName);
@@ -120,11 +135,14 @@ export function buildViewerSrc(
   if (!showLineupMarkers) {
     params.set("lineupMarkers", "0");
   }
-  if (sceneProps.length > 0) {
-    params.set("sceneProps", JSON.stringify(sceneProps));
+  if (normalizedSceneProps.length > 0) {
+    params.set("sceneProps", JSON.stringify(normalizedSceneProps));
   }
-  if (comparisonSelections.length > 0) {
-    params.set("compareModels", JSON.stringify(comparisonSelections));
+  if (normalizedComparisonSelections.length > 0) {
+    params.set(
+      "compareModels",
+      JSON.stringify(normalizedComparisonSelections)
+    );
   }
   if (lineup.length > 0) {
     params.set("lineup", JSON.stringify(lineup));
@@ -143,7 +161,7 @@ export function buildViewerSrc(
     appendOptionalMetric(params, "compareCount", simulation.compareCount);
   }
 
-  return `/3d-bundles/viewer/index.html?${params.toString()}`;
+  return buildPublicAssetPath(BUNDLE_VIEWER_ENTRY, params);
 }
 
 export default function BundleModelViewport({

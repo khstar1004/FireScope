@@ -1,5 +1,6 @@
 import type { AssetExperienceSummary } from "@/gui/experience/assetExperience";
 import type { BundleModelSelection } from "@/gui/experience/bundleModels";
+import { resolvePublicAssetPath } from "@/utils/publicAssetUrl";
 
 export interface BundleViewerSceneProp {
   id: string;
@@ -20,7 +21,7 @@ function createSceneProp(
 ): BundleViewerSceneProp {
   return {
     id,
-    path,
+    path: resolvePublicAssetPath(path),
     position,
     targetSize,
     rotationY,
