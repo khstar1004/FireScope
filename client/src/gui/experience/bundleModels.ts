@@ -460,7 +460,7 @@ function pickFiresModel(signature: string) {
     return ARTILLERY_MODELS.roketsan;
   }
   if (/\b(chunmoo|mlrs|rocket|himars)\b/i.test(signature)) {
-    return ARTILLERY_MODELS.k9Variant;
+    return ARTILLERY_MODELS.hyunmoo;
   }
   if (/\b(k9|k55|howitzer|artillery)\b/i.test(signature)) {
     return ARTILLERY_MODELS.k9;

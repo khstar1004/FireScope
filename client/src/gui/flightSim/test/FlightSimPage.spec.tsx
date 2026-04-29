@@ -388,6 +388,29 @@ describe("FlightSimPage", () => {
     expect(iframeUrl.searchParams.get("focusFire")).toBeNull();
   });
 
+  test("passes the local Seungjin imagery package to the flight simulator in demo mode", async () => {
+    const game = createGameWithFocusFireSummary();
+    const { container } = render(
+      <FlightSimPage
+        onBack={vi.fn()}
+        initialCraft="jet"
+        initialLocation={{ lon: 127.354386, lat: 38.07775 }}
+        game={game}
+        offlineDemoMode
+      />
+    );
+    await flushEffects();
+    const iframe = container.querySelector("iframe");
+
+    expect(iframe).not.toBeNull();
+
+    const iframeUrl = new URL((iframe as HTMLIFrameElement).src);
+    expect(iframeUrl.searchParams.get("offlineMap")).toBe("seungjin");
+    expect(iframeUrl.searchParams.get("offlineImageryTileUrl")).toContain(
+      "/offline-map/seungjin/raster/satellite/{z}/{x}/{y}.jpg"
+    );
+  });
+
   test("sends focus-fire runtime state only for explicit focus-fire airwatch sessions", async () => {
     const postMessageSpy = vi.fn();
     const focusFireAirwatch = {
@@ -639,9 +662,7 @@ describe("FlightSimPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getAllByText("오비트 · [청군] KF-21 #201")).toHaveLength(
-        2
-      );
+      expect(screen.getAllByText("오비트 · [청군] KF-21 #201")).toHaveLength(2);
     });
 
     await waitFor(() => {
@@ -971,9 +992,7 @@ describe("FlightSimPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getAllByText("추적 · [적군] K2 전차 중대")).toHaveLength(
-        2
-      );
+      expect(screen.getAllByText("추적 · [적군] K2 전차 중대")).toHaveLength(2);
     });
 
     await waitFor(() => {
@@ -1125,7 +1144,9 @@ describe("FlightSimPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "실행" }));
     expect(game.scenarioPaused).toBe(false);
-    expect(screen.getByRole("button", { name: "일시정지" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "일시정지" })
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("menuitem", { name: "기본 데모" }));
     await waitFor(() => {

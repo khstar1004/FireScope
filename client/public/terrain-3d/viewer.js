@@ -3,6 +3,7 @@ import {
   TERRAIN_INTEL_LAYER_DEFS,
   buildTerrainVlmPrompt,
   buildTerrainIntelAnalysis,
+  enrichTerrainAnalysisWithRuntimeContext,
   getDefaultTerrainIntelSelection,
   loadTerrainIntelLayers,
   parseTerrainVlmReport,
@@ -10,10 +11,13 @@ import {
   extractOllamaModelNames,
   selectOllamaVisionModel,
 } from "./terrainIntel.js";
-import { createTerrainPlacementRuntime } from "./placementRuntime.js";
+import { createTerrainPlacementRuntime } from "./placementRuntime.js?v=terrain-glb-direction-20260427";
+import { initializeMapTilerTerrainPlanA } from "./maptilerTerrainPlanA.js?v=terrain-glb-direction-20260427";
 
 function resolveTerrainViewerPublicPath(path) {
-  const normalizedPath = String(path ?? "").trim().replace(/^\/+/, "");
+  const normalizedPath = String(path ?? "")
+    .trim()
+    .replace(/^\/+/, "");
   if (!normalizedPath) {
     return "";
   }
@@ -40,6 +44,11 @@ const vworldApiKey = intelRuntimeConfig.vworldApiKey;
 const mapTilerTerrainUrl = mapTilerApiKey
   ? `https://api.maptiler.com/tiles/terrain-quantized-mesh-v2/?key=${mapTilerApiKey}`
   : "";
+const offlineSatelliteTileUrl = String(
+  isClosedNetworkOfflinePort()
+    ? (searchParams.get("offlineSatelliteTileUrl") ?? "")
+    : ""
+).trim();
 const koreaRectangle = Cesium?.Rectangle?.fromDegrees?.(
   124.5,
   33.0,
@@ -48,10 +57,17 @@ const koreaRectangle = Cesium?.Rectangle?.fromDegrees?.(
 );
 const gridColumns = 10;
 const gridRows = 10;
+const offlineTerrariumTileCache = new Map();
+const offlineTerrariumHeightmapCache = new Map();
+const offlineBlankImageryTileCache = new Map();
+const OFFLINE_TILE_BOUND_EPSILON = 1e-10;
+let offlineTerrainManifestPromise = null;
 
 const loadingOverlay = document.getElementById("loadingOverlay");
 const loadingTitle = document.getElementById("loadingTitle");
 const loadingDetail = document.getElementById("loadingDetail");
+const mapLibreContainer = document.getElementById("mapLibreContainer");
+const cesiumContainer = document.getElementById("cesiumContainer");
 const statusText = document.getElementById("statusText");
 const providerBadge = document.getElementById("providerBadge");
 const centerMetric = document.getElementById("centerMetric");
@@ -139,6 +155,9 @@ const viewerState = {
   hudDragState: null,
   markerEntities: [],
   analysisOverlayEntities: [],
+  assetRecommendationEntities: [],
+  runtimeSnapshot: null,
+  runtimeSnapshotSignature: "",
   vlmResult: null,
   captureTimestamp: null,
   busy: {
@@ -171,6 +190,89 @@ function setStatusMessage(message) {
 function setProviderBadge(message) {
   if (providerBadge) {
     providerBadge.textContent = message;
+  }
+}
+
+function shouldTryMapTilerTerrainPlanA() {
+  const terrainPlan = searchParams.get("terrainPlan");
+  if (terrainPlan === "cesium") {
+    return false;
+  }
+
+  if (terrainPlan === "maplibre") {
+    return true;
+  }
+
+  return false;
+}
+
+function isClosedNetworkOfflinePort() {
+  return ["49154", "49164"].includes(window.location.port);
+}
+
+function isConfiguredOfflineMapEnabled() {
+  return (
+    isClosedNetworkOfflinePort() && runtimeConfig.offlineMap?.enabled === true
+  );
+}
+
+function resolveOfflineMapManifestUrl({ includeConfigured = true } = {}) {
+  if (!isClosedNetworkOfflinePort()) {
+    return "";
+  }
+
+  const queryManifest = String(searchParams.get("offlineMapManifest") ?? "")
+    .trim()
+    .replace(/^\/+/, "/");
+  if (queryManifest) {
+    return queryManifest;
+  }
+
+  const queryRegionId = String(searchParams.get("offlineMapRegion") ?? "")
+    .trim()
+    .replace(/[^a-z0-9_-]/gi, "");
+  if (queryRegionId) {
+    return `/offline-map/${queryRegionId}/manifest.json`;
+  }
+
+  if (!includeConfigured || !isConfiguredOfflineMapEnabled()) {
+    return "";
+  }
+
+  const configuredManifest = String(
+    runtimeConfig.offlineMap?.manifestUrl ?? ""
+  ).trim();
+  if (configuredManifest) {
+    return configuredManifest;
+  }
+
+  const regionId = String(runtimeConfig.offlineMap?.region ?? "")
+    .trim()
+    .replace(/[^a-z0-9_-]/gi, "");
+
+  return regionId ? `/offline-map/${regionId}/manifest.json` : "";
+}
+
+function isOfflineTerrainMode() {
+  if (!isClosedNetworkOfflinePort()) {
+    return false;
+  }
+
+  return Boolean(
+    searchParams.get("offlineMapManifest") ||
+      searchParams.get("offlineMapRegion") ||
+      offlineSatelliteTileUrl ||
+      (isConfiguredOfflineMapEnabled() && resolveOfflineMapManifestUrl())
+  );
+}
+
+function prepareCesiumFallbackSurface() {
+  if (mapLibreContainer) {
+    mapLibreContainer.hidden = true;
+    mapLibreContainer.classList.remove("is-active");
+  }
+  if (cesiumContainer) {
+    cesiumContainer.hidden = false;
   }
 }
 
@@ -437,7 +539,49 @@ function isInsideKorea(bounds) {
   );
 }
 
-function createBaseLayer(bounds) {
+function createBaseLayer(bounds, offlineManifest = null) {
+  if (offlineSatelliteTileUrl) {
+    const satelliteSource = offlineManifest?.sources?.satellite ?? {};
+    const tileUrl =
+      resolveOfflineManifestAssetTemplate(
+        offlineManifest,
+        getOfflineTileTemplate(satelliteSource)
+      ) || offlineSatelliteTileUrl;
+    const tileSize = Math.max(
+      16,
+      Math.min(512, Math.floor(Number(satelliteSource.tileSize) || 256))
+    );
+    const { minZoom, maxZoom } = getOfflineTerrainZoomRange(
+      offlineManifest,
+      satelliteSource,
+      0,
+      19
+    );
+    const sourceBounds = getOfflineSourceBounds(offlineManifest, bounds);
+    const imageryBounds = intersectBounds(bounds, sourceBounds) ?? sourceBounds;
+    const tileCoverage = createOfflineTileCoverage(
+      offlineManifest,
+      satelliteSource,
+      sourceBounds,
+      minZoom,
+      maxZoom
+    );
+    const provider = new Cesium.UrlTemplateImageryProvider({
+      url: tileUrl,
+      credit: "Offline Map",
+      tileWidth: tileSize,
+      tileHeight: tileSize,
+      hasAlphaChannel: false,
+      minimumLevel: minZoom,
+      maximumLevel: maxZoom,
+      rectangle: buildRectangle(imageryBounds),
+    });
+
+    return new Cesium.ImageryLayer(
+      guardOfflineImageryProvider(provider, tileCoverage, tileSize)
+    );
+  }
+
   if (mapTilerApiKey) {
     return new Cesium.ImageryLayer(
       new Cesium.UrlTemplateImageryProvider({
@@ -470,7 +614,450 @@ function createBaseLayer(bounds) {
   );
 }
 
-async function createTerrainProvider() {
+function createFlatHeightmap(width, height) {
+  return new Float32Array(width * height);
+}
+
+function getOfflineTileTemplate(source) {
+  const tiles = source?.tiles;
+  if (Array.isArray(tiles)) {
+    return String(tiles[0] ?? "").trim();
+  }
+
+  return String(tiles ?? "").trim();
+}
+
+function resolveOfflineManifestAssetTemplate(manifest, value) {
+  const text = String(value ?? "").trim();
+  if (!text) {
+    return "";
+  }
+
+  try {
+    const assetUrl = new URL(
+      text,
+      manifest?.__manifestUrl ?? window.location.href
+    );
+    return `${assetUrl.pathname}${assetUrl.search}`
+      .replace(/%7B/gi, "{")
+      .replace(/%7D/gi, "}");
+  } catch {
+    return text.replace(/%7B/gi, "{").replace(/%7D/gi, "}");
+  }
+}
+
+function formatOfflineTerrainTileUrl(template, x, y, level) {
+  return template
+    .replace(/\{z\}/g, String(level))
+    .replace(/\{x\}/g, String(x))
+    .replace(/\{y\}/g, String(y));
+}
+
+function getOfflineTerrainZoomRange(
+  manifest,
+  source,
+  fallbackMinZoom = 0,
+  fallbackMaxZoom = fallbackMinZoom
+) {
+  const minZoom = Math.max(
+    0,
+    Math.floor(
+      parseFiniteNumber(source?.minzoom) ??
+        parseFiniteNumber(manifest?.zoom?.min) ??
+        fallbackMinZoom
+    )
+  );
+  const maxZoom = Math.max(
+    minZoom,
+    Math.floor(
+      parseFiniteNumber(source?.maxzoom) ??
+        parseFiniteNumber(manifest?.zoom?.max) ??
+        fallbackMaxZoom
+    )
+  );
+
+  return {
+    minZoom,
+    maxZoom,
+  };
+}
+
+function getOfflineSourceBounds(manifest, fallbackBounds) {
+  const bounds = manifest?.bounds;
+  if (
+    bounds &&
+    parseFiniteNumber(bounds.west) !== null &&
+    parseFiniteNumber(bounds.south) !== null &&
+    parseFiniteNumber(bounds.east) !== null &&
+    parseFiniteNumber(bounds.north) !== null
+  ) {
+    return normalizeBounds(bounds);
+  }
+
+  return normalizeBounds(fallbackBounds);
+}
+
+function intersectBounds(left, right) {
+  const west = Math.max(left.west, right.west);
+  const south = Math.max(left.south, right.south);
+  const east = Math.min(left.east, right.east);
+  const north = Math.min(left.north, right.north);
+
+  if (west >= east || south >= north) {
+    return null;
+  }
+
+  return normalizeBounds({
+    west,
+    south,
+    east,
+    north,
+  });
+}
+
+function longitudeToMercatorTileX(longitude, level) {
+  const scale = 2 ** level;
+  return Math.floor(((longitude + 180) / 360) * scale);
+}
+
+function latitudeToMercatorTileY(latitude, level) {
+  const clampedLatitude = clamp(latitude, -85.05112878, 85.05112878);
+  const radians = Cesium.Math.toRadians(clampedLatitude);
+  const scale = 2 ** level;
+  return Math.floor(
+    ((1 - Math.log(Math.tan(radians) + 1 / Math.cos(radians)) / Math.PI) / 2) *
+      scale
+  );
+}
+
+function getOfflineTileRangeForLevel(bounds, level) {
+  const scale = 2 ** level;
+  return {
+    minX: clamp(
+      longitudeToMercatorTileX(bounds.west + OFFLINE_TILE_BOUND_EPSILON, level),
+      0,
+      scale - 1
+    ),
+    maxX: clamp(
+      longitudeToMercatorTileX(bounds.east - OFFLINE_TILE_BOUND_EPSILON, level),
+      0,
+      scale - 1
+    ),
+    minY: clamp(
+      latitudeToMercatorTileY(bounds.north - OFFLINE_TILE_BOUND_EPSILON, level),
+      0,
+      scale - 1
+    ),
+    maxY: clamp(
+      latitudeToMercatorTileY(bounds.south + OFFLINE_TILE_BOUND_EPSILON, level),
+      0,
+      scale - 1
+    ),
+  };
+}
+
+function createOfflineTileCoverage(
+  manifest,
+  source,
+  fallbackBounds,
+  minZoom,
+  maxZoom
+) {
+  const bounds = getOfflineSourceBounds(manifest, fallbackBounds);
+  const zoomRange =
+    Number.isFinite(minZoom) && Number.isFinite(maxZoom)
+      ? { minZoom, maxZoom }
+      : getOfflineTerrainZoomRange(manifest, source);
+
+  return {
+    bounds,
+    minZoom: zoomRange.minZoom,
+    maxZoom: zoomRange.maxZoom,
+  };
+}
+
+function isOfflineTileInsideCoverage(coverage, x, y, level) {
+  if (!coverage || level < coverage.minZoom || level > coverage.maxZoom) {
+    return false;
+  }
+
+  const range = getOfflineTileRangeForLevel(coverage.bounds, level);
+  return (
+    x >= range.minX && x <= range.maxX && y >= range.minY && y <= range.maxY
+  );
+}
+
+function getOfflineBlankImageryTile(tileSize) {
+  const key = String(tileSize);
+  if (!offlineBlankImageryTileCache.has(key)) {
+    const canvas = document.createElement("canvas");
+    canvas.width = tileSize;
+    canvas.height = tileSize;
+    const context = canvas.getContext("2d");
+    if (context) {
+      context.fillStyle = "#061015";
+      context.fillRect(0, 0, tileSize, tileSize);
+    }
+    offlineBlankImageryTileCache.set(key, canvas);
+  }
+
+  return offlineBlankImageryTileCache.get(key);
+}
+
+function guardOfflineImageryProvider(provider, coverage, tileSize) {
+  const requestImage = provider.requestImage.bind(provider);
+  provider.requestImage = (x, y, level, request) => {
+    const fallbackTile = getOfflineBlankImageryTile(tileSize);
+    if (!isOfflineTileInsideCoverage(coverage, x, y, level)) {
+      return fallbackTile;
+    }
+
+    try {
+      const result = requestImage(x, y, level, request);
+      if (result === undefined) {
+        return undefined;
+      }
+      if (typeof result?.then === "function") {
+        return result.catch(() => fallbackTile);
+      }
+      return result;
+    } catch {
+      return fallbackTile;
+    }
+  };
+
+  return provider;
+}
+
+async function loadOfflineTerrainManifestForCesium() {
+  const manifestUrl = resolveOfflineMapManifestUrl();
+  if (!manifestUrl) {
+    return null;
+  }
+
+  if (!offlineTerrainManifestPromise) {
+    offlineTerrainManifestPromise = (async () => {
+      const response = await fetch(manifestUrl, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`Offline terrain manifest failed: ${response.status}`);
+      }
+
+      return {
+        ...(await response.json()),
+        __manifestUrl: new URL(manifestUrl, window.location.href).toString(),
+      };
+    })().catch((error) => {
+      offlineTerrainManifestPromise = null;
+      throw error;
+    });
+  }
+
+  return offlineTerrainManifestPromise;
+}
+
+function loadImageFromBlob(blob) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(blob);
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Offline terrain tile image decode failed."));
+    };
+    image.decoding = "async";
+    image.src = objectUrl;
+  });
+}
+
+async function createCanvasImageSource(blob) {
+  if (typeof createImageBitmap === "function") {
+    return createImageBitmap(blob);
+  }
+
+  return loadImageFromBlob(blob);
+}
+
+async function loadOfflineTerrariumImageData(url, width, height) {
+  if (!offlineTerrariumTileCache.has(url)) {
+    offlineTerrariumTileCache.set(
+      url,
+      (async () => {
+        const response = await fetch(url, { cache: "force-cache" });
+        const contentType = response.headers.get("content-type") ?? "";
+        if (!response.ok || !/^image\//i.test(contentType)) {
+          return null;
+        }
+
+        const blob = await response.blob();
+        const image = await createCanvasImageSource(blob);
+        try {
+          if (image.width <= 1 || image.height <= 1) {
+            return null;
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const context = canvas.getContext("2d", {
+            willReadFrequently: true,
+          });
+          if (!context) {
+            return null;
+          }
+
+          context.drawImage(image, 0, 0, width, height);
+          return context.getImageData(0, 0, width, height);
+        } finally {
+          image.close?.();
+        }
+      })().catch((error) => {
+        console.warn("Offline terrain tile failed to load.", error);
+        return null;
+      })
+    );
+  }
+
+  return offlineTerrariumTileCache.get(url);
+}
+
+function decodeTerrariumHeightmap(imageData, width, height) {
+  const pixels = imageData.data;
+  const heights = new Float32Array(width * height);
+
+  for (let index = 0; index < heights.length; index += 1) {
+    const pixelIndex = index * 4;
+    heights[index] =
+      pixels[pixelIndex] * 256 +
+      pixels[pixelIndex + 1] +
+      pixels[pixelIndex + 2] / 256 -
+      32768;
+  }
+
+  return heights;
+}
+
+function loadOfflineTerrariumHeightmap(url, width, height) {
+  const cacheKey = `${url}|${width}x${height}`;
+  if (!offlineTerrariumHeightmapCache.has(cacheKey)) {
+    offlineTerrariumHeightmapCache.set(
+      cacheKey,
+      loadOfflineTerrariumImageData(url, width, height).then((imageData) => {
+        if (!imageData) {
+          return null;
+        }
+
+        return decodeTerrariumHeightmap(imageData, width, height);
+      })
+    );
+  }
+
+  return offlineTerrariumHeightmapCache.get(cacheKey);
+}
+
+async function createOfflineTerrariumTerrainProvider(preloadedManifest = null) {
+  if (
+    !Cesium?.CustomHeightmapTerrainProvider ||
+    !Cesium?.WebMercatorTilingScheme
+  ) {
+    return null;
+  }
+
+  const manifest =
+    preloadedManifest ?? (await loadOfflineTerrainManifestForCesium());
+  const terrainSource = manifest?.sources?.terrainDem;
+  const encoding = String(terrainSource?.encoding ?? "terrarium").toLowerCase();
+  const tileTemplate = resolveOfflineManifestAssetTemplate(
+    manifest,
+    getOfflineTileTemplate(terrainSource)
+  );
+
+  if (
+    !terrainSource ||
+    terrainSource.enabled === false ||
+    encoding !== "terrarium" ||
+    !tileTemplate
+  ) {
+    return null;
+  }
+
+  const tileSize = Math.max(
+    16,
+    Math.min(512, Math.floor(Number(terrainSource.tileSize) || 256))
+  );
+  const { minZoom, maxZoom } = getOfflineTerrainZoomRange(
+    manifest,
+    terrainSource
+  );
+  const tileCoverage = createOfflineTileCoverage(
+    manifest,
+    terrainSource,
+    getOfflineSourceBounds(manifest, manifest?.bounds),
+    minZoom,
+    maxZoom
+  );
+
+  return new Cesium.CustomHeightmapTerrainProvider({
+    width: tileSize,
+    height: tileSize,
+    tilingScheme: new Cesium.WebMercatorTilingScheme(),
+    credit: "Offline Terrarium DEM",
+    callback: async (x, y, level) => {
+      if (level < minZoom) {
+        return createFlatHeightmap(tileSize, tileSize);
+      }
+      if (level > maxZoom) {
+        return undefined;
+      }
+      if (!isOfflineTileInsideCoverage(tileCoverage, x, y, level)) {
+        return createFlatHeightmap(tileSize, tileSize);
+      }
+
+      const tileUrl = formatOfflineTerrainTileUrl(tileTemplate, x, y, level);
+      const heightmap = await loadOfflineTerrariumHeightmap(
+        tileUrl,
+        tileSize,
+        tileSize
+      );
+
+      if (!heightmap) {
+        return createFlatHeightmap(tileSize, tileSize);
+      }
+
+      return heightmap;
+    },
+  });
+}
+
+async function createTerrainProvider(preloadedManifest = null) {
+  if (isOfflineTerrainMode()) {
+    try {
+      const offlineTerrainProvider =
+        await createOfflineTerrariumTerrainProvider(preloadedManifest);
+      if (offlineTerrainProvider) {
+        return {
+          provider: offlineTerrainProvider,
+          providerLabel: "오프라인 고도",
+          hasTerrain: true,
+        };
+      }
+    } catch (error) {
+      console.warn(
+        "Failed to initialize offline Terrarium terrain provider.",
+        error
+      );
+    }
+
+    return {
+      provider: new Cesium.EllipsoidTerrainProvider(),
+      providerLabel: "오프라인 영상",
+      hasTerrain: false,
+    };
+  }
+
   if (!mapTilerTerrainUrl) {
     return {
       provider: new Cesium.EllipsoidTerrainProvider(),
@@ -510,18 +1097,25 @@ function estimateRangeMeters(widthMeters, heightMeters) {
 }
 
 function configureViewer(viewer, limitRectangle, widthMeters, heightMeters) {
+  const offlineMode = isOfflineTerrainMode();
   viewer.scene.requestRenderMode = true;
   viewer.scene.maximumRenderTimeChange = Number.POSITIVE_INFINITY;
   viewer.scene.globe.cartographicLimitRectangle = limitRectangle;
   viewer.scene.globe.depthTestAgainstTerrain = true;
   viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString("#061015");
   viewer.scene.globe.showGroundAtmosphere = false;
-  viewer.scene.globe.maximumScreenSpaceError = 3;
+  viewer.scene.globe.maximumScreenSpaceError = offlineMode ? 5 : 3;
+  viewer.scene.globe.preloadSiblings = false;
+  if ("verticalExaggeration" in viewer.scene) {
+    viewer.scene.verticalExaggeration = 1.45;
+  }
   viewer.scene.skyAtmosphere.show = false;
   viewer.scene.fog.enabled = false;
   viewer.scene.backgroundColor = Cesium.Color.fromCssColorString("#02060c");
   viewer.shadows = false;
-  viewer.resolutionScale = Math.min(window.devicePixelRatio || 1, 1.25);
+  viewer.resolutionScale = offlineMode
+    ? 1
+    : Math.min(window.devicePixelRatio || 1, 1.25);
 
   const controller = viewer.scene.screenSpaceCameraController;
   controller.minimumZoomDistance = Math.min(
@@ -751,6 +1345,10 @@ function renderAnalysisSummary() {
       <h3>차폐 히트맵</h3>
       ${renderHeatmapSummary(analysis.topConcealmentCells, analysis.topExposureCells)}
     </article>
+    ${renderAssetRecommendationSummary(
+      analysis.runtimeContext,
+      analysis.assetRecommendations
+    )}
   `;
 }
 
@@ -832,6 +1430,65 @@ function renderHeatmapSummary(topConcealmentCells, topExposureCells) {
           : ""
       }
     </section>
+  `;
+}
+
+function renderAssetRecommendationSummary(runtimeContext, recommendations) {
+  const visibleUnitCount = runtimeContext?.unitCount ?? 0;
+  const visibleWeaponCount = runtimeContext?.weaponCount ?? 0;
+  const selectedUnit = runtimeContext?.selectedUnit ?? null;
+  const recommendationItems = Array.isArray(recommendations)
+    ? recommendations
+    : [];
+
+  if (
+    !runtimeContext?.hasContext &&
+    visibleUnitCount === 0 &&
+    visibleWeaponCount === 0
+  ) {
+    return `
+      <article class="terrain-summary-card">
+        <h3>전장 자산 연계</h3>
+        <p class="terrain-report-copy">선택 bbox 안에 연동된 전장 자산이 없어 순수 지형 분석만 표시합니다.</p>
+      </article>
+    `;
+  }
+
+  return `
+    <article class="terrain-summary-card">
+      <h3>전장 자산 연계</h3>
+      <dl class="terrain-summary-grid">
+        <div>
+          <dt>범위 내 자산</dt>
+          <dd>${escapeHtml(visibleUnitCount.toLocaleString("ko-KR"))}</dd>
+        </div>
+        <div>
+          <dt>비행 중 무기</dt>
+          <dd>${escapeHtml(visibleWeaponCount.toLocaleString("ko-KR"))}</dd>
+        </div>
+        <div>
+          <dt>선택 자산</dt>
+          <dd>${escapeHtml(selectedUnit?.name ?? "범위 내 선택 없음")}</dd>
+        </div>
+        <div>
+          <dt>추천 수</dt>
+          <dd>${escapeHtml(String(recommendationItems.length))}</dd>
+        </div>
+      </dl>
+      ${
+        recommendationItems.length > 0
+          ? `<ul class="terrain-list">${recommendationItems
+              .slice(0, 4)
+              .map(
+                (recommendation) =>
+                  `<li><strong>${escapeHtml(
+                    recommendation.actionLabel
+                  )}</strong> ${escapeHtml(recommendation.summary)}</li>`
+              )
+              .join("")}</ul>`
+          : `<p class="terrain-report-copy">자산과 지형 후보 마커의 직접 연계 후보가 없습니다.</p>`
+      }
+    </article>
   `;
 }
 
@@ -967,6 +1624,7 @@ function getEntryHighlights(analysis, marker) {
     );
     return [
       marker.reason,
+      getAssetRecommendationHighlight(analysis, marker),
       ...getVlmHighlights("artilleryImplications", 2),
       firePlan?.blockedSectors?.length
         ? `차단 섹터 ${firePlan.blockedSectors
@@ -989,6 +1647,7 @@ function getEntryHighlights(analysis, marker) {
     );
     return [
       marker.reason,
+      getAssetRecommendationHighlight(analysis, marker),
       ...getVlmHighlights("maneuverImplications", 2),
       matchingCell
         ? `상위 차폐 셀 R${matchingCell.rowIndex + 1} C${matchingCell.columnIndex + 1} · ${formatScore(
@@ -1002,6 +1661,7 @@ function getEntryHighlights(analysis, marker) {
 
   return [
     marker.reason,
+    getAssetRecommendationHighlight(analysis, marker),
     ...getVlmHighlights("risks", 1),
     ...getVlmHighlights("opportunities", 1),
     analysis.engineBrief?.opportunities?.[0] ??
@@ -1091,6 +1751,7 @@ function buildOverviewHudEntry(analysis) {
   const layout = ANALYSIS_HUD_LAYOUT.summary;
   const overviewHighlights = [
     viewerState.vlmResult?.executiveSummary,
+    analysis.assetRecommendations?.[0]?.summary,
     ...getVlmHighlights("risks", 1),
     analysis.engineBrief?.overview?.[0],
   ]
@@ -1129,6 +1790,13 @@ function getMarkerCalloutForHud(markerId) {
     : typeof matchedCallout?.title === "string"
       ? matchedCallout.title
       : "";
+}
+
+function getAssetRecommendationHighlight(analysis, marker) {
+  const recommendation = (analysis.assetRecommendations ?? []).find(
+    (item) => item.markerId === marker.id || item.markerType === marker.type
+  );
+  return recommendation?.summary ?? "";
 }
 
 function getVlmHighlights(field, limit) {
@@ -2162,6 +2830,137 @@ function handleTerrainViewerCommand(event) {
   }
 }
 
+function handleRuntimeSnapshotMessage(event) {
+  if (event.origin !== window.location.origin) {
+    return;
+  }
+
+  if (
+    event.data?.type !== "terrain3d:placement-snapshot" &&
+    event.data?.type !== "terrain3d:runtime-snapshot"
+  ) {
+    return;
+  }
+
+  const snapshot = event.data?.payload ?? null;
+  const nextSignature = buildRuntimeSnapshotAnalysisSignature(
+    snapshot,
+    viewerState.bounds
+  );
+  viewerState.runtimeSnapshot = snapshot;
+  if (nextSignature === viewerState.runtimeSnapshotSignature) {
+    return;
+  }
+  viewerState.runtimeSnapshotSignature = nextSignature;
+
+  if (!viewerState.analysis) {
+    return;
+  }
+
+  viewerState.analysis = enrichTerrainAnalysisWithRuntimeContext(
+    viewerState.analysis,
+    viewerState.runtimeSnapshot
+  );
+  renderAnalysisSummary();
+
+  const viewer = viewerState.viewer;
+  if (!viewer?.entities || !viewer?.scene) {
+    return;
+  }
+
+  clearAssetRecommendationEntities(viewer);
+  addAssetRecommendationOverlay(
+    viewer,
+    viewerState.analysis.assetRecommendations
+  );
+  renderAnalysisHud(viewer);
+  viewer.scene.requestRender();
+}
+
+function buildRuntimeSnapshotAnalysisSignature(snapshot, bounds) {
+  if (!snapshot || typeof snapshot !== "object") {
+    return "";
+  }
+
+  const units = Array.isArray(snapshot.units)
+    ? snapshot.units
+        .filter((unit) =>
+          isRuntimePointInsideBounds(unit?.longitude, unit?.latitude, bounds)
+        )
+        .map(
+          (unit) =>
+            `${unit.id ?? ""}:${unit.selected === true ? 1 : 0}:${roundRuntimeSignatureNumber(
+              unit.longitude,
+              4
+            )}:${roundRuntimeSignatureNumber(
+              unit.latitude,
+              4
+            )}:${roundRuntimeSignatureNumber(unit.altitudeMeters, 0)}`
+        )
+        .sort()
+    : [];
+  const weapons = Array.isArray(snapshot.weapons)
+    ? snapshot.weapons
+        .filter(
+          (weapon) =>
+            isRuntimePointInsideBounds(
+              weapon?.longitude,
+              weapon?.latitude,
+              bounds
+            ) ||
+            isRuntimePointInsideBounds(
+              weapon?.targetLongitude,
+              weapon?.targetLatitude,
+              bounds
+            )
+        )
+        .map(
+          (weapon) =>
+            `${weapon.id ?? ""}:${roundRuntimeSignatureNumber(
+              weapon.longitude,
+              4
+            )}:${roundRuntimeSignatureNumber(
+              weapon.latitude,
+              4
+            )}:${roundRuntimeSignatureNumber(
+              weapon.targetLongitude,
+              4
+            )}:${roundRuntimeSignatureNumber(weapon.targetLatitude, 4)}`
+        )
+        .sort()
+    : [];
+
+  return [
+    snapshot.selectedUnitId ?? "",
+    units.join("|"),
+    weapons.join("|"),
+  ].join("::");
+}
+
+function isRuntimePointInsideBounds(longitude, latitude, bounds) {
+  const lon = Number(longitude);
+  const lat = Number(latitude);
+  if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+    return false;
+  }
+  if (!bounds) {
+    return true;
+  }
+  return (
+    lon >= bounds.west &&
+    lon <= bounds.east &&
+    lat >= bounds.south &&
+    lat <= bounds.north
+  );
+}
+
+function roundRuntimeSignatureNumber(value, fractionDigits) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue)
+    ? numberValue.toFixed(fractionDigits)
+    : "";
+}
+
 function clearLayerDataSources(viewer) {
   viewerState.layerDataSources.forEach((dataSource) => {
     viewer.dataSources.remove(dataSource, true);
@@ -2183,6 +2982,13 @@ function clearAnalysisOverlayEntities(viewer) {
   viewerState.analysisOverlayEntities = [];
 }
 
+function clearAssetRecommendationEntities(viewer) {
+  viewerState.assetRecommendationEntities.forEach((entity) => {
+    viewer.entities.remove(entity);
+  });
+  viewerState.assetRecommendationEntities = [];
+}
+
 function setButtonBusy(button, busy, label) {
   if (!button) {
     return;
@@ -2201,6 +3007,17 @@ async function refreshTerrainIntelLayers(viewer) {
 
   viewerState.busy.layers = true;
   renderIntelLayerControls();
+
+  if (isOfflineTerrainMode()) {
+    clearLayerDataSources(viewer);
+    viewerState.layerResults = [];
+    setLayerStatusMessage(
+      "오프라인 시연모드에서는 로컬 지형 패키지의 레이어만 사용합니다."
+    );
+    viewerState.busy.layers = false;
+    renderIntelLayerControls();
+    return;
+  }
 
   if (!vworldApiKey) {
     clearLayerDataSources(viewer);
@@ -2224,6 +3041,7 @@ async function refreshTerrainIntelLayers(viewer) {
       viewerState.analysis = null;
       clearMarkerEntities(viewer);
       clearAnalysisOverlayEntities(viewer);
+      clearAssetRecommendationEntities(viewer);
       clearAnalysisHud();
       setAnalysisStatusMessage("");
       setLayerStatusMessage("선택된 보조 레이어가 없습니다.");
@@ -2256,6 +3074,7 @@ async function refreshTerrainIntelLayers(viewer) {
     viewerState.analysis = null;
     clearMarkerEntities(viewer);
     clearAnalysisOverlayEntities(viewer);
+    clearAssetRecommendationEntities(viewer);
     clearAnalysisHud();
     setAnalysisStatusMessage("");
 
@@ -2435,9 +3254,11 @@ function addTerrainMarkers(viewer, markers) {
 
 function addAnalysisOverlays(viewer, analysis) {
   clearAnalysisOverlayEntities(viewer);
+  clearAssetRecommendationEntities(viewer);
 
   addHeatmapOverlay(viewer, analysis.concealmentCells);
   addLosOverlay(viewer, analysis.losSegments);
+  addAssetRecommendationOverlay(viewer, analysis.assetRecommendations);
 }
 
 function addHeatmapOverlay(viewer, cells) {
@@ -2520,6 +3341,50 @@ function addLosOverlay(viewer, losSegments) {
   });
 }
 
+function addAssetRecommendationOverlay(viewer, recommendations) {
+  if (!Array.isArray(recommendations)) {
+    return;
+  }
+
+  recommendations.slice(0, 4).forEach((recommendation) => {
+    if (
+      !Number.isFinite(recommendation.unitLon) ||
+      !Number.isFinite(recommendation.unitLat) ||
+      !Number.isFinite(recommendation.markerLon) ||
+      !Number.isFinite(recommendation.markerLat)
+    ) {
+      return;
+    }
+
+    const color =
+      recommendation.markerType === "artillery"
+        ? Cesium.Color.fromCssColorString("#ffd26d")
+        : recommendation.markerType === "concealment"
+          ? Cesium.Color.fromCssColorString("#7de9a8")
+          : Cesium.Color.fromCssColorString("#71d9ff");
+    const entity = viewer.entities.add({
+      polyline: {
+        positions: Cesium.Cartesian3.fromDegreesArrayHeights([
+          recommendation.unitLon,
+          recommendation.unitLat,
+          (recommendation.unitHeightMeters ?? 0) + 36,
+          recommendation.markerLon,
+          recommendation.markerLat,
+          (recommendation.markerHeightMeters ?? 0) + 32,
+        ]),
+        width: recommendation.selectedUnit ? 3.2 : 2.4,
+        clampToGround: false,
+        material: new Cesium.PolylineDashMaterialProperty({
+          color: color.withAlpha(recommendation.selectedUnit ? 0.95 : 0.74),
+          dashLength: recommendation.selectedUnit ? 18 : 24,
+        }),
+      },
+      description: recommendation.summary,
+    });
+    viewerState.assetRecommendationEntities.push(entity);
+  });
+}
+
 async function runEngineAnalysis(viewer) {
   if (!viewerState.bounds) {
     return null;
@@ -2542,13 +3407,17 @@ async function runEngineAnalysis(viewer) {
       gridColumns,
       gridRows
     );
-    viewerState.analysis = buildTerrainIntelAnalysis({
+    const baseAnalysis = buildTerrainIntelAnalysis({
       bounds: viewerState.bounds,
       widthMeters: viewerState.widthMeters,
       heightMeters: viewerState.heightMeters,
       terrainSamples,
       layerResults: viewerState.layerResults,
     });
+    viewerState.analysis = enrichTerrainAnalysisWithRuntimeContext(
+      baseAnalysis,
+      viewerState.runtimeSnapshot
+    );
     viewerState.vlmResult = null;
     addTerrainMarkers(viewer, viewerState.analysis.markers);
     addAnalysisOverlays(viewer, viewerState.analysis);
@@ -2713,6 +3582,51 @@ function wireIntelControls(viewer) {
 }
 
 async function initialize() {
+  const bounds = parseBoundsFromLocation();
+  if (!bounds) {
+    throw new Error("Invalid terrain bounds.");
+  }
+
+  viewerState.bounds = bounds;
+  setLoadingState(
+    "선택 지형 준비 중",
+    "MapTiler 지형과 선택 범위 전용 3D 런타임을 초기화합니다."
+  );
+
+  if (shouldTryMapTilerTerrainPlanA()) {
+    try {
+      if (cesiumContainer) {
+        cesiumContainer.hidden = true;
+      }
+      const planA = await initializeMapTilerTerrainPlanA({
+        container: mapLibreContainer,
+        bounds,
+        mapTilerApiKey,
+        offlineMapManifestUrl: resolveOfflineMapManifestUrl(),
+        setLoadingState,
+        hideLoadingOverlay,
+        setStatusMessage,
+        setProviderBadge,
+        setPlacementBadge,
+        wirePanelControls,
+      });
+      viewerState.viewer = planA.map;
+      viewerState.provider = "maptiler-maplibre";
+      window.__terrain3dIntelState__ = viewerState;
+      return;
+    } catch (error) {
+      console.warn(
+        "MapTiler MapLibre terrain plan failed. Falling back to Cesium/VWorld runtime.",
+        error
+      );
+      prepareCesiumFallbackSurface();
+      setLoadingState(
+        "기존 3D 지형 경로로 전환 중",
+        "MapTiler Plan A 초기화에 실패해 Plan B를 시도합니다."
+      );
+    }
+  }
+
   if (!Cesium) {
     throw new Error("Cesium runtime not found.");
   }
@@ -2722,17 +3636,6 @@ async function initialize() {
     Cesium.buildModuleUrl.setBaseUrl(CESIUM_BASE_URL);
   }
 
-  const bounds = parseBoundsFromLocation();
-  if (!bounds) {
-    throw new Error("Invalid terrain bounds.");
-  }
-
-  viewerState.bounds = bounds;
-
-  setLoadingState(
-    "선택 지형 준비 중",
-    "선택 범위 안쪽 지형만 렌더링하도록 초기화합니다."
-  );
   const { widthMeters, heightMeters } = updateMetrics(bounds);
   viewerState.widthMeters = widthMeters;
   viewerState.heightMeters = heightMeters;
@@ -2746,13 +3649,26 @@ async function initialize() {
     setPlacementBadge,
   });
 
+  window.addEventListener("message", handleRuntimeSnapshotMessage);
   window.addEventListener("message", placementRuntime.handleMessage);
   window.addEventListener("message", handleTerrainViewerCommand);
   setPlacementBadge("배치 대기");
 
-  const terrainProviderInfo = await createTerrainProvider();
+  let offlineManifest = null;
+  if (isOfflineTerrainMode()) {
+    try {
+      offlineManifest = await loadOfflineTerrainManifestForCesium();
+    } catch (error) {
+      console.warn("Failed to preload offline map manifest.", error);
+    }
+  }
+
+  const terrainProviderInfo = await createTerrainProvider(offlineManifest);
+  const imageryBounds = isOfflineTerrainMode()
+    ? bounds
+    : expandBounds(bounds, 0.14, 0.0012);
   const viewer = new Cesium.Viewer("cesiumContainer", {
-    baseLayer: createBaseLayer(expandBounds(bounds, 0.14, 0.0012)),
+    baseLayer: createBaseLayer(imageryBounds, offlineManifest),
     terrainProvider: terrainProviderInfo.provider,
     timeline: false,
     animation: false,
@@ -2804,7 +3720,11 @@ async function initialize() {
     setStatusMessage("지형 고도 데이터를 불러오지 못해 영상만 표시합니다.");
   }
 
-  if (vworldApiKey) {
+  if (isOfflineTerrainMode()) {
+    setLayerStatusMessage(
+      "오프라인 시연모드에서는 로컬 지형 패키지의 레이어만 사용합니다."
+    );
+  } else if (vworldApiKey) {
     setLayerStatusMessage(
       "브이월드 벡터 레이어를 범위 기준으로 불러오는 중입니다."
     );

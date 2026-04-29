@@ -1,0 +1,53 @@
+services:
+  client:
+    build:
+      context: .
+      dockerfile: docker/client/Dockerfile
+      args:
+        VITE_ENV: ${VITE_ENV:-production}
+        VITE_API_SERVER_URL: ${VITE_API_SERVER_URL:-}
+        VITE_AUTH0_DOMAIN: ${VITE_AUTH0_DOMAIN:-}
+        VITE_AUTH0_CLIENT_ID: ${VITE_AUTH0_CLIENT_ID:-}
+        VITE_AUTH0_CALLBACK_URL: ${VITE_AUTH0_CALLBACK_URL:-}
+        VITE_AUTH0_AUDIENCE: ${VITE_AUTH0_AUDIENCE:-}
+        VITE_MAP_MODE: ${VITE_MAP_MODE:-online}
+        VITE_OFFLINE_MAP_REGION: ${VITE_OFFLINE_MAP_REGION:-}
+        VITE_OFFLINE_BASIC_TILE_URL: ${VITE_OFFLINE_BASIC_TILE_URL:-}
+        VITE_OFFLINE_SATELLITE_TILE_URL: ${VITE_OFFLINE_SATELLITE_TILE_URL:-}
+        MAPTILER_API_KEY: ${MAPTILER_API_KEY:-}
+        LLM_PROVIDER: ${LLM_PROVIDER:-}
+        LLM_MODEL: ${LLM_MODEL:-}
+        LLM_BASE_URL: ${LLM_BASE_URL:-}
+    image: firescope-client:local
+    restart: unless-stopped
+    ports:
+      - "${FIRESCOPE_CLIENT_PORT:-8080}:8080"
+    volumes:
+      - ./client/public/3d-bundles:/usr/share/nginx/html/3d-bundles:ro
+      - ./client/public/offline-map:/usr/share/nginx/html/offline-map:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  gym:
+    build:
+      context: .
+      dockerfile: docker/gym/Dockerfile
+      args:
+        GYM_EXTRAS: ${GYM_EXTRAS:-gym}
+    image: firescope-gym:local
+    profiles:
+      - gym
+    working_dir: /app
+    environment:
+      MPLCONFIGDIR: /tmp/matplotlib
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - firescope-gym-artifacts:/app/gym/artifacts
+    command: ["python", "gym/scripts/simple_demo/demo.py"]
+
+volumes:
+  firescope-gym-artifacts:

@@ -1,0 +1,34 @@
+{
+  "id": "korea",
+  "label": "Korea Offline Overview",
+  "center": {
+    "longitude": 127.8,
+    "latitude": 36.35
+  },
+  "bounds": {
+    "west": 124.5,
+    "south": 33,
+    "east": 132.5,
+    "north": 39.5
+  },
+  "zoom": {
+    "min": 5,
+    "max": 11,
+    "preferred": 7
+  },
+  "sources": {
+    "vector": {
+      "enabled": true,
+      "data": "./vector/basemap.geojson"
+    },
+    "satellite": {
+      "enabled": true,
+      "tiles": "./raster/satellite/{z}/{x}/{y}.jpg",
+      "tileSize": 256,
+      "minzoom": 5,
+      "maxzoom": 11
+    }
+  },
+  "dataStatus": "generated",
+  "generatedAt": "2026-04-27T01:59:39.873Z"
+}

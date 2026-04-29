@@ -217,7 +217,7 @@ function resolveFacilityVisualProfileId(
     return "artillery-roketsan";
   }
   if (/\b(chunmoo|mlrs|rocket|himars)\b/i.test(signature)) {
-    return "artillery-k9-variant";
+    return "artillery-hyunmoo";
   }
   if (
     isFiresFacilityClassName(className) ||

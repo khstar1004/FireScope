@@ -13,9 +13,7 @@ import Box from "@mui/material/Box";
 import { useMediaQuery } from "@mui/material";
 import WelcomePopover from "@/WelcomePopover";
 import { useAuth0 } from "@auth0/auth0-react";
-import {
-  type FlightSimBattleSpectatorState,
-} from "@/gui/flightSim/battleSpectatorState";
+import { type FlightSimBattleSpectatorState } from "@/gui/flightSim/battleSpectatorState";
 import AssetExperiencePage from "@/gui/experience/AssetExperiencePage";
 import ImmersiveExperiencePage from "@/gui/experience/ImmersiveExperiencePage";
 import TacticalSimPage from "@/gui/experience/TacticalSimPage";
@@ -63,6 +61,10 @@ import {
   parseTerrain3dQueryParams,
   type Terrain3dBounds,
 } from "@/gui/map/terrain3dRoute";
+import {
+  KOREA_OFFLINE_REGION,
+  SEUNGJIN_OFFLINE_REGION,
+} from "@/gui/map/offlineMapConfig";
 
 const FLIGHT_SIM_HASH = "#/flight-sim";
 
@@ -79,6 +81,22 @@ function parseFlightSimNumberParam(value: string | null) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function isOfflineOnlySite() {
+  const mapMode = String(import.meta.env.VITE_MAP_MODE ?? "").toLowerCase();
+  if (
+    mapMode === "offline" ||
+    Boolean(import.meta.env.VITE_OFFLINE_MAP_REGION)
+  ) {
+    return true;
+  }
+
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return ["49154", "49164"].includes(window.location.port);
+}
+
 interface ActiveAirCombatLaunch {
   route: ReturnType<typeof buildAirCombatTacticalRoute>;
   continueSimulation: boolean;
@@ -92,6 +110,7 @@ export default function App() {
   const [currentHash, setCurrentHash] = useState(() =>
     typeof window === "undefined" ? "" : window.location.hash
   );
+  const offlineDemoMode = isOfflineOnlySite();
   const [activeAirCombatLaunch, setActiveAirCombatLaunch] =
     useState<ActiveAirCombatLaunch | null>(null);
 
@@ -140,8 +159,12 @@ export default function App() {
     const game = new Game(currentScenario);
 
     game.loadScenario(JSON.stringify(blankScenarioJson));
+    if (offlineDemoMode) {
+      game.mapView.currentCameraCenter = [...KOREA_OFFLINE_REGION.center];
+      game.mapView.currentCameraZoom = KOREA_OFFLINE_REGION.defaultZoom;
+    }
     return game;
-  }, []);
+  }, [offlineDemoMode]);
   const projection = useMemo(
     () => getProjection(DEFAULT_OL_PROJECTION_CODE) ?? undefined,
     []
@@ -165,7 +188,10 @@ export default function App() {
     battleSpectator?: FlightSimBattleSpectatorState
   ) => {
     const params = new URLSearchParams();
-    const [lon, lat] = center ?? [];
+    const launchCenter = offlineDemoMode
+      ? SEUNGJIN_OFFLINE_REGION.center
+      : center;
+    const [lon, lat] = launchCenter ?? [];
     if (typeof lon === "number" && Number.isFinite(lon)) {
       params.set("lon", lon.toFixed(6));
     }
@@ -257,7 +283,10 @@ export default function App() {
     }
   ) => {
     setActiveAirCombatLaunch(null);
-    window.location.hash = buildTerrain3dHash(bounds, options);
+    window.location.hash = buildTerrain3dHash(
+      offlineDemoMode ? SEUNGJIN_OFFLINE_REGION.bounds : bounds,
+      options
+    );
   };
 
   const updateRlLabJobId = (jobId: string | null) => {
@@ -295,6 +324,7 @@ export default function App() {
       onClose={closeAirCombatOverlay}
     />
   ) : null;
+
   const renderWithOverlay = (content: ReactNode) => (
     <>
       {content}
@@ -330,17 +360,24 @@ export default function App() {
           }
         : undefined;
 
-    return (
+    return renderWithOverlay(
       <FlightSimPage
         onBack={returnToScenarioMap}
         initialCraft={flightSimQueryParams.get("craft") ?? undefined}
         initialLocation={{
-          lon: parseFlightSimNumberParam(flightSimQueryParams.get("lon")),
-          lat: parseFlightSimNumberParam(flightSimQueryParams.get("lat")),
+          lon: offlineDemoMode
+            ? SEUNGJIN_OFFLINE_REGION.center[0]
+            : parseFlightSimNumberParam(flightSimQueryParams.get("lon")),
+          lat: offlineDemoMode
+            ? SEUNGJIN_OFFLINE_REGION.center[1]
+            : parseFlightSimNumberParam(flightSimQueryParams.get("lat")),
         }}
         game={theGame}
-        continueSimulation={flightSimQueryParams.get("continueSimulation") === "1"}
+        continueSimulation={
+          flightSimQueryParams.get("continueSimulation") === "1"
+        }
         focusFireAirwatch={focusFireAirwatch}
+        offlineDemoMode={offlineDemoMode}
       />
     );
   }
@@ -366,12 +403,17 @@ export default function App() {
       );
     }
 
-    return (
+    return renderWithOverlay(
       <Terrain3dPage
-        bounds={terrainBounds}
+        bounds={
+          offlineDemoMode ? SEUNGJIN_OFFLINE_REGION.bounds : terrainBounds
+        }
         game={theGame}
-        continueSimulation={parseTerrain3dContinueSimulation(terrain3dQueryParams)}
+        continueSimulation={parseTerrain3dContinueSimulation(
+          terrain3dQueryParams
+        )}
         onBack={returnToScenarioMap}
+        offlineDemoMode={offlineDemoMode}
       />
     );
   }
@@ -454,6 +496,7 @@ export default function App() {
         game={theGame}
         projection={projection}
         mobileView={isMobile}
+        offlineDemoMode={offlineDemoMode}
         openFlightSimPage={openFlightSimPage}
         openAirCombatOverlay={openAirCombatOverlay}
         openAssetExperiencePage={openAssetExperiencePage}

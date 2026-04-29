@@ -19,9 +19,14 @@ import Game, {
 import { GAME_SPEED_DELAY_MS } from "@/utils/constants";
 import { type Terrain3dBounds } from "@/gui/map/terrain3dRoute";
 import { resolvePublicAssetPath } from "@/utils/publicAssetUrl";
+import {
+  getOfflineMapManifestPath,
+  getOfflineMapRegion,
+  getOfflineSatelliteTileUrl,
+} from "@/gui/map/offlineMapConfig";
 
 const TERRAIN_3D_ENTRY = resolvePublicAssetPath("/terrain-3d/index.html");
-const TERRAIN_3D_VIEWER_VERSION = "terrain-hud-20260423";
+const TERRAIN_3D_VIEWER_VERSION = "terrain-glb-direction-20260427";
 const TERRAIN_SPEED_STEPS = Object.keys(GAME_SPEED_DELAY_MS)
   .map((speed) => Number(speed))
   .filter((speed) => Number.isFinite(speed))
@@ -44,6 +49,7 @@ interface Terrain3dPageProps {
   bounds: Terrain3dBounds;
   game: Game;
   continueSimulation?: boolean;
+  offlineDemoMode?: boolean;
   onBack: () => void;
 }
 
@@ -116,9 +122,15 @@ export default function Terrain3dPage({
   bounds,
   game,
   continueSimulation = false,
+  offlineDemoMode = false,
   onBack,
 }: Readonly<Terrain3dPageProps>) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const offlineMapRegion = offlineDemoMode
+    ? getOfflineMapRegion({
+        forceOffline: true,
+      })
+    : null;
   const lastPostedSnapshotSignatureRef = useRef("");
   const [runtimeSnapshot, setRuntimeSnapshot] =
     useState<BattleSpectatorSnapshot>(() => game.getBattleSpectatorSnapshot());
@@ -131,10 +143,10 @@ export default function Terrain3dPage({
   );
   const [gameEnded, setGameEnded] = useState(false);
   const [visualOptions, setVisualOptions] = useState<Terrain3dVisualOptions>({
-    showWeaponTrails: true,
-    showEventEffects: true,
+    showWeaponTrails: false,
+    showEventEffects: false,
     autoTrackImpacts: false,
-    impactCameraShake: true,
+    impactCameraShake: false,
     showTerrainBriefing: true,
   });
   const [commandPanelCollapsed, setCommandPanelCollapsed] = useState(false);
@@ -147,8 +159,22 @@ export default function Terrain3dPage({
     params.set("east", bounds.east.toFixed(6));
     params.set("north", bounds.north.toFixed(6));
     params.set("viewerVersion", TERRAIN_3D_VIEWER_VERSION);
+    params.set("terrainPlan", "cesium");
     if (continueSimulation) {
       params.set("continueSimulation", "1");
+    }
+    if (offlineMapRegion) {
+      params.set("offlineMapRegion", offlineMapRegion.id);
+      params.set(
+        "offlineMapManifest",
+        getOfflineMapManifestPath(offlineMapRegion)
+      );
+      params.set(
+        "offlineSatelliteTileUrl",
+        getOfflineSatelliteTileUrl(offlineMapRegion, {
+          localOnly: offlineDemoMode,
+        })
+      );
     }
 
     return `${TERRAIN_3D_ENTRY}?${params.toString()}`;
@@ -158,6 +184,8 @@ export default function Terrain3dPage({
     bounds.south,
     bounds.west,
     continueSimulation,
+    offlineMapRegion,
+    offlineDemoMode,
   ]);
   const postRuntimeCommand = useCallback((payload: Record<string, unknown>) => {
     const iframeWindow = iframeRef.current?.contentWindow;

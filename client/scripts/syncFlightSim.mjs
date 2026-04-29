@@ -150,13 +150,18 @@ const ollamaBaseUrl =
   process.env.VITE_OLLAMA_BASE_URL ??
   "http://127.0.0.1:11434";
 const ollamaVisionModel =
-  process.env.OLLAMA_VISION_MODEL ??
-  process.env.VITE_OLLAMA_VISION_MODEL ??
-  "";
+  process.env.OLLAMA_VISION_MODEL ?? process.env.VITE_OLLAMA_VISION_MODEL ?? "";
 const configScript = `window.__FLIGHT_SIM_CONFIG__ = Object.freeze({
   vworldApiKey: ${JSON.stringify(vworldApiKey)},
   vworldDomain: ${JSON.stringify(vworldDomain)},
   mapTilerApiKey: ${JSON.stringify(mapTilerApiKey)},
+  offlineMap: ${JSON.stringify({
+    enabled: false,
+    region: "seungjin",
+    label: "Seungjin Firing Range",
+    imageryTemplateUrl:
+      "/offline-map/seungjin/raster/satellite/{z}/{x}/{y}.jpg",
+  })},
   ollamaBaseUrl: ${JSON.stringify(ollamaBaseUrl)},
   ollamaVisionModel: ${JSON.stringify(ollamaVisionModel)}
 });

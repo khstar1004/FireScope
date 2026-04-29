@@ -86,4 +86,57 @@ describe("BaseMapLayers", () => {
       false,
     ]);
   });
+
+  it("accepts offline satellite XYZ templates", () => {
+    const layers = new BaseMapLayers(
+      undefined,
+      "/offline-map/seungjin/raster/basic/{z}/{x}/{y}.png",
+      "/offline-map/seungjin/raster/satellite/{z}/{x}/{y}.jpg"
+    );
+
+    expect(layers.getAvailableModes().map((mode) => mode.id)).toEqual([
+      "hybrid",
+      "satellite",
+      "basic",
+      "osm",
+    ]);
+  });
+
+  it("can omit the online OSM fallback in closed-network demo mode", () => {
+    const layers = new BaseMapLayers(
+      undefined,
+      "/offline-map/seungjin/raster/basic/{z}/{x}/{y}.png",
+      "/offline-map/seungjin/raster/satellite/{z}/{x}/{y}.jpg",
+      undefined,
+      undefined,
+      undefined,
+      false
+    );
+
+    expect(layers.getAvailableModes().map((mode) => mode.id)).toEqual([
+      "hybrid",
+      "satellite",
+      "basic",
+    ]);
+  });
+
+  it("uses offline hybrid as the first closed-network mode", () => {
+    const layers = new BaseMapLayers(
+      undefined,
+      undefined,
+      "/offline-map/korea/raster/satellite/{z}/{x}/{y}.jpg",
+      undefined,
+      undefined,
+      undefined,
+      false,
+      "data:application/geo+json,%7B%22type%22%3A%22FeatureCollection%22%2C%22features%22%3A%5B%5D%7D"
+    );
+
+    expect(layers.getCurrentModeId()).toBe("hybrid");
+    expect(layers.getAvailableModes().map((mode) => mode.id)).toEqual([
+      "hybrid",
+      "vector",
+      "satellite",
+    ]);
+  });
 });

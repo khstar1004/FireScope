@@ -1,0 +1,9 @@
+/.codex-chrome-terrain/
+/.codex-chrome-terrain-gpu/
+/client/.codex-*.pid
+/client/.codex-*.log
+
+/client/public/offline-map/**/raster/
+/client/public/offline-map/**/terrain/
+/client/public/offline-map/**/intel/
+/client/public/offline-map/**/cesium-terrain/

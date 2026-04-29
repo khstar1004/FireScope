@@ -83,8 +83,8 @@ describe("viewFraming", () => {
 
     expect(k9Preset.padding).toBeGreaterThan(defaultPreset.padding);
     expect(k9Preset.focusHeight).toBeLessThan(defaultPreset.focusHeight);
-    expect(k9Preset.modelRotation[2]).toBeCloseTo(Math.PI / 2);
-    expect(k9Preset.modelOffset[1]).toBeGreaterThan(0);
+    expect(k9Preset.modelRotation[2]).toBe(0);
+    expect(k9Preset.modelOffset[1]).toBe(0);
     expect(k9Preset.exposureMultiplier).toBeGreaterThan(1);
     expect(k9Preset.rimLightMultiplier).toBeGreaterThan(1);
   });

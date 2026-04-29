@@ -157,6 +157,7 @@ describe("assetPlacementPreview", () => {
     expect(preview.previewBadgeLabel).toBe("포병 프리셋");
     expect(preview.previewTitle).toBe("수도권 서부 화력 프리셋");
     expect(preview.previewDescription).toBe("시흥 권역 기준 프리셋");
+    expect(preview.model?.id).toBe("artillery-hyunmoo");
     expect(preview.presetContext).toEqual({
       regionLabel: "시흥 권역",
       coverageLabel: "인천·김포 축선",

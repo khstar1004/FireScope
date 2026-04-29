@@ -16,6 +16,37 @@ const runtimeConfig = window.__FLIGHT_SIM_CONFIG__ ?? {};
 const vworldApiKey = (runtimeConfig.vworldApiKey ?? "").trim();
 const configuredVworldDomain = (runtimeConfig.vworldDomain ?? "").trim();
 const mapTilerApiKey = (runtimeConfig.mapTilerApiKey ?? "").trim();
+const flightSimSearchParams =
+  typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search)
+    : new URLSearchParams();
+const queryOfflineMapRegion = (
+  flightSimSearchParams.get("offlineMap") ?? ""
+).trim();
+const offlineMapPortEnabled =
+  typeof window !== "undefined" &&
+  ["49154", "49164"].includes(window.location.port);
+const offlineMapConfig = {
+  ...(runtimeConfig.offlineMap ?? {}),
+  enabled:
+    offlineMapPortEnabled &&
+    (runtimeConfig.offlineMap?.enabled === true ||
+      queryOfflineMapRegion.length > 0),
+  region: queryOfflineMapRegion || runtimeConfig.offlineMap?.region,
+  label:
+    flightSimSearchParams.get("offlineMapLabel") ??
+    runtimeConfig.offlineMap?.label,
+  imageryTemplateUrl:
+    flightSimSearchParams.get("offlineImageryTileUrl") ??
+    runtimeConfig.offlineMap?.imageryTemplateUrl,
+  cesiumTerrainUrl:
+    flightSimSearchParams.get("offlineCesiumTerrainUrl") ??
+    runtimeConfig.offlineMap?.cesiumTerrainUrl,
+};
+if (offlineMapConfig.region && !offlineMapConfig.imageryTemplateUrl) {
+  offlineMapConfig.imageryTemplateUrl = `/offline-map/${offlineMapConfig.region}/raster/satellite/{z}/{x}/{y}.jpg`;
+}
+const offlineMapEnabled = offlineMapConfig.enabled === true;
 const mapTilerTerrainUrl = mapTilerApiKey
   ? `https://api.maptiler.com/tiles/terrain-quantized-mesh-v2/?key=${mapTilerApiKey}`
   : null;
@@ -74,6 +105,10 @@ function updateRuntimeState(patch = {}) {
 }
 
 export function shouldPreferVWorldRuntime(initialPosition = {}) {
+  if (offlineMapEnabled) {
+    return false;
+  }
+
   const { lon, lat } = normalizeInitialPosition(initialPosition);
   return Boolean(vworldApiKey) && isInsideKorea(lon, lat);
 }
@@ -441,6 +476,25 @@ function loadVWorldScript(initialPosition = {}) {
 }
 
 function createBaseLayer() {
+  if (offlineMapEnabled) {
+    const imageryTemplateUrl = String(
+      offlineMapConfig.imageryTemplateUrl ?? ""
+    ).trim();
+    if (imageryTemplateUrl) {
+      return new Cesium.ImageryLayer(
+        new Cesium.UrlTemplateImageryProvider({
+          url: imageryTemplateUrl,
+          credit: offlineMapConfig.label ?? "Offline map",
+          tileWidth: 256,
+          tileHeight: 256,
+          hasAlphaChannel: false,
+        })
+      );
+    }
+
+    return new Cesium.ImageryLayer(new Cesium.TileCoordinatesImageryProvider());
+  }
+
   if (mapTilerApiKey) {
     return new Cesium.ImageryLayer(
       new Cesium.UrlTemplateImageryProvider({
@@ -477,6 +531,24 @@ function createMapTilerTerrain() {
 }
 
 function createTerrainOptions() {
+  const offlineTerrainUrl = String(
+    offlineMapConfig.cesiumTerrainUrl ?? ""
+  ).trim();
+  if (offlineMapEnabled && offlineTerrainUrl) {
+    return {
+      terrain: new Cesium.Terrain(
+        Cesium.CesiumTerrainProvider.fromUrl(offlineTerrainUrl, {
+          requestVertexNormals: true,
+        })
+      ),
+    };
+  }
+  if (offlineMapEnabled) {
+    return {
+      terrainProvider: createEllipsoidTerrainProvider(),
+    };
+  }
+
   if (mapTilerTerrainUrl) {
     return {
       terrain: createMapTilerTerrain(),
@@ -536,7 +608,8 @@ function createVWorldProvider(layer, fileExtension) {
 }
 
 function attachVWorldImagery(targetViewer) {
-  if (!vworldApiKey || !targetViewer?.scene?.imageryLayers) return;
+  if (offlineMapEnabled || !vworldApiKey || !targetViewer?.scene?.imageryLayers)
+    return;
 
   targetViewer.scene.imageryLayers.addImageryProvider(
     createVWorldProvider("Satellite", "jpeg")
@@ -612,9 +685,8 @@ function configureViewer(targetViewer, { main = false } = {}) {
   if (main) {
     targetViewer.scene.globe.enableLighting = true;
     targetViewer.scene.globe.showGroundAtmosphere = true;
-    targetViewer.scene.globe.baseColor = Cesium.Color.fromCssColorString(
-      "#09131a"
-    );
+    targetViewer.scene.globe.baseColor =
+      Cesium.Color.fromCssColorString("#09131a");
     targetViewer.scene.highDynamicRange = true;
     if ("dynamicAtmosphereLighting" in targetViewer.scene.globe) {
       targetViewer.scene.globe.dynamicAtmosphereLighting = true;
@@ -734,6 +806,10 @@ function hasTerrainData(targetViewer) {
 }
 
 async function ensureKoreaBuildingsTileset() {
+  if (offlineMapEnabled) {
+    return null;
+  }
+
   if (!viewer || koreaBuildingsTileset || koreaBuildingsPromise) {
     return koreaBuildingsPromise ?? koreaBuildingsTileset;
   }

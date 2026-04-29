@@ -30,6 +30,7 @@ const SAMPLE_SNAPSHOT = {
 function createGameMock() {
   return {
     getBattleSpectatorSnapshot: vi.fn(() => SAMPLE_SNAPSHOT),
+    getFocusFireSummary: vi.fn(() => undefined),
     getGameEndState: vi.fn(() => ({
       terminated: false,
       truncated: false,
@@ -100,6 +101,61 @@ describe("Terrain3dPage", () => {
         payload: SAMPLE_SNAPSHOT,
       },
       window.location.origin
+    );
+  });
+
+  test("keeps the feature-complete Cesium terrain runtime as the default", () => {
+    const game = createGameMock();
+
+    render(
+      <Terrain3dPage
+        bounds={{
+          west: 127.0,
+          south: 37.4,
+          east: 127.2,
+          north: 37.6,
+        }}
+        game={game}
+        onBack={vi.fn()}
+      />
+    );
+
+    const iframe = screen.getByTitle("선택 지형 3D") as HTMLIFrameElement;
+
+    expect(iframe.src).toContain(
+      "viewerVersion=terrain-glb-direction-20260427"
+    );
+    expect(iframe.src).toContain("terrainPlan=cesium");
+    expect(iframe.src).not.toContain("offlineMapManifest");
+  });
+
+  test("passes the closed-network Seungjin package to the 3D terrain runtime in demo mode", () => {
+    const game = createGameMock();
+
+    render(
+      <Terrain3dPage
+        bounds={{
+          west: 127.0,
+          south: 37.4,
+          east: 127.2,
+          north: 37.6,
+        }}
+        game={game}
+        offlineDemoMode
+        onBack={vi.fn()}
+      />
+    );
+
+    const iframe = screen.getByTitle("선택 지형 3D") as HTMLIFrameElement;
+    const src = new URL(iframe.src);
+
+    expect(src.searchParams.get("terrainPlan")).toBe("cesium");
+    expect(src.searchParams.get("offlineMapRegion")).toBe("seungjin");
+    expect(src.searchParams.get("offlineMapManifest")).toContain(
+      "/offline-map/seungjin/manifest.json"
+    );
+    expect(src.searchParams.get("offlineSatelliteTileUrl")).toContain(
+      "/offline-map/seungjin/raster/satellite/{z}/{x}/{y}.jpg"
     );
   });
 
@@ -372,7 +428,7 @@ describe("Terrain3dPage", () => {
     const { postMessage } = attachIframeWindow(iframe);
 
     fireEvent.load(iframe);
-    fireEvent.click(screen.getByRole("button", { name: "궤적 ON" }));
+    fireEvent.click(screen.getByRole("button", { name: "궤적 OFF" }));
 
     expect(postMessage).toHaveBeenCalledWith(
       {
@@ -380,7 +436,7 @@ describe("Terrain3dPage", () => {
         payload: {
           command: "set-visual-options",
           options: expect.objectContaining({
-            showWeaponTrails: false,
+            showWeaponTrails: true,
           }),
         },
       },

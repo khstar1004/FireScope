@@ -465,7 +465,181 @@ export function buildTerrainIntelAnalysis({
   };
 }
 
+export function enrichTerrainAnalysisWithRuntimeContext(
+  analysis,
+  runtimeSnapshot
+) {
+  if (!analysis || typeof analysis !== "object") {
+    return analysis;
+  }
+
+  const runtimeContext = buildRuntimeAssetTerrainContext({
+    bounds: analysis.bounds,
+    units: runtimeSnapshot?.units,
+    weapons: runtimeSnapshot?.weapons,
+    selectedUnitId: runtimeSnapshot?.selectedUnitId,
+    currentTime: runtimeSnapshot?.currentTime,
+  });
+
+  return {
+    ...analysis,
+    runtimeContext,
+    assetRecommendations: buildAssetTerrainRecommendations({
+      markers: analysis.markers,
+      runtimeContext,
+      widthMeters: analysis.widthMeters,
+      heightMeters: analysis.heightMeters,
+    }),
+  };
+}
+
+export function buildRuntimeAssetTerrainContext({
+  bounds,
+  units = [],
+  weapons = [],
+  selectedUnitId = "",
+  currentTime = null,
+} = {}) {
+  const safeBounds = isFiniteBounds(bounds) ? bounds : null;
+  const selectedId = getTrimmedString(selectedUnitId);
+  const visibleUnits = Array.isArray(units)
+    ? units
+        .map((unit, index) =>
+          normalizeRuntimeUnitForTerrain(unit, index, safeBounds, selectedId)
+        )
+        .filter(Boolean)
+    : [];
+  const visibleWeapons = Array.isArray(weapons)
+    ? weapons
+        .map((weapon, index) =>
+          normalizeRuntimeWeaponForTerrain(weapon, index, safeBounds)
+        )
+        .filter(Boolean)
+    : [];
+  const selectedUnit =
+    visibleUnits.find((unit) => unit.selected) ??
+    visibleUnits.find((unit) => unit.id === selectedId) ??
+    null;
+
+  return {
+    hasContext: visibleUnits.length > 0 || visibleWeapons.length > 0,
+    selectedUnitId: selectedId,
+    selectedUnit,
+    visibleUnits,
+    visibleWeapons,
+    unitCount: visibleUnits.length,
+    weaponCount: visibleWeapons.length,
+    sideCounts: countRuntimeAssetsBy(visibleUnits, "sideName"),
+    roleCounts: countRuntimeAssetsBy(visibleUnits, "role"),
+    referenceLatitude: safeBounds
+      ? (safeBounds.south + safeBounds.north) / 2
+      : selectedUnit?.lat,
+    currentTime: Number.isFinite(Number(currentTime))
+      ? Number(currentTime)
+      : null,
+  };
+}
+
+export function buildAssetTerrainRecommendations({
+  markers = [],
+  runtimeContext,
+  widthMeters = 0,
+  heightMeters = 0,
+  limit = 6,
+} = {}) {
+  const visibleUnits = Array.isArray(runtimeContext?.visibleUnits)
+    ? runtimeContext.visibleUnits
+    : [];
+  const terrainMarkers = Array.isArray(markers)
+    ? markers.filter(
+        (marker) =>
+          marker &&
+          Number.isFinite(Number(marker.lon)) &&
+          Number.isFinite(Number(marker.lat))
+      )
+    : [];
+
+  if (visibleUnits.length === 0 || terrainMarkers.length === 0) {
+    return [];
+  }
+
+  const selectedUnits = visibleUnits.filter((unit) => unit.selected);
+  const candidateUnits = [
+    ...selectedUnits,
+    ...visibleUnits.filter((unit) => !unit.selected),
+  ].slice(0, 10);
+  const referenceLatitude =
+    Number(runtimeContext?.referenceLatitude) ||
+    calculateMean(visibleUnits.map((unit) => unit.lat));
+  const influenceRangeMeters = Math.max(
+    900,
+    Math.hypot(Number(widthMeters) || 0, Number(heightMeters) || 0) || 4000
+  );
+  const recommendations = [];
+  const seenKeys = new Set();
+
+  candidateUnits.forEach((unit) => {
+    const preferredTypes = getPreferredMarkerTypesForRuntimeUnit(unit);
+    const markerCandidates = preferredTypes
+      .map((type) =>
+        pickBestMarkerForRuntimeUnit({
+          unit,
+          markers: terrainMarkers.filter((marker) => marker.type === type),
+          referenceLatitude,
+          influenceRangeMeters,
+          preferredTypes,
+        })
+      )
+      .filter(Boolean);
+    const fallbackMarker =
+      markerCandidates.length > 0
+        ? null
+        : pickBestMarkerForRuntimeUnit({
+            unit,
+            markers: terrainMarkers,
+            referenceLatitude,
+            influenceRangeMeters,
+            preferredTypes,
+          });
+
+    [...markerCandidates, fallbackMarker]
+      .filter(Boolean)
+      .slice(0, unit.selected ? 3 : 1)
+      .forEach((candidate) => {
+        const key = `${unit.id}:${candidate.marker.id}`;
+        if (seenKeys.has(key)) {
+          return;
+        }
+        seenKeys.add(key);
+
+        recommendations.push(
+          buildRuntimeAssetRecommendation({
+            unit,
+            marker: candidate.marker,
+            distanceMeters: candidate.distanceMeters,
+            priority: candidate.priority,
+          })
+        );
+      });
+  });
+
+  return recommendations
+    .sort((left, right) => {
+      const selectedDelta =
+        (right.selectedUnit === true ? 1 : 0) -
+        (left.selectedUnit === true ? 1 : 0);
+      if (selectedDelta !== 0) {
+        return selectedDelta;
+      }
+      return right.priority - left.priority;
+    })
+    .slice(0, Math.max(1, Number(limit) || 6));
+}
+
 export function buildTerrainVlmPrompt(analysis) {
+  const runtimeContext = normalizeRuntimeContextForPrompt(
+    analysis.runtimeContext
+  );
   const structuredPayload = {
     bounds: roundObject(
       {
@@ -556,6 +730,20 @@ export function buildTerrainVlmPrompt(analysis) {
         lat: round(point.lat, 6),
         score: round(point.score ?? 0, 3),
       })),
+    runtimeContext,
+    assetRecommendations: (analysis.assetRecommendations ?? [])
+      .slice(0, 6)
+      .map((recommendation) => ({
+        unitId: recommendation.unitId,
+        unitName: recommendation.unitName,
+        unitType: recommendation.unitType,
+        markerId: recommendation.markerId,
+        markerType: recommendation.markerType,
+        actionLabel: recommendation.actionLabel,
+        distanceMeters: round(recommendation.distanceMeters, 0),
+        priority: round(recommendation.priority, 3),
+        summary: recommendation.summary,
+      })),
     layers: analysis.layerSummary,
     engineBrief: analysis.engineBrief,
   };
@@ -565,6 +753,7 @@ export function buildTerrainVlmPrompt(analysis) {
     "Analyze the attached 3D terrain screenshot together with the structured GIS summary.",
     "Use only the visible terrain and the provided structured data. Do not invent unseen features.",
     "The labeled markers were generated by the engine and should be referenced when useful.",
+    "When runtimeContext and assetRecommendations are present, relate terrain effects to the live units inside the selected bbox.",
     "Focus on artillery siting, observation, line-of-sight, dead ground, concealment, crossing points, obstacle effects, approach corridors, and tactical risk.",
     "Respond in Korean and strictly follow the provided JSON schema.",
     "",
@@ -591,6 +780,513 @@ export function parseTerrainVlmReport(responseText) {
     opportunities: [],
     markerCallouts: [],
   };
+}
+
+function normalizeRuntimeUnitForTerrain(unit, index, bounds, selectedUnitId) {
+  if (!unit || typeof unit !== "object") {
+    return null;
+  }
+
+  const lon = getFirstFiniteNumber(unit.longitude, unit.lon);
+  const lat = getFirstFiniteNumber(unit.latitude, unit.lat);
+  if (
+    !Number.isFinite(lon) ||
+    !Number.isFinite(lat) ||
+    (bounds && !isLonLatInsideBounds(lon, lat, bounds))
+  ) {
+    return null;
+  }
+
+  const id = getTrimmedString(unit.id) || `unit-${index + 1}`;
+  const className = getTrimmedString(unit.className);
+  const modelId = getTrimmedString(unit.modelId);
+  const name = getTrimmedString(unit.name) || className || id;
+  const signature = `${name} ${className} ${modelId}`;
+  const entityType = normalizeRuntimeEntityType(unit.entityType, signature);
+  const role = classifyRuntimeAssetRole(entityType, signature);
+  const selected =
+    unit.selected === true || (!!selectedUnitId && id === selectedUnitId);
+
+  return {
+    id,
+    name,
+    className,
+    modelId,
+    entityType,
+    role,
+    roleLabel: getRuntimeRoleLabel(role),
+    sideId: getTrimmedString(unit.sideId),
+    sideName: getTrimmedString(unit.sideName) || "세력 없음",
+    sideColor: getTrimmedString(unit.sideColor),
+    lon,
+    lat,
+    longitude: lon,
+    latitude: lat,
+    altitudeMeters: Math.max(0, getFirstFiniteNumber(unit.altitudeMeters, 0)),
+    headingDeg: getFirstFiniteNumber(unit.headingDeg, unit.heading, 0),
+    speedKts: Math.max(0, getFirstFiniteNumber(unit.speedKts, unit.speed, 0)),
+    weaponCount: Math.max(
+      0,
+      Math.round(
+        getFirstFiniteNumber(
+          unit.weaponCount,
+          Array.isArray(unit.weapons) ? unit.weapons.length : 0
+        )
+      )
+    ),
+    engagementRangeMeters: Math.max(
+      0,
+      getFirstFiniteNumber(unit.engagementRangeNm, 0) * 1852
+    ),
+    selected,
+    groundUnit:
+      unit.groundUnit === true ||
+      entityType === "army" ||
+      entityType === "facility" ||
+      entityType === "airbase",
+    statusFlags: Array.isArray(unit.statusFlags)
+      ? unit.statusFlags
+          .map((flag) => getTrimmedString(flag))
+          .filter(Boolean)
+          .slice(0, 8)
+      : [],
+  };
+}
+
+function normalizeRuntimeWeaponForTerrain(weapon, index, bounds) {
+  if (!weapon || typeof weapon !== "object") {
+    return null;
+  }
+
+  const lon = getFirstFiniteNumber(weapon.longitude, weapon.lon);
+  const lat = getFirstFiniteNumber(weapon.latitude, weapon.lat);
+  const targetLon = getFirstFiniteNumber(
+    weapon.targetLongitude,
+    weapon.targetLon
+  );
+  const targetLat = getFirstFiniteNumber(
+    weapon.targetLatitude,
+    weapon.targetLat
+  );
+  const currentInside =
+    Number.isFinite(lon) &&
+    Number.isFinite(lat) &&
+    (!bounds || isLonLatInsideBounds(lon, lat, bounds));
+  const targetInside =
+    Number.isFinite(targetLon) &&
+    Number.isFinite(targetLat) &&
+    !!bounds &&
+    isLonLatInsideBounds(targetLon, targetLat, bounds);
+
+  if (!currentInside && !targetInside) {
+    return null;
+  }
+
+  const id = getTrimmedString(weapon.id) || `weapon-${index + 1}`;
+  return {
+    id,
+    name:
+      getTrimmedString(weapon.name) || getTrimmedString(weapon.className) || id,
+    className: getTrimmedString(weapon.className),
+    launcherId: getTrimmedString(weapon.launcherId),
+    launcherName: getTrimmedString(weapon.launcherName),
+    sideId: getTrimmedString(weapon.sideId),
+    sideName: getTrimmedString(weapon.sideName) || "세력 없음",
+    lon,
+    lat,
+    longitude: lon,
+    latitude: lat,
+    altitudeMeters: Math.max(0, getFirstFiniteNumber(weapon.altitudeMeters, 0)),
+    targetLon: Number.isFinite(targetLon) ? targetLon : null,
+    targetLat: Number.isFinite(targetLat) ? targetLat : null,
+    targetInside,
+    currentInside,
+  };
+}
+
+function normalizeRuntimeEntityType(entityType, signature) {
+  const rawType = getTrimmedString(entityType).toLowerCase();
+  if (
+    rawType === "aircraft" ||
+    rawType === "army" ||
+    rawType === "facility" ||
+    rawType === "airbase" ||
+    rawType === "ship"
+  ) {
+    return rawType;
+  }
+
+  if (
+    /\b(f-15|f-16|f-35|kf-21|aircraft|fighter|bomber|drone|uav|helicopter)\b/i.test(
+      signature
+    )
+  ) {
+    return "aircraft";
+  }
+  if (
+    /\b(ship|destroyer|carrier|submarine|frigate|cruiser)\b/i.test(signature)
+  ) {
+    return "ship";
+  }
+  if (/\b(airbase|base|runway)\b/i.test(signature)) {
+    return "airbase";
+  }
+  if (
+    /\b(tank|ifv|apc|army|infantry|armor|artillery|howitzer|launcher)\b/i.test(
+      signature
+    )
+  ) {
+    return "army";
+  }
+  return "facility";
+}
+
+function classifyRuntimeAssetRole(entityType, signature) {
+  if (
+    /\b(howitzer|artillery|mlrs|k9|m109|paladin|hyunmoo|rocket|launcher|cannon|gun)\b/i.test(
+      signature
+    )
+  ) {
+    return "fires";
+  }
+  if (
+    /\b(sam|patriot|thaad|nasams|s-300|s-400|air defense|interceptor)\b/i.test(
+      signature
+    )
+  ) {
+    return "air-defense";
+  }
+  if (entityType === "aircraft") {
+    return "air";
+  }
+  if (entityType === "ship") {
+    return "naval";
+  }
+  if (entityType === "army") {
+    return "ground";
+  }
+  if (entityType === "airbase") {
+    return "base";
+  }
+  return "facility";
+}
+
+function getRuntimeRoleLabel(role) {
+  if (role === "fires") {
+    return "화력";
+  }
+  if (role === "air-defense") {
+    return "방공";
+  }
+  if (role === "air") {
+    return "항공";
+  }
+  if (role === "naval") {
+    return "해상";
+  }
+  if (role === "ground") {
+    return "지상";
+  }
+  if (role === "base") {
+    return "기지";
+  }
+  return "시설";
+}
+
+function countRuntimeAssetsBy(assets, key) {
+  return assets.reduce((counts, asset) => {
+    const label = getTrimmedString(asset?.[key]) || "미분류";
+    counts[label] = (counts[label] ?? 0) + 1;
+    return counts;
+  }, {});
+}
+
+function getPreferredMarkerTypesForRuntimeUnit(unit) {
+  if (unit.role === "fires" || unit.role === "air-defense") {
+    return ["artillery", "concealment", "crossing"];
+  }
+  if (unit.role === "ground") {
+    return ["concealment", "crossing", "artillery"];
+  }
+  if (unit.role === "naval") {
+    return ["artillery", "crossing", "concealment"];
+  }
+  if (unit.role === "air") {
+    return ["artillery", "concealment", "crossing"];
+  }
+  return ["concealment", "artillery", "crossing"];
+}
+
+function pickBestMarkerForRuntimeUnit({
+  unit,
+  markers,
+  referenceLatitude,
+  influenceRangeMeters,
+  preferredTypes,
+}) {
+  if (!Array.isArray(markers) || markers.length === 0) {
+    return null;
+  }
+
+  return markers.reduce((best, marker) => {
+    const distanceMeters = distancePointToPointMeters(
+      unit,
+      marker,
+      referenceLatitude
+    );
+    const markerScore = getMarkerScoreForRuntimeRecommendation(marker);
+    const distanceScore =
+      1 - clamp(distanceMeters / influenceRangeMeters, 0, 1);
+    const typeIndex = Math.max(0, preferredTypes.indexOf(marker.type));
+    const roleBonus = getRuntimeRoleMarkerBonus(unit, marker);
+    const selectedBonus = unit.selected ? 0.14 : 0;
+    const priority = clamp(
+      markerScore * 0.58 +
+        distanceScore * 0.3 +
+        roleBonus +
+        selectedBonus -
+        typeIndex * 0.035,
+      0,
+      1
+    );
+    const candidate = {
+      marker,
+      distanceMeters,
+      priority,
+    };
+
+    if (!best || candidate.priority > best.priority) {
+      return candidate;
+    }
+    return best;
+  }, null);
+}
+
+function getMarkerScoreForRuntimeRecommendation(marker) {
+  return Math.max(
+    0,
+    getFirstFiniteNumber(
+      marker.score,
+      marker.artilleryScore,
+      marker.crossingPotentialScore,
+      marker.concealmentScore,
+      marker.visibilityRatio,
+      0
+    )
+  );
+}
+
+function getRuntimeRoleMarkerBonus(unit, marker) {
+  if (
+    marker.type === "artillery" &&
+    (unit.role === "fires" ||
+      unit.role === "air-defense" ||
+      unit.role === "naval")
+  ) {
+    return 0.1;
+  }
+  if (
+    marker.type === "concealment" &&
+    (unit.role === "ground" ||
+      unit.role === "facility" ||
+      unit.role === "base" ||
+      unit.role === "fires")
+  ) {
+    return 0.08;
+  }
+  if (marker.type === "crossing" && unit.role === "ground") {
+    return 0.08;
+  }
+  return 0;
+}
+
+function buildRuntimeAssetRecommendation({
+  unit,
+  marker,
+  distanceMeters,
+  priority,
+}) {
+  const markerId =
+    getTrimmedString(marker.id) || `${getMarkerTypeLabel(marker.type)} 후보`;
+  const actionLabel = getAssetRecommendationActionLabel(unit, marker);
+  const distanceLabel = formatRuntimeRecommendationDistance(distanceMeters);
+  const unitLabel = unit.selected ? "선택 자산" : unit.roleLabel;
+
+  return {
+    id: `asset-${unit.id}-${markerId}`,
+    unitId: unit.id,
+    unitName: unit.name,
+    unitType: unit.className || unit.entityType,
+    unitRole: unit.role,
+    unitRoleLabel: unit.roleLabel,
+    sideName: unit.sideName,
+    selectedUnit: unit.selected,
+    unitLon: unit.lon,
+    unitLat: unit.lat,
+    unitHeightMeters: unit.altitudeMeters,
+    markerId,
+    markerType: marker.type,
+    markerTitle: marker.title,
+    markerLon: Number(marker.lon),
+    markerLat: Number(marker.lat),
+    markerHeightMeters: Number(marker.heightMeters) || 0,
+    distanceMeters,
+    priority,
+    actionLabel,
+    summary: `${unitLabel} ${unit.name}에서 ${markerId} ${getMarkerTypeLabel(
+      marker.type
+    )}까지 ${distanceLabel}. ${actionLabel}로 우선 검토합니다.`,
+  };
+}
+
+function getAssetRecommendationActionLabel(unit, marker) {
+  if (marker.type === "artillery") {
+    if (unit.role === "fires") {
+      return "사격 진지 보정";
+    }
+    if (unit.role === "air-defense") {
+      return "방공 배치 고도 보정";
+    }
+    return "관측/화력 연계";
+  }
+  if (marker.type === "concealment") {
+    return "차폐 이동 후보";
+  }
+  if (marker.type === "crossing") {
+    return "기동 관문 통제";
+  }
+  return "지형 효과 연계";
+}
+
+function getMarkerTypeLabel(markerType) {
+  if (markerType === "artillery") {
+    return "화력 노드";
+  }
+  if (markerType === "concealment") {
+    return "차폐 노드";
+  }
+  if (markerType === "crossing") {
+    return "도하/기동 노드";
+  }
+  return "지형 노드";
+}
+
+function normalizeRuntimeContextForPrompt(runtimeContext) {
+  if (!runtimeContext || typeof runtimeContext !== "object") {
+    return {
+      hasContext: false,
+      unitCount: 0,
+      weaponCount: 0,
+      selectedUnit: null,
+      visibleUnits: [],
+      visibleWeapons: [],
+      sideCounts: {},
+      roleCounts: {},
+    };
+  }
+
+  return {
+    hasContext: runtimeContext.hasContext === true,
+    unitCount: runtimeContext.unitCount ?? 0,
+    weaponCount: runtimeContext.weaponCount ?? 0,
+    selectedUnit: normalizeRuntimeUnitForPrompt(runtimeContext.selectedUnit),
+    visibleUnits: Array.isArray(runtimeContext.visibleUnits)
+      ? runtimeContext.visibleUnits
+          .slice(0, 12)
+          .map((unit) => normalizeRuntimeUnitForPrompt(unit))
+      : [],
+    visibleWeapons: Array.isArray(runtimeContext.visibleWeapons)
+      ? runtimeContext.visibleWeapons
+          .slice(0, 8)
+          .map((weapon) => normalizeRuntimeWeaponForPrompt(weapon))
+      : [],
+    sideCounts: runtimeContext.sideCounts ?? {},
+    roleCounts: runtimeContext.roleCounts ?? {},
+  };
+}
+
+function normalizeRuntimeUnitForPrompt(unit) {
+  if (!unit) {
+    return null;
+  }
+
+  return {
+    id: unit.id,
+    name: unit.name,
+    type: unit.className || unit.entityType,
+    role: unit.roleLabel ?? unit.role,
+    sideName: unit.sideName,
+    selected: unit.selected === true,
+    lon: round(unit.lon, 6),
+    lat: round(unit.lat, 6),
+    altitudeMeters: round(unit.altitudeMeters, 0),
+    speedKts: round(unit.speedKts ?? 0, 0),
+    weaponCount: unit.weaponCount ?? 0,
+  };
+}
+
+function normalizeRuntimeWeaponForPrompt(weapon) {
+  if (!weapon) {
+    return null;
+  }
+
+  return {
+    id: weapon.id,
+    name: weapon.name,
+    launcherName: weapon.launcherName,
+    sideName: weapon.sideName,
+    lon: round(weapon.lon, 6),
+    lat: round(weapon.lat, 6),
+    targetLon: Number.isFinite(weapon.targetLon)
+      ? round(weapon.targetLon, 6)
+      : null,
+    targetLat: Number.isFinite(weapon.targetLat)
+      ? round(weapon.targetLat, 6)
+      : null,
+    targetInside: weapon.targetInside === true,
+    currentInside: weapon.currentInside === true,
+  };
+}
+
+function formatRuntimeRecommendationDistance(distanceMeters) {
+  if (!Number.isFinite(distanceMeters)) {
+    return "거리 미상";
+  }
+  if (distanceMeters < 950) {
+    return `${Math.round(distanceMeters)}m`;
+  }
+  return `${(distanceMeters / 1000).toFixed(1)}km`;
+}
+
+function getFirstFiniteNumber(...values) {
+  for (const value of values) {
+    const numberValue = Number(value);
+    if (Number.isFinite(numberValue)) {
+      return numberValue;
+    }
+  }
+  return Number.NaN;
+}
+
+function isFiniteBounds(bounds) {
+  return (
+    bounds &&
+    Number.isFinite(Number(bounds.west)) &&
+    Number.isFinite(Number(bounds.south)) &&
+    Number.isFinite(Number(bounds.east)) &&
+    Number.isFinite(Number(bounds.north)) &&
+    Number(bounds.west) < Number(bounds.east) &&
+    Number(bounds.south) < Number(bounds.north)
+  );
+}
+
+function isLonLatInsideBounds(lon, lat, bounds) {
+  return (
+    lon >= Number(bounds.west) &&
+    lon <= Number(bounds.east) &&
+    lat >= Number(bounds.south) &&
+    lat <= Number(bounds.north)
+  );
 }
 
 function getTrimmedString(value) {

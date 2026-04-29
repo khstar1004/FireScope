@@ -9,12 +9,23 @@
     <title>선택 지형 3D</title>
     <link rel="icon" type="image/x-icon" href="../flight-sim/favicon.ico" />
     <link rel="stylesheet" href="../flight-sim/cesium/Widgets/widgets.css" />
-    <link rel="stylesheet" href="./viewer.css?v=terrain-hud-20260423" />
+    <link
+      rel="stylesheet"
+      href="./viewer.css?v=terrain-glb-direction-20260427"
+    />
     <script src="../flight-sim/config.js"></script>
     <script src="../flight-sim/cesium/Cesium.js"></script>
-    <script type="module" src="./viewer.js?v=terrain-hud-20260423"></script>
+    <script
+      type="module"
+      src="./viewer.js?v=terrain-glb-direction-20260427"
+    ></script>
   </head>
   <body>
+    <div
+      id="mapLibreContainer"
+      aria-label="MapTiler 선택 지형 3D 화면"
+      hidden
+    ></div>
     <div id="cesiumContainer" aria-label="선택 지형 3D 화면"></div>
 
     <div id="terrainInfoPanel" class="terrain-shell">

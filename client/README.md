@@ -83,6 +83,12 @@ To run the client without a server:
 npm run standalone
 ```
 
+To launch both the API-backed map and the closed-network offline map:
+
+```bash
+npm run standalone:all
+```
+
 ### [Start Development Server](#start-development-server)
 
 ```bash

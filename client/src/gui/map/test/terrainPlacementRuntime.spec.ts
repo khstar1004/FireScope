@@ -4,7 +4,14 @@ import {
   resolveEffectTimelineValue,
   resolveFocusFireImpactBoxState,
   resolveFocusCameraPreset,
+  resolveModelAxisCorrectionProfile,
+  resolveUnitModel,
+  resolveUnitModelHeadingDeg,
+  resolveUnitProxyDimensions,
+  resolveUnitModelHeightReference,
+  resolveUnitModelScreenSizing,
   resolveWeaponModelProfile,
+  shouldRenderUnitModel,
   sortPlacementUnitsForPanel,
 } from "../../../../public/terrain-3d/placementRuntime.js";
 
@@ -115,7 +122,7 @@ describe("terrainPlacementRuntime", () => {
     expect(resolveEffectTimelineValue(0.25, stops)).toBeLessThan(10);
   });
 
-  test("resolves visible 3D weapon models for shells and missiles", () => {
+  test("keeps in-flight weapon 3D models compact and close-range", () => {
     const shellProfile = resolveWeaponModelProfile({
       modelId: "weapon-artillery-shell",
       className: "155mm Shell",
@@ -130,11 +137,241 @@ describe("terrainPlacementRuntime", () => {
     expect(shellProfile.uri).toBe(
       "/3d-bundles/artillery/models/artillery_shell.glb"
     );
-    expect(shellProfile.minimumPixelSize).toBeGreaterThanOrEqual(34);
+    expect(shellProfile.minimumPixelSize).toBeLessThanOrEqual(12);
+    expect(shellProfile.maximumScale).toBeLessThanOrEqual(34);
+    expect(shellProfile.visibleDistanceMeters).toBe(1400);
     expect(missileProfile.uri).toBe("/3d-bundles/missile/aim-120c_amraam.glb");
     expect(missileProfile.minimumPixelSize).toBeGreaterThan(
       shellProfile.minimumPixelSize
     );
+    expect(missileProfile.visibleDistanceMeters).toBeGreaterThan(
+      shellProfile.visibleDistanceMeters
+    );
+  });
+
+  test("marks source-axis GLB assets for Cesium root-node axis correction", () => {
+    const km900Correction = resolveModelAxisCorrectionProfile(
+      "/3d-bundles/tank/models/south_korean_km900_apc.glb"
+    );
+    const kf21Correction = resolveModelAxisCorrectionProfile(
+      "/3d-bundles/aircraft/models/kf-21a_boramae_fighter_jet.glb"
+    );
+
+    expect(km900Correction).toEqual({
+      nodeName: "Sketchfab_model",
+      convention: "gltf-y-up-x-forward",
+      upAxis: "Y",
+      forwardAxis: "X",
+    });
+    expect(kf21Correction).toEqual({
+      nodeName: "Sketchfab_model",
+      convention: "gltf-y-up-y-forward",
+      upAxis: "Y",
+      forwardAxis: "Y",
+    });
+    expect(
+      resolveModelAxisCorrectionProfile("/3d-bundles/drone/models/drone.glb")
+    ).toEqual({
+      nodeName: "Sketchfab_model",
+      convention: "gltf-y-up-y-forward",
+      upAxis: "Y",
+      forwardAxis: "Y",
+    });
+  });
+
+  test("applies source-forward heading offsets for Y-forward GLB assets", () => {
+    expect(
+      resolveUnitModelHeadingDeg(
+        {
+          entityType: "aircraft",
+          className: "KF-21 Boramae",
+          headingDeg: 104,
+        },
+        {
+          uri: "/3d-bundles/aircraft/models/kf-21a_boramae_fighter_jet.glb",
+        }
+      )
+    ).toBe(14);
+
+    expect(
+      resolveUnitModelHeadingDeg(
+        {
+          entityType: "facility",
+          className: "M577 Command Vehicle",
+          headingDeg: 18,
+        },
+        {
+          uri: "/3d-bundles/tank/models/m577_command_vehicle.glb",
+        }
+      )
+    ).toBe(18);
+  });
+
+  test("uses visible terrain GLBs for MQ-9 and Korean point-defense assets", () => {
+    const droneModel = resolveUnitModel(
+      {
+        entityType: "aircraft",
+        modelId: "drone-animated",
+        className: "MQ-9 Reaper",
+        name: "MQ-9 리퍼 #01",
+      },
+      {}
+    );
+    const bihoModel = resolveUnitModel(
+      {
+        entityType: "facility",
+        className: "Biho Hybrid",
+        name: "비호 복합 엄호대",
+      },
+      {
+        groundModelCandidateCount: 1,
+      }
+    );
+    const pegasusModel = resolveUnitModel(
+      {
+        entityType: "facility",
+        className: "Pegasus (K-SAM)",
+        name: "천마 엄호대",
+      },
+      {
+        groundModelCandidateCount: 1,
+      }
+    );
+    const cheongungModel = resolveUnitModel(
+      {
+        entityType: "facility",
+        className: "Cheongung-II (KM-SAM Block II)",
+        name: "천궁-II 방호권",
+      },
+      {
+        groundModelCandidateCount: 1,
+      }
+    );
+
+    expect(droneModel).toMatchObject({
+      uri: "/3d-bundles/drone/models/drone.glb",
+    });
+    expect(droneModel?.scale).toBeGreaterThan(2);
+    expect(bihoModel).toMatchObject({
+      uri: "/3d-bundles/tank/models/m113a1.glb",
+    });
+    expect(pegasusModel).toMatchObject({
+      uri: "/3d-bundles/tank/models/m113a1.glb",
+    });
+    expect(cheongungModel).toMatchObject({
+      uri: "/3d-bundles/artillery/models/mim-104_patriot_surface-to-air_missile_sam.glb",
+    });
+  });
+
+  test("keeps selected ground models visible without clamping them to tiny scales", () => {
+    const sizing = resolveUnitModelScreenSizing(
+      {
+        id: "ground-1",
+        entityType: "facility",
+        modelId: "tank-k2",
+        className: "K2 tank",
+      },
+      {
+        scale: 7.35,
+        minimumPixelSize: 2,
+        maximumScale: 6,
+        uri: "/3d-bundles/tank/models/k2_black_panther_tank.glb",
+      },
+      true
+    );
+
+    expect(sizing.minimumPixelSize).toBeGreaterThanOrEqual(72);
+    expect(sizing.maximumScale).toBeGreaterThanOrEqual(140);
+  });
+
+  test("keeps non-selected tank models readable in the terrain view", () => {
+    const sizing = resolveUnitModelScreenSizing(
+      {
+        id: "ground-2",
+        entityType: "facility",
+        modelId: "tank-km900",
+        className: "KM900 APC",
+      },
+      {
+        scale: 0.008,
+        minimumPixelSize: 2,
+        maximumScale: 4,
+        uri: "/3d-bundles/tank/models/south_korean_km900_apc.glb",
+      },
+      false
+    );
+
+    expect(sizing.minimumPixelSize).toBeGreaterThanOrEqual(22);
+    expect(sizing.maximumScale).toBeGreaterThanOrEqual(54);
+  });
+
+  test("renders real GLB assets in overview and keeps proxy dimensions as fallback", () => {
+    const aircraftDimensions = resolveUnitProxyDimensions(
+      {
+        entityType: "aircraft",
+        className: "KF-21 Boramae",
+      },
+      null,
+      false
+    );
+    const droneDimensions = resolveUnitProxyDimensions(
+      {
+        entityType: "aircraft",
+        className: "MQ-9 Reaper",
+      },
+      null,
+      false
+    );
+
+    expect(aircraftDimensions.y).toBeGreaterThan(300);
+    expect(droneDimensions.x).toBeGreaterThan(150);
+    expect(
+      shouldRenderUnitModel(
+        {
+          entityType: "aircraft",
+          selected: false,
+        },
+        {
+          uri: "/3d-bundles/aircraft/models/kf-21a_boramae_fighter_jet.glb",
+        },
+        false
+      )
+    ).toBe(true);
+    expect(
+      shouldRenderUnitModel(
+        {
+          entityType: "aircraft",
+          selected: false,
+        },
+        {
+          uri: "/3d-bundles/aircraft/models/kf-21a_boramae_fighter_jet.glb",
+        },
+        true
+      )
+    ).toBe(true);
+  });
+
+  test("places ground models relative to terrain instead of clamping their model origin", () => {
+    const Cesium = {
+      HeightReference: {
+        CLAMP_TO_GROUND: "clamp",
+        NONE: "none",
+        RELATIVE_TO_GROUND: "relative",
+      },
+    };
+
+    expect(
+      resolveUnitModelHeightReference(Cesium, {
+        entityType: "facility",
+        modelId: "tank-k2",
+        groundUnit: true,
+      })
+    ).toBe("relative");
+    expect(
+      resolveUnitModelHeightReference(Cesium, {
+        entityType: "aircraft",
+      })
+    ).toBe("none");
   });
 
   test("builds a focus-fire impact accumulation label", () => {

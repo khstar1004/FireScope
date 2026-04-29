@@ -1,0 +1,21 @@
+{
+  "tilejson": "2.2.0",
+  "name": "Korea Offline Satellite Overview",
+  "attribution": "Offline raster package",
+  "bounds": [
+    124.5,
+    33,
+    132.5,
+    39.5
+  ],
+  "center": [
+    127.8,
+    36.35,
+    7
+  ],
+  "minzoom": 5,
+  "maxzoom": 11,
+  "tiles": [
+    "/offline-map/korea/raster/satellite/{z}/{x}/{y}.jpg"
+  ]
+}

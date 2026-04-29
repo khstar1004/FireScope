@@ -19,6 +19,7 @@ const WEAPON_IMPACT_EFFECT_MS = 5200;
 const EVENT_TRACE_SAMPLE_COUNT = 24;
 const MIN_WEAPON_DIRECTION_MAGNITUDE_SQUARED = 0.0001;
 const FOCUS_FIRE_IMPACT_EVENT_DISTANCE_METERS = 900;
+const TERRAIN_UNIT_MODEL_MODE = "all";
 function resolveTerrainRuntimePublicPath(path) {
   const normalizedPath = String(path ?? "").trim();
   if (!normalizedPath.startsWith("/")) {
@@ -81,10 +82,9 @@ const EFFECT_TEXTURES = resolveTerrainRuntimeAssetValue({
   ),
 });
 
-const DEFAULT_WEAPON_MODEL_URI =
-  resolveTerrainRuntimePublicPath(
-    "/3d-bundles/artillery/models/artillery_shell.glb"
-  );
+const DEFAULT_WEAPON_MODEL_URI = resolveTerrainRuntimePublicPath(
+  "/3d-bundles/artillery/models/artillery_shell.glb"
+);
 const MISSILE_WEAPON_MODEL_URI = resolveTerrainRuntimePublicPath(
   "/3d-bundles/missile/aim-120c_amraam.glb"
 );
@@ -104,6 +104,103 @@ const WEAPON_MODEL_MAP = [
   ],
 ];
 
+const MODEL_ROOT_NODE_NAME = "Sketchfab_model";
+const MODEL_AXIS_CORRECTION_BY_URI = new Map(
+  resolveTerrainRuntimeAssetValue([
+    [
+      "/3d-bundles/aircraft/models/boeing_ah-64d_apache_combat_helicopter.glb",
+      "gltf-y-up-x-forward",
+    ],
+    [
+      "/3d-bundles/aircraft/models/f-35_lightning_ii_-_fighter_jet_-_free.glb",
+      "gltf-y-up-x-forward",
+    ],
+    [
+      "/3d-bundles/aircraft/models/kf-21a_boramae_fighter_jet.glb",
+      "gltf-y-up-y-forward",
+    ],
+    [
+      "/3d-bundles/aircraft/models/lockheed_martin_f-16ef_fighting_falcon.glb",
+      "gltf-y-up-x-forward",
+    ],
+    [
+      "/3d-bundles/aircraft/models/mcdonnell_douglas_f-15_strike_eagle.glb",
+      "gltf-y-up-y-forward",
+    ],
+    [
+      "/3d-bundles/aircraft/models/sikorsky_uh-60m_blackhawk.glb",
+      "gltf-y-up-x-forward",
+    ],
+    ["/3d-bundles/artillery/models/d-30_howitzer.glb", "gltf-y-up-y-forward"],
+    [
+      "/3d-bundles/artillery/models/howitzer_artillery_tank.glb",
+      "gltf-y-up-x-forward",
+    ],
+    [
+      "/3d-bundles/artillery/models/hyunmoo5irbmlauncher.glb",
+      "gltf-y-up-x-forward",
+    ],
+    [
+      "/3d-bundles/artillery/models/k9_thunder_artillery.glb",
+      "gltf-y-up-y-forward",
+    ],
+    [
+      "/3d-bundles/artillery/models/k9_thunder_artillery (1).glb",
+      "gltf-y-up-y-forward",
+    ],
+    [
+      "/3d-bundles/artillery/models/m109a6_paladin_self-propelled_howitzer.glb",
+      "gltf-y-up-y-forward",
+    ],
+    [
+      "/3d-bundles/artillery/models/mim-104_patriot_surface-to-air_missile_sam.glb",
+      "gltf-y-up-x-forward",
+    ],
+    [
+      "/3d-bundles/artillery/models/nasams_battery.glb",
+      "gltf-y-up-x-forward",
+    ],
+    ["/3d-bundles/artillery/models/thaad-2.glb", "gltf-y-up-x-forward"],
+    [
+      "/3d-bundles/drone/models/animated_drone.glb",
+      "gltf-y-up-y-forward",
+    ],
+    ["/3d-bundles/drone/models/drone.glb", "gltf-y-up-y-forward"],
+    [
+      "/3d-bundles/ships/hms_queen_elizabeth_r08_aircraft_carrier.glb",
+      "gltf-y-up-y-forward",
+    ],
+    ["/3d-bundles/ships/type-45_destroyer_class.glb", "gltf-y-up-y-forward"],
+    [
+      "/3d-bundles/ships/uss_texas_ssn-775_submarine.glb",
+      "gltf-y-up-x-forward",
+    ],
+    ["/3d-bundles/tank/models/k21_armored_warfare.glb", "gltf-y-up-y-forward"],
+    [
+      "/3d-bundles/tank/models/m1126_stryker_50_cal.glb",
+      "gltf-y-up-x-forward",
+    ],
+    ["/3d-bundles/tank/models/m113a1.glb", "gltf-y-up-x-forward"],
+    [
+      "/3d-bundles/tank/models/m577_command_vehicle.glb",
+      "gltf-y-up-x-forward",
+    ],
+    [
+      "/3d-bundles/tank/models/south_korean_km900_apc.glb",
+      "gltf-y-up-x-forward",
+    ],
+    ["/3d-bundles/tank/models/t-50_war_thunder.glb", "gltf-y-up-y-forward"],
+  ])
+);
+
+const MODEL_LOADER_AXIS_BY_CONVENTION = {
+  "gltf-y-up-x-forward": { upAxis: "Y", forwardAxis: "X" },
+  "gltf-y-up-y-forward": { upAxis: "Y", forwardAxis: "Y" },
+  "z-up-x-forward": { upAxis: "Z", forwardAxis: "X" },
+  "z-up-y-forward": { upAxis: "Z", forwardAxis: "Y" },
+  "y-up-x-forward": { upAxis: "Y", forwardAxis: "X" },
+};
+
 const DEFAULT_UNIT_MODEL = resolveTerrainRuntimeAssetValue({
   aircraft: "/3d-bundles/aircraft/models/f-15.glb",
   ship: "/3d-bundles/ships/type-45_destroyer_class.glb",
@@ -119,7 +216,7 @@ const UNIT_MODEL_SCALE_PRESET = {
   },
   aircraft: {
     default: 0.22,
-    drone: 0.26,
+    drone: 3,
     minimumPixelSize: 10,
     maximumScale: 36,
   },
@@ -161,7 +258,7 @@ const UNIT_MODEL_URI_BY_ID = resolveTerrainRuntimeAssetValue({
     "/3d-bundles/artillery/models/mim-104_patriot_surface-to-air_missile_sam.glb",
   "artillery-roketsan": "/3d-bundles/artillery/models/roketsan_missiles.glb",
   "artillery-thaad": "/3d-bundles/artillery/models/thaad-2.glb",
-  "drone-animated": "/3d-bundles/drone/models/animated_drone.glb",
+  "drone-animated": "/3d-bundles/drone/models/drone.glb",
   "drone-quad": "/3d-bundles/drone/models/drone.glb",
   "ship-carrier":
     "/3d-bundles/ships/hms_queen_elizabeth_r08_aircraft_carrier.glb",
@@ -202,8 +299,8 @@ const AIRCRAFT_MODEL_MAP = resolveTerrainRuntimeAssetValue([
     "/3d-bundles/aircraft/models/sikorsky_uh-60m_blackhawk.glb",
   ],
   [
-    /\b(drone|uav|mq-|rq-|reaper|predator|global hawk)\b/i,
-    "/3d-bundles/drone/models/animated_drone.glb",
+    /\b(drone|uav|mq-|rq-|reaper|predator|global hawk|리퍼)\b/i,
+    "/3d-bundles/drone/models/drone.glb",
   ],
 ]);
 
@@ -220,7 +317,7 @@ const SHIP_MODEL_MAP = resolveTerrainRuntimeAssetValue([
 
 const FACILITY_MODEL_MAP = resolveTerrainRuntimeAssetValue([
   [
-    /\b(patriot|mim-104)\b/i,
+    /\b(patriot|mim-104|cheongung|km-sam|m-sam|천궁)\b/i,
     "/3d-bundles/artillery/models/mim-104_patriot_surface-to-air_missile_sam.glb",
   ],
   [
@@ -229,12 +326,16 @@ const FACILITY_MODEL_MAP = resolveTerrainRuntimeAssetValue([
   ],
   [/\b(thaad|l-sam)\b/i, "/3d-bundles/artillery/models/thaad-2.glb"],
   [
+    /\b(biho|pegasus|k-sam|shorad|short range|비호|천마)\b/i,
+    "/3d-bundles/tank/models/m113a1.glb",
+  ],
+  [
     /\b(hyunmoo|ballistic|surface-to-surface|surface to surface|launcher)\b/i,
     "/3d-bundles/artillery/models/hyunmoo5irbmlauncher.glb",
   ],
   [
     /\b(chunmoo|mlrs|himars|rocket)\b/i,
-    "/3d-bundles/artillery/models/k9_thunder_artillery (1).glb",
+    "/3d-bundles/artillery/models/hyunmoo5irbmlauncher.glb",
   ],
   [
     /\b(k9|k55|howitzer|artillery|paladin|m109)\b/i,
@@ -251,7 +352,7 @@ const FACILITY_MODEL_MAP = resolveTerrainRuntimeAssetValue([
   [/\b(m113|apc)\b/i, "/3d-bundles/tank/models/m113a1.glb"],
   [
     /\b(k2|tank|armor|tracked)\b/i,
-    "/3d-bundles/tank/models/t-50_war_thunder.glb",
+    "/3d-bundles/tank/models/k2_black_panther_tank.glb",
   ],
 ]);
 
@@ -664,6 +765,89 @@ function buildWeaponSignature(weapon) {
   }`.toLowerCase();
 }
 
+function normalizeModelUriForLookup(uri) {
+  const rawUri =
+    typeof uri?.getUrlComponent === "function"
+      ? uri.getUrlComponent(false)
+      : typeof uri?.url === "string"
+        ? uri.url
+        : String(uri ?? "");
+  const withoutQuery = rawUri.split("?")[0];
+  try {
+    const decodedUri = decodeURI(withoutQuery);
+    if (
+      typeof window !== "undefined" &&
+      typeof window.location?.href === "string"
+    ) {
+      try {
+        return decodeURI(new URL(decodedUri, window.location.href).pathname);
+      } catch (_urlError) {
+        return decodedUri;
+      }
+    }
+
+    return decodedUri;
+  } catch (_error) {
+    return withoutQuery;
+  }
+}
+
+export function resolveModelAxisCorrectionProfile(uri) {
+  const normalizedUri = normalizeModelUriForLookup(uri);
+  const convention = MODEL_AXIS_CORRECTION_BY_URI.get(normalizedUri);
+  const loaderAxes = MODEL_LOADER_AXIS_BY_CONVENTION[convention];
+
+  if (!convention || !loaderAxes) {
+    return null;
+  }
+
+  return {
+    nodeName: MODEL_ROOT_NODE_NAME,
+    convention,
+    upAxis: loaderAxes.upAxis,
+    forwardAxis: loaderAxes.forwardAxis,
+  };
+}
+
+function resolveCesiumAxis(Cesium, axisName) {
+  return Cesium?.Axis?.[axisName];
+}
+
+function installTerrainModelAxisResolver(Cesium) {
+  if (
+    !Cesium?.Model?.fromGltfAsync ||
+    !Cesium?.Axis ||
+    Cesium.Model.__terrainAxisResolverInstalled === true
+  ) {
+    return;
+  }
+
+  const originalFromGltfAsync = Cesium.Model.fromGltfAsync;
+  Cesium.Model.fromGltfAsync = function fromGltfAsyncWithTerrainAxes(
+    options = {}
+  ) {
+    const axisProfile = resolveModelAxisCorrectionProfile(
+      options?.url ?? options?.gltf
+    );
+    if (!axisProfile) {
+      return originalFromGltfAsync.call(this, options);
+    }
+
+    const upAxis = resolveCesiumAxis(Cesium, axisProfile.upAxis);
+    const forwardAxis = resolveCesiumAxis(Cesium, axisProfile.forwardAxis);
+    if (upAxis === undefined || forwardAxis === undefined) {
+      return originalFromGltfAsync.call(this, options);
+    }
+
+    return originalFromGltfAsync.call(this, {
+      ...options,
+      upAxis,
+      forwardAxis,
+    });
+  };
+  Cesium.Model.__terrainAxisResolverInstalled = true;
+}
+
 function colorForSide(Cesium, sideColor, alpha = 1) {
   const normalized =
     typeof sideColor === "string" && sideColor.trim().length > 0
@@ -729,7 +913,7 @@ function resolveUnitModelFromProfileId(unit, renderContext) {
   };
 }
 
-function resolveUnitModel(unit, renderContext) {
+export function resolveUnitModel(unit, renderContext) {
   if (unit?.entityType === "airbase") {
     return null;
   }
@@ -806,7 +990,7 @@ function resolveUnitModel(unit, renderContext) {
   return null;
 }
 
-function resolveUnitModelHeightReference(Cesium, unit) {
+export function resolveUnitModelHeightReference(Cesium, unit) {
   return isGroundRenderUnit(unit)
     ? Cesium.HeightReference.RELATIVE_TO_GROUND
     : Cesium.HeightReference.NONE;
@@ -861,6 +1045,17 @@ function resolveHeadingOrientation(Cesium, point, headingDeg) {
   return Cesium.Transforms.headingPitchRollQuaternion(position, hpr);
 }
 
+function resolveModelHeadingOffsetDeg(model) {
+  const axisProfile = resolveModelAxisCorrectionProfile(model?.uri);
+  return axisProfile?.forwardAxis === "Y" ? -90 : 0;
+}
+
+export function resolveUnitModelHeadingDeg(unit, model) {
+  return normalizeHeading(
+    (Number(unit?.headingDeg) || 0) + resolveModelHeadingOffsetDeg(model)
+  );
+}
+
 function createPlacementLabel(Cesium, unit, emphasized, labelDistance) {
   return {
     text: truncateText(
@@ -911,6 +1106,29 @@ function createUnitPointGraphics(Cesium, unit, emphasized) {
   };
 }
 
+function isDroneLikePlacementUnit(unit) {
+  return /\b(drone|uav|mq-|rq-|reaper|predator|global hawk)\b/i.test(
+    buildPlacementSignature(unit)
+  );
+}
+
+function isLauncherLikePlacementUnit(unit, model) {
+  const modelId = `${unit?.modelId ?? ""}`.toLowerCase();
+  const modelUri = `${model?.uri ?? ""}`.toLowerCase();
+  const signature = buildPlacementSignature(unit);
+
+  return (
+    modelId.includes("patriot") ||
+    modelId.includes("nasams") ||
+    modelId.includes("thaad") ||
+    modelId.includes("hyunmoo") ||
+    modelUri.includes("/3d-bundles/artillery/models/") ||
+    /\b(patriot|nasams|thaad|l-sam|km-sam|m-sam|cheongung|pegasus|biho|hyunmoo|chunmoo|launcher|mlrs|missile|천궁|천마|비호)\b/i.test(
+      signature
+    )
+  );
+}
+
 function isTankLikePlacementModel(unit, model) {
   const modelId = `${unit?.modelId ?? ""}`.toLowerCase();
   const modelUri = `${model?.uri ?? ""}`.toLowerCase();
@@ -925,44 +1143,162 @@ function isTankLikePlacementModel(unit, model) {
   );
 }
 
-function createUnitModelGraphics(Cesium, unit, model, emphasized) {
+export function resolveUnitProxyDimensions(unit, model, emphasized = false) {
+  const focusScale = emphasized ? 1.32 : 1;
+
+  if (unit?.entityType === "aircraft") {
+    const droneLike = isDroneLikePlacementUnit(unit);
+    return {
+      x: (droneLike ? 170 : 280) * focusScale,
+      y: (droneLike ? 120 : 340) * focusScale,
+      z: (droneLike ? 26 : 46) * focusScale,
+    };
+  }
+
+  if (unit?.entityType === "ship") {
+    return {
+      x: 90 * focusScale,
+      y: 280 * focusScale,
+      z: 34 * focusScale,
+    };
+  }
+
+  if (isLauncherLikePlacementUnit(unit, model)) {
+    return {
+      x: 28 * focusScale,
+      y: 48 * focusScale,
+      z: 16 * focusScale,
+    };
+  }
+
+  if (isTankLikePlacementModel(unit, model)) {
+    return {
+      x: 24 * focusScale,
+      y: 38 * focusScale,
+      z: 13 * focusScale,
+    };
+  }
+
+  return {
+    x: 30 * focusScale,
+    y: 34 * focusScale,
+    z: 14 * focusScale,
+  };
+}
+
+function createUnitProxyBoxGraphics(Cesium, unit, model, emphasized) {
+  const dimensions = resolveUnitProxyDimensions(unit, model, emphasized);
+  const alpha = unit?.entityType === "aircraft" ? 0.7 : 0.62;
+
+  return {
+    dimensions: new Cesium.Cartesian3(dimensions.x, dimensions.y, dimensions.z),
+    material: colorForSide(Cesium, unit?.sideColor, emphasized ? 0.88 : alpha),
+    outline: true,
+    outlineColor: emphasized
+      ? Cesium.Color.WHITE.withAlpha(0.96)
+      : colorForSide(Cesium, unit?.sideColor, 0.88),
+    heightReference: resolveUnitModelHeightReference(Cesium, unit),
+    distanceDisplayCondition: new Cesium.DistanceDisplayCondition(
+      0,
+      Number.POSITIVE_INFINITY
+    ),
+  };
+}
+
+export function shouldRenderUnitModel(unit, model, emphasized = false) {
+  if (!model) {
+    return false;
+  }
+
+  if (TERRAIN_UNIT_MODEL_MODE === "focused-only") {
+    return emphasized || unit?.selected === true;
+  }
+
+  return true;
+}
+
+export function resolveUnitModelScreenSizing(unit, model, emphasized) {
   const focusedGroundUnit = emphasized && isGroundRenderUnit(unit);
   const focusedAircraft = emphasized && unit?.entityType === "aircraft";
   const focusedShip = emphasized && unit?.entityType === "ship";
+  const overviewAircraft = !emphasized && unit?.entityType === "aircraft";
+  const overviewGroundUnit = !emphasized && isGroundRenderUnit(unit);
+  const overviewShip = !emphasized && unit?.entityType === "ship";
+  const droneLike = isDroneLikePlacementUnit(unit);
   const aircraftScaleBoost = unit?.entityType === "aircraft" ? 2 : 1;
   const tankScaleBoost = isTankLikePlacementModel(unit, model) ? 2 : 1;
   const scaleBoost = Math.max(aircraftScaleBoost, tankScaleBoost);
   const enlargedModel = scaleBoost > 1;
+  const baseScale = Number(model?.scale) || 1;
+  const baseMinimumPixelSize = Number(model?.minimumPixelSize) || 0;
+  const baseMaximumScale = Number(model?.maximumScale) || 1;
+  let minimumPixelSize = baseMinimumPixelSize;
+  let maximumScale = baseMaximumScale;
+
+  if (focusedGroundUnit) {
+    minimumPixelSize = Math.max(baseMinimumPixelSize * scaleBoost, 72);
+    maximumScale = Math.max(baseMaximumScale * scaleBoost, 140);
+  } else if (focusedAircraft) {
+    minimumPixelSize = Math.max(baseMinimumPixelSize * scaleBoost, 96);
+    maximumScale = Math.max(baseMaximumScale * scaleBoost, 128);
+  } else if (focusedShip) {
+    minimumPixelSize = Math.max(baseMinimumPixelSize, 84);
+    maximumScale = Math.max(baseMaximumScale, 128);
+  } else if (overviewAircraft) {
+    minimumPixelSize = Math.max(
+      baseMinimumPixelSize * scaleBoost,
+      droneLike ? 34 : 38
+    );
+    maximumScale = Math.max(
+      baseMaximumScale * scaleBoost,
+      droneLike ? 70 : 88
+    );
+  } else if (overviewGroundUnit) {
+    minimumPixelSize = Math.max(baseMinimumPixelSize * scaleBoost, 26);
+    maximumScale = Math.max(baseMaximumScale * scaleBoost, 72);
+  } else if (overviewShip) {
+    minimumPixelSize = Math.max(baseMinimumPixelSize, 32);
+    maximumScale = Math.max(baseMaximumScale, 96);
+  } else if (enlargedModel) {
+    minimumPixelSize = Math.max(baseMinimumPixelSize * scaleBoost, 22);
+    maximumScale = Math.max(baseMaximumScale * scaleBoost, 54);
+  }
 
   return {
+    scale: baseScale * scaleBoost,
+    minimumPixelSize,
+    maximumScale,
+    enlargedModel,
+  };
+}
+
+function createUnitModelGraphics(Cesium, unit, model, emphasized) {
+  const screenSizing = resolveUnitModelScreenSizing(unit, model, emphasized);
+
+  const graphics = {
     uri: encodeURI(model.uri),
-    scale: model.scale * scaleBoost,
-    minimumPixelSize: focusedGroundUnit
-      ? Math.max(model.minimumPixelSize * scaleBoost, 72)
-      : focusedAircraft
-        ? Math.max(model.minimumPixelSize * scaleBoost, 96)
-        : focusedShip
-          ? Math.max(model.minimumPixelSize, 84)
-          : enlargedModel
-            ? Math.max(model.minimumPixelSize * scaleBoost, 22)
-            : model.minimumPixelSize,
-    maximumScale: focusedGroundUnit
-      ? Math.max(model.maximumScale * scaleBoost, 140)
-      : focusedAircraft
-        ? Math.max(model.maximumScale * scaleBoost, 128)
-        : focusedShip
-          ? Math.max(model.maximumScale, 128)
-          : enlargedModel
-            ? Math.max(model.maximumScale * scaleBoost, 54)
-            : model.maximumScale,
+    show: true,
+    scale: screenSizing.scale,
+    minimumPixelSize: screenSizing.minimumPixelSize,
+    maximumScale: screenSizing.maximumScale,
+    incrementallyLoadTextures: true,
+    runAnimations: true,
+    clampAnimations: false,
+    enableVerticalExaggeration: false,
     heightReference: resolveUnitModelHeightReference(Cesium, unit),
     color: colorForSide(Cesium, unit?.sideColor, emphasized ? 0.94 : 0.86),
     colorBlendAmount: emphasized ? 0.08 : 0.18,
     silhouetteColor: emphasized
       ? Cesium.Color.WHITE.withAlpha(0.96)
       : colorForSide(Cesium, unit?.sideColor, 0.52),
-    silhouetteSize: emphasized ? 3.4 : enlargedModel ? 1.4 : 0.9,
+    silhouetteSize: emphasized ? 3.4 : screenSizing.enlargedModel ? 1.4 : 0.9,
+    distanceDisplayCondition: new Cesium.DistanceDisplayCondition(
+      0,
+      Number.POSITIVE_INFINITY
+    ),
   };
+
+  return graphics;
 }
 
 function notifyParentReady() {
@@ -1025,7 +1361,7 @@ export function resolveFocusCameraPreset(unit, model, displayPoint) {
     Number(displayPoint?.altitudeMeters ?? unit?.altitudeMeters) || 0
   );
   const isLauncherLike =
-    /\b(patriot|nasams|thaad|hyunmoo|launcher|rocket|howitzer|artillery|paladin)\b/i.test(
+    /\b(patriot|nasams|thaad|l-sam|km-sam|m-sam|cheongung|pegasus|biho|hyunmoo|launcher|rocket|howitzer|artillery|paladin|천궁|천마|비호)\b/i.test(
       signature
     );
 
@@ -1351,38 +1687,41 @@ export function resolveWeaponModelProfile(weapon) {
   if (effectProfile.bulletLike) {
     return {
       uri,
-      scale: 0.34,
-      minimumPixelSize: 24,
-      maximumScale: 56,
+      scale: 0.26,
+      minimumPixelSize: 8,
+      maximumScale: 22,
+      visibleDistanceMeters: 900,
       colorAlpha: 0.82,
       colorBlendAmount: 0.3,
       silhouetteAlpha: 0.58,
-      silhouetteSize: 1.1,
+      silhouetteSize: 0.85,
     };
   }
 
   if (effectProfile.artilleryLike) {
     return {
       uri,
-      scale: 0.92,
-      minimumPixelSize: 36,
-      maximumScale: 116,
+      scale: 0.72,
+      minimumPixelSize: 11,
+      maximumScale: 34,
+      visibleDistanceMeters: 1400,
       colorAlpha: 0.86,
       colorBlendAmount: 0.24,
       silhouetteAlpha: 0.68,
-      silhouetteSize: 1.45,
+      silhouetteSize: 1.05,
     };
   }
 
   return {
     uri,
-    scale: effectProfile.bombLike ? 0.82 : 1.42,
-    minimumPixelSize: effectProfile.bombLike ? 34 : 44,
-    maximumScale: effectProfile.bombLike ? 116 : 154,
+    scale: effectProfile.bombLike ? 0.64 : 1,
+    minimumPixelSize: effectProfile.bombLike ? 10 : 13,
+    maximumScale: effectProfile.bombLike ? 34 : 44,
+    visibleDistanceMeters: effectProfile.interceptorLike ? 1800 : 1600,
     colorAlpha: 0.9,
     colorBlendAmount: 0.2,
     silhouetteAlpha: 0.7,
-    silhouetteSize: effectProfile.interceptorLike ? 1.8 : 1.55,
+    silhouetteSize: effectProfile.interceptorLike ? 1.2 : 1.05,
   };
 }
 
@@ -1403,7 +1742,7 @@ function createWeaponPointGraphics(Cesium, weapon) {
 function createWeaponModelGraphics(Cesium, weapon) {
   const modelProfile = resolveWeaponModelProfile(weapon);
 
-  return {
+  const graphics = {
     uri: encodeURI(modelProfile.uri),
     scale: modelProfile.scale,
     minimumPixelSize: modelProfile.minimumPixelSize,
@@ -1413,7 +1752,13 @@ function createWeaponModelGraphics(Cesium, weapon) {
     colorBlendAmount: modelProfile.colorBlendAmount,
     silhouetteColor: Cesium.Color.WHITE.withAlpha(modelProfile.silhouetteAlpha),
     silhouetteSize: modelProfile.silhouetteSize,
+    distanceDisplayCondition: new Cesium.DistanceDisplayCondition(
+      0,
+      modelProfile.visibleDistanceMeters
+    ),
   };
+
+  return graphics;
 }
 
 function createWeaponBillboardGraphics(Cesium, weapon) {
@@ -2144,6 +2489,8 @@ export function createTerrainPlacementRuntime({
   setStatusMessage,
   setPlacementBadge,
 }) {
+  installTerrainModelAxisResolver(Cesium);
+
   let viewer = null;
   let dataSource = null;
   let weaponDataSource = null;
@@ -2181,10 +2528,10 @@ export function createTerrainPlacementRuntime({
   const placementBounds = expandBounds(bounds, 0.04, 0.0005);
   const labelDistance = Math.max(widthMeters, heightMeters) * 7 + 5000;
   const runtimeVisualOptions = {
-    showWeaponTrails: true,
-    showEventEffects: true,
+    showWeaponTrails: false,
+    showEventEffects: false,
     autoTrackImpacts: false,
-    impactCameraShake: true,
+    impactCameraShake: false,
   };
   let lastTrackedImpactEventId = null;
 
@@ -2637,6 +2984,10 @@ export function createTerrainPlacementRuntime({
   function syncWeaponTrailVisibility() {
     weaponStateById.forEach((weaponState) => {
       if (!runtimeVisualOptions.showWeaponTrails) {
+        if (weaponState?.pointEntity) {
+          weaponState.pointEntity.model = undefined;
+          weaponState.pointEntity.billboard = undefined;
+        }
         if (weaponState?.trajectoryEntity) {
           weaponDataSource.entities.remove(weaponState.trajectoryEntity);
           weaponState.trajectoryEntity = null;
@@ -2654,6 +3005,17 @@ export function createTerrainPlacementRuntime({
           weaponState.impactCueEntity = null;
         }
         return;
+      }
+
+      if (weaponState?.pointEntity && weaponState?.weapon) {
+        weaponState.pointEntity.model = createWeaponModelGraphics(
+          Cesium,
+          weaponState.weapon
+        );
+        weaponState.pointEntity.billboard = createWeaponBillboardGraphics(
+          Cesium,
+          weaponState.weapon
+        );
       }
 
       if (
@@ -3004,7 +3366,7 @@ export function createTerrainPlacementRuntime({
     unitState.entity.orientation = resolveHeadingOrientation(
       Cesium,
       unitState.displayPoint,
-      unitState.unit?.headingDeg
+      resolveUnitModelHeadingDeg(unitState.unit, unitState.model)
     );
     unitState.entity.label = createPlacementLabel(
       Cesium,
@@ -3017,21 +3379,28 @@ export function createTerrainPlacementRuntime({
       unitState.displayPoint
     );
 
-    if (unitState.model) {
+    if (shouldRenderUnitModel(unitState.unit, unitState.model, emphasized)) {
       unitState.entity.model = createUnitModelGraphics(
         Cesium,
         unitState.unit,
         unitState.model,
         emphasized
       );
+      unitState.entity.box = undefined;
       unitState.entity.point = undefined;
     } else {
+      unitState.entity.model = undefined;
+      unitState.entity.box = createUnitProxyBoxGraphics(
+        Cesium,
+        unitState.unit,
+        unitState.model,
+        emphasized
+      );
       unitState.entity.point = createUnitPointGraphics(
         Cesium,
         unitState.unit,
         emphasized
       );
-      unitState.entity.model = undefined;
     }
   }
 
@@ -3048,7 +3417,7 @@ export function createTerrainPlacementRuntime({
         orientation: resolveHeadingOrientation(
           Cesium,
           displayPoint,
-          unit?.headingDeg
+          resolveUnitModelHeadingDeg(unit, model)
         ),
         label: createPlacementLabel(
           Cesium,
@@ -3059,7 +3428,7 @@ export function createTerrainPlacementRuntime({
         description: buildUnitDescription(unit, displayPoint),
       };
 
-      if (model) {
+      if (shouldRenderUnitModel(unit, model, isUnitEmphasized(unit))) {
         entityConfig.model = createUnitModelGraphics(
           Cesium,
           unit,
@@ -3067,6 +3436,12 @@ export function createTerrainPlacementRuntime({
           isUnitEmphasized(unit)
         );
       } else {
+        entityConfig.box = createUnitProxyBoxGraphics(
+          Cesium,
+          unit,
+          model,
+          isUnitEmphasized(unit)
+        );
         entityConfig.point = createUnitPointGraphics(
           Cesium,
           unit,
@@ -3144,9 +3519,13 @@ export function createTerrainPlacementRuntime({
         id: `terrain-weapon-${weapon.id}`,
         position,
         orientation,
-        model: createWeaponModelGraphics(Cesium, weapon),
+        model: runtimeVisualOptions.showWeaponTrails
+          ? createWeaponModelGraphics(Cesium, weapon)
+          : undefined,
         point: createWeaponPointGraphics(Cesium, weapon),
-        billboard: createWeaponBillboardGraphics(Cesium, weapon),
+        billboard: runtimeVisualOptions.showWeaponTrails
+          ? createWeaponBillboardGraphics(Cesium, weapon)
+          : undefined,
         label: createWeaponLabelGraphics(Cesium, weapon),
         description: buildWeaponDescription(weapon),
       });
@@ -3211,12 +3590,13 @@ export function createTerrainPlacementRuntime({
     existingState.weapon = weapon;
     existingState.pointEntity.position = position;
     existingState.pointEntity.orientation = orientation;
-    existingState.pointEntity.model = createWeaponModelGraphics(Cesium, weapon);
+    existingState.pointEntity.model = runtimeVisualOptions.showWeaponTrails
+      ? createWeaponModelGraphics(Cesium, weapon)
+      : undefined;
     existingState.pointEntity.point = createWeaponPointGraphics(Cesium, weapon);
-    existingState.pointEntity.billboard = createWeaponBillboardGraphics(
-      Cesium,
-      weapon
-    );
+    existingState.pointEntity.billboard = runtimeVisualOptions.showWeaponTrails
+      ? createWeaponBillboardGraphics(Cesium, weapon)
+      : undefined;
     existingState.pointEntity.label = createWeaponLabelGraphics(Cesium, weapon);
     existingState.pointEntity.description = buildWeaponDescription(weapon);
 

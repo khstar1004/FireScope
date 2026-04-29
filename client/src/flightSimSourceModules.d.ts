@@ -125,10 +125,12 @@ declare module "../../../../public/terrain-3d/terrainIntel.js" {
     origin?: string;
   }
 
-  export function shouldUseVworldProxy(locationLike?: {
-    hostname?: string;
-    origin?: string;
-  } | null): boolean;
+  export function shouldUseVworldProxy(
+    locationLike?: {
+      hostname?: string;
+      origin?: string;
+    } | null
+  ): boolean;
   export function buildVworldServiceUrl(
     pathname: string,
     locationLike?: TerrainIntelLocationLike | null
@@ -144,5 +146,31 @@ declare module "../../../../public/terrain-3d/terrainIntel.js" {
   export function selectOllamaVisionModel(
     preferredModel: string,
     availableModels?: string[]
+  ): string;
+  export function buildRuntimeAssetTerrainContext(options?: {
+    bounds?: {
+      west: number;
+      south: number;
+      east: number;
+      north: number;
+    };
+    units?: Array<Record<string, unknown>>;
+    weapons?: Array<Record<string, unknown>>;
+    selectedUnitId?: string;
+    currentTime?: number;
+  }): Record<string, unknown>;
+  export function buildAssetTerrainRecommendations(options?: {
+    markers?: Array<Record<string, unknown>>;
+    runtimeContext?: Record<string, unknown>;
+    widthMeters?: number;
+    heightMeters?: number;
+    limit?: number;
+  }): Array<Record<string, unknown>>;
+  export function enrichTerrainAnalysisWithRuntimeContext(
+    analysis: Record<string, unknown>,
+    runtimeSnapshot?: Record<string, unknown> | null
+  ): Record<string, unknown>;
+  export function buildTerrainVlmPrompt(
+    analysis: Record<string, unknown>
   ): string;
 }

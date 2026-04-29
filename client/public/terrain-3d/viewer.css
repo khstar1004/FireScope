@@ -37,9 +37,34 @@ body {
   position: relative;
 }
 
-#cesiumContainer {
+#cesiumContainer,
+#mapLibreContainer {
   position: fixed;
   inset: 0;
+}
+
+#mapLibreContainer[hidden],
+#cesiumContainer[hidden] {
+  display: none;
+}
+
+#mapLibreContainer.is-active {
+  display: block;
+}
+
+#mapLibreContainer .maplibregl-ctrl-bottom-right {
+  z-index: 2;
+}
+
+#mapLibreContainer .maplibregl-ctrl-group {
+  border: 1px solid rgba(127, 231, 255, 0.18);
+  background: rgba(4, 16, 22, 0.82);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
+}
+
+#mapLibreContainer .maplibregl-ctrl-group button {
+  color: var(--terrain-text);
+  filter: invert(1) hue-rotate(160deg) saturate(0.7);
 }
 
 .terrain-shell {

@@ -1,0 +1,73 @@
+{
+  "id": "seungjin",
+  "label": "Seungjin Firing Range AOI",
+  "center": {
+    "longitude": 127.354386,
+    "latitude": 38.07775
+  },
+  "bounds": {
+    "west": 127.13,
+    "south": 37.91,
+    "east": 127.58,
+    "north": 38.24
+  },
+  "zoom": {
+    "min": 6,
+    "max": 15,
+    "preferred": 12
+  },
+  "maplibre": {
+    "script": "../../vendor/maplibre/maplibre-gl.js",
+    "stylesheet": "../../vendor/maplibre/maplibre-gl.css"
+  },
+  "sources": {
+    "base": {
+      "enabled": false,
+      "tiles": "./raster/basic/{z}/{x}/{y}.png",
+      "tileSize": 256,
+      "minzoom": 6,
+      "maxzoom": 15
+    },
+    "satellite": {
+      "enabled": true,
+      "tiles": "./raster/satellite/{z}/{x}/{y}.jpg",
+      "tileSize": 256,
+      "minzoom": 6,
+      "maxzoom": 15
+    },
+    "terrainDem": {
+      "tiles": "./terrain/terrarium/{z}/{x}/{y}.png",
+      "tileSize": 256,
+      "encoding": "terrarium",
+      "minzoom": 6,
+      "maxzoom": 15
+    },
+    "vector": {
+      "enabled": true,
+      "data": "./vector/basemap.geojson"
+    }
+  },
+  "terrain": {
+    "exaggeration": 1.85
+  },
+  "intel": {
+    "roads": {
+      "data": "./intel/roads.geojson"
+    },
+    "water": {
+      "data": "./intel/water.geojson"
+    },
+    "buildings": {
+      "data": "./intel/buildings.geojson"
+    },
+    "aoi": {
+      "data": "./intel/aoi.geojson"
+    }
+  },
+  "cesium": {
+    "imageryTemplateUrl": "./raster/satellite/{z}/{x}/{y}.jpg",
+    "terrainUrl": "./cesium-terrain"
+  },
+  "dataStatus": "generated",
+  "generatedAt": "2026-04-27T01:52:32.833Z"
+}

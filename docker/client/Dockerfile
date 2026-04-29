@@ -1,0 +1,58 @@
+# syntax=docker/dockerfile:1.7
+
+FROM node:20.19-alpine AS deps
+WORKDIR /app/client
+
+COPY client/package.json client/package-lock.json ./
+RUN npm ci
+
+FROM deps AS build
+WORKDIR /app/client
+
+COPY client ./
+
+ARG VITE_ENV=production
+ARG VITE_API_SERVER_URL=
+ARG VITE_AUTH0_DOMAIN=
+ARG VITE_AUTH0_CLIENT_ID=
+ARG VITE_AUTH0_CALLBACK_URL=
+ARG VITE_AUTH0_AUDIENCE=
+ARG VITE_MAP_MODE=online
+ARG VITE_OFFLINE_MAP_REGION=
+ARG VITE_OFFLINE_BASIC_TILE_URL=
+ARG VITE_OFFLINE_SATELLITE_TILE_URL=
+ARG MAPTILER_API_KEY=
+ARG LLM_PROVIDER=
+ARG LLM_MODEL=
+ARG LLM_BASE_URL=
+
+ENV VITE_ENV=${VITE_ENV}
+ENV VITE_API_SERVER_URL=${VITE_API_SERVER_URL}
+ENV VITE_AUTH0_DOMAIN=${VITE_AUTH0_DOMAIN}
+ENV VITE_AUTH0_CLIENT_ID=${VITE_AUTH0_CLIENT_ID}
+ENV VITE_AUTH0_CALLBACK_URL=${VITE_AUTH0_CALLBACK_URL}
+ENV VITE_AUTH0_AUDIENCE=${VITE_AUTH0_AUDIENCE}
+ENV VITE_MAP_MODE=${VITE_MAP_MODE}
+ENV VITE_OFFLINE_MAP_REGION=${VITE_OFFLINE_MAP_REGION}
+ENV VITE_OFFLINE_BASIC_TILE_URL=${VITE_OFFLINE_BASIC_TILE_URL}
+ENV VITE_OFFLINE_SATELLITE_TILE_URL=${VITE_OFFLINE_SATELLITE_TILE_URL}
+ENV MAPTILER_API_KEY=${MAPTILER_API_KEY}
+ENV LLM_PROVIDER=${LLM_PROVIDER}
+ENV LLM_MODEL=${LLM_MODEL}
+ENV LLM_BASE_URL=${LLM_BASE_URL}
+
+RUN npm run build
+
+FROM nginx:1.27-alpine AS runtime
+
+COPY docker/client/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/client/dist /usr/share/nginx/html
+
+RUN mkdir -p /usr/share/nginx/html/3d-bundles /usr/share/nginx/html/offline-map
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1
+
+CMD ["nginx", "-g", "daemon off;"]

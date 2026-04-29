@@ -5,11 +5,18 @@ import svgr from "vite-plugin-svgr";
 import tsconfigPaths from "vite-tsconfig-paths";
 import react from "@vitejs/plugin-react";
 import { createRlDevServerPlugin } from "./scripts/createRlDevServerPlugin";
+import { createOfflineMapFallbackPlugin } from "./scripts/createOfflineMapFallbackPlugin";
 
 // https://vite.dev/config/
 export default defineConfig({
   envPrefix: ["VITE_", "MAPTILER_", "LLM_", "OPENROUTER_", "HF_", "MISTRAL_"],
-  plugins: [react(), svgr(), tsconfigPaths(), createRlDevServerPlugin()],
+  plugins: [
+    react(),
+    svgr(),
+    tsconfigPaths(),
+    createOfflineMapFallbackPlugin(),
+    createRlDevServerPlugin(),
+  ],
   server: {
     allowedHosts: ["desktop-gvn1fkt.tail58a6fa.ts.net"],
   },

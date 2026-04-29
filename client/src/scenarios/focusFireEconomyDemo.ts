@@ -1,5 +1,5 @@
-const TARGET_LAT = 38.07;
-const TARGET_LON = 127.31;
+const TARGET_LAT = 38.07775;
+const TARGET_LON = 127.354386;
 
 type SideColor = "blue" | "teal" | "orange" | "red";
 
@@ -24,9 +24,9 @@ const batterySides: BatterySideConfig[] = [
     name: "3포대 셀",
     color: "teal",
     placements: [
-      { latitude: 38.031, longitude: 127.2508, heading: 18 },
-      { latitude: 38.0372, longitude: 127.2624, heading: 26 },
-      { latitude: 38.0288, longitude: 127.2722, heading: 34 },
+      { latitude: 38.03875, longitude: 127.295186, heading: 18 },
+      { latitude: 38.04495, longitude: 127.306786, heading: 26 },
+      { latitude: 38.03655, longitude: 127.316586, heading: 34 },
     ],
   },
   {
@@ -34,11 +34,11 @@ const batterySides: BatterySideConfig[] = [
     name: "5포대 셀",
     color: "blue",
     placements: [
-      { latitude: 38.0415, longitude: 127.2798, heading: 18 },
-      { latitude: 38.0458, longitude: 127.2882, heading: 14 },
-      { latitude: 38.0432, longitude: 127.2995, heading: 6 },
-      { latitude: 38.0484, longitude: 127.3088, heading: 352 },
-      { latitude: 38.0521, longitude: 127.3185, heading: 344 },
+      { latitude: 38.04925, longitude: 127.324186, heading: 18 },
+      { latitude: 38.05355, longitude: 127.332586, heading: 14 },
+      { latitude: 38.05095, longitude: 127.343886, heading: 6 },
+      { latitude: 38.05615, longitude: 127.353186, heading: 352 },
+      { latitude: 38.05985, longitude: 127.362886, heading: 344 },
     ],
   },
   {
@@ -46,14 +46,14 @@ const batterySides: BatterySideConfig[] = [
     name: "8포대 셀",
     color: "orange",
     placements: [
-      { latitude: 38.0508, longitude: 127.2922, heading: 12 },
-      { latitude: 38.0544, longitude: 127.2986, heading: 10 },
-      { latitude: 38.0568, longitude: 127.3044, heading: 8 },
-      { latitude: 38.0595, longitude: 127.3098, heading: 4 },
-      { latitude: 38.0612, longitude: 127.3152, heading: 358 },
-      { latitude: 38.0588, longitude: 127.3204, heading: 350 },
-      { latitude: 38.0552, longitude: 127.325, heading: 344 },
-      { latitude: 38.052, longitude: 127.3292, heading: 338 },
+      { latitude: 38.05855, longitude: 127.336586, heading: 12 },
+      { latitude: 38.06215, longitude: 127.342986, heading: 10 },
+      { latitude: 38.06455, longitude: 127.348786, heading: 8 },
+      { latitude: 38.06725, longitude: 127.354186, heading: 4 },
+      { latitude: 38.06895, longitude: 127.359586, heading: 358 },
+      { latitude: 38.06655, longitude: 127.364786, heading: 350 },
+      { latitude: 38.06295, longitude: 127.369386, heading: 344 },
+      { latitude: 38.05975, longitude: 127.373586, heading: 338 },
     ],
   },
 ];
@@ -160,8 +160,8 @@ const referencePoints = [
     id: "economy-rp-west",
     name: "서측 발사 회랑",
     sideId: "battery-cell-5",
-    latitude: 38.049,
-    longitude: 127.289,
+    latitude: 38.05675,
+    longitude: 127.333386,
     altitude: 0,
     sideColor: "blue",
   },
@@ -169,8 +169,8 @@ const referencePoints = [
     id: "economy-rp-east",
     name: "동측 발사 회랑",
     sideId: "battery-cell-5",
-    latitude: 38.057,
-    longitude: 127.322,
+    latitude: 38.06475,
+    longitude: 127.366386,
     altitude: 0,
     sideColor: "blue",
   },
@@ -275,8 +275,8 @@ const focusFireEconomyDemo = {
   currentSideId: "battery-cell-5",
   selectedUnitId: "",
   mapView: {
-    defaultCenter: [127.296, 38.056],
-    currentCameraCenter: [127.296, 38.056],
+    defaultCenter: [127.340386, 38.06375],
+    currentCameraCenter: [127.340386, 38.06375],
     defaultZoom: 9.5,
     currentCameraZoom: 9.5,
   },
